@@ -1,0 +1,27 @@
+{
+  "name": "@vannilli/music-calculator",
+  "version": "1.0.0",
+  "description": "BPM to video duration conversion logic",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": ["music", "bpm", "video", "duration"],
+  "author": "Vannilli Team",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  }
+}
+

@@ -1,0 +1,32 @@
+{
+  "name": "@vannilli/workers",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers backend for Vannilli API",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler build",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": ["cloudflare-workers", "api", "backend"],
+  "author": "Vannilli Team",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "@vannilli/kling-adapter": "1.0.0",
+    "@vannilli/music-calculator": "1.0.0",
+    "hono": "^3.12.8",
+    "stripe": "^14.13.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.1.12",
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1",
+    "wrangler": "^3.25.0"
+  }
+}
+
