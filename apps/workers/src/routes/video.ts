@@ -417,26 +417,17 @@ videoRoutes.post('/track-video-play', async (c) => {
     }
 
     if (existing) {
-      // Calculate total time-based growth from creation: 138 plays per hour
-      // We always calculate from created_at to ensure consistency with GET endpoint
-      const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
-      const createdAt = new Date(existing.created_at);
-      const now = new Date();
-      const secondsElapsed = (now.getTime() - createdAt.getTime()) / 1000;
-      const totalGrowthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
-
-      // Update existing record - base count + total growth + 1 for actual play
-      // Note: display_count stores the base count, growth is calculated from created_at
-      const newDisplayCount = existing.display_count + totalGrowthPlays + 1;
+      // Update existing record - increment base display_count by 1 (actual play)
+      // Growth is calculated on-the-fly from created_at, not stored
       const { data: updated, error: updateError } = await supabase
         .from('video_plays')
         .update({
           display_count: existing.display_count + 1, // Increment base count only
           actual_play_count: existing.actual_play_count + 1,
-          updated_at: now.toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('video_id', videoId)
-        .select()
+        .select('display_count, actual_play_count, created_at')
         .single();
 
       if (updateError) {
@@ -444,11 +435,15 @@ videoRoutes.post('/track-video-play', async (c) => {
         return c.json({ error: 'Failed to update play count' }, 500);
       }
 
-      // Return count with growth calculated from created_at
-      const createdAtAfterUpdate = new Date(updated.created_at);
-      const secondsElapsedAfterUpdate = (now.getTime() - createdAtAfterUpdate.getTime()) / 1000;
-      const growthAfterUpdate = Math.floor(secondsElapsedAfterUpdate * GROWTH_RATE_PER_SECOND);
-      const finalDisplayCount = updated.display_count + growthAfterUpdate;
+      // Calculate time-based growth from creation: 138 plays per hour
+      const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
+      const createdAt = new Date(updated.created_at);
+      const now = new Date();
+      const secondsElapsed = (now.getTime() - createdAt.getTime()) / 1000;
+      const growthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
+      
+      // Return base count + growth
+      const finalDisplayCount = updated.display_count + growthPlays;
 
       return c.json({
         videoId,
