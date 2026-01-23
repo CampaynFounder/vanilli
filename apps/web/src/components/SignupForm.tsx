@@ -235,7 +235,8 @@ export function SignupForm() {
       // #endregion
       
       // Insert into Supabase email_collections table
-      const { data, error } = await supabase
+      // Note: Don't use .select() - anon role doesn't have SELECT permission
+      const { error } = await supabase
         .from('email_collections')
         .insert({
           email: email.toLowerCase().trim(), // Normalize email
@@ -243,18 +244,16 @@ export function SignupForm() {
           is_investor: isInvestor,
           source: 'pre_launch_modal',
           user_agent: userAgent,
-        })
-        .select()
-        .single();
+        });
       
       // #region agent log
       if (typeof window !== 'undefined') {
         if (error) {
-          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:254',message:'Supabase insert error',data:{code:error.code,message:error.message,details:error.details,hint:error.hint},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:254',message:'Supabase insert error',data:{code:error.code,message:error.message,details:error.details,hint:error.hint},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4'})}).catch(()=>{});
           console.error('Supabase insert error:', {code: error.code, message: error.message, details: error.details, hint: error.hint});
         } else {
-          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:256',message:'Supabase insert success',data:{insertedId:data?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-          console.log('Supabase insert success:', data);
+          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:256',message:'Supabase insert success',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4'})}).catch(()=>{});
+          console.log('Supabase insert success');
         }
       }
       // #endregion
