@@ -22,6 +22,7 @@ export interface Env {
   KLING_API_KEY: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  ADMIN_PASSWORD: string;
   SENTRY_DSN?: string;
 }
 

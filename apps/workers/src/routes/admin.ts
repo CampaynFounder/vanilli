@@ -10,6 +10,97 @@ import type { Env, AuthUser } from '../types';
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 
 /**
+ * POST /api/admin/verify-password
+ * Verify admin password for dashboard access
+ */
+adminRoutes.post('/admin/verify-password', async (c) => {
+  const { password } = await c.req.json();
+  const adminPassword = c.env.ADMIN_PASSWORD;
+
+  if (!adminPassword) {
+    return c.json({ error: 'Admin password not configured' }, 500);
+  }
+
+  if (password === adminPassword) {
+    return c.json({ success: true });
+  }
+
+  return c.json({ error: 'Invalid password' }, 401);
+});
+
+/**
+ * GET /api/admin/email-collections
+ * Get all email collections with stats (password-protected)
+ */
+adminRoutes.get('/admin/email-collections', async (c) => {
+  // Simple password check via header (for API calls)
+  const authHeader = c.req.header('Authorization');
+  const adminPassword = c.env.ADMIN_PASSWORD;
+
+  if (!adminPassword) {
+    return c.json({ error: 'Admin password not configured' }, 500);
+  }
+
+  if (authHeader !== `Bearer ${adminPassword}`) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Get all email collections
+  const { data, error } = await supabase
+    .from('email_collections')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  const total = data?.length || 0;
+  
+  // Calculate last 24 hours
+  const now = new Date();
+  const last24Hours = data?.filter(item => {
+    const itemDate = new Date(item.created_at);
+    const diffHours = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
+    return diffHours <= 24;
+  }).length || 0;
+
+  // Get investors (priority contacts)
+  const investors = data?.filter(item => item.is_investor === true) || [];
+
+  // Calculate weekly trend (last 7 days)
+  const weeklyTrend: Array<{ date: string; count: number }> = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    date.setHours(0, 0, 0, 0);
+    
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+    
+    const count = data?.filter(item => {
+      const itemDate = new Date(item.created_at);
+      return itemDate >= date && itemDate < nextDate;
+    }).length || 0;
+    
+    weeklyTrend.push({
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      count,
+    });
+  }
+
+  return c.json({
+    data: data || [],
+    total,
+    last24Hours,
+    investors,
+    weeklyTrend,
+  });
+});
+
+/**
  * GET /api/metrics
  * Get cost monitoring metrics (admin only - simplified auth for now)
  */
