@@ -304,7 +304,7 @@ export function SignupForm() {
           handleClose();
         }, 2000);
       }
-    } catch (err: any) {
+        } catch (err: unknown) {
       console.error('Unexpected error:', err);
       console.error('Error details:', {
         message: err?.message,

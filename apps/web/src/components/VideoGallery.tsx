@@ -89,7 +89,6 @@ const placeholderVideos: Video[] = [
 export function VideoGallery() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const videos = placeholderVideos.length > 0 ? placeholderVideos : [];
   const { showModal } = useSignupModal();
@@ -160,24 +159,6 @@ export function VideoGallery() {
     }
   };
 
-  // Handle fullscreen changes to keep logo visible
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
 
   // Create infinite scroll by duplicating videos multiple times
   // We'll create 3 copies for seamless looping
@@ -379,7 +360,6 @@ export function VideoGallery() {
                       // Intercept fullscreen requests to use container fullscreen (keeps logo visible)
                       if (container) {
                         // Override video's requestFullscreen method
-                        const originalRequestFullscreen = videoElement.requestFullscreen?.bind(videoElement);
                         if (videoElement.requestFullscreen) {
                           videoElement.requestFullscreen = function() {
                         const fullscreenContainer = container as FullscreenElement;
