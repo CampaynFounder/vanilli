@@ -6,16 +6,13 @@ const nextConfig = {
   // Static export for Cloudflare Pages
   output: 'export',
   
-  // Disable image optimization for static export
-  images: {
-    unoptimized: true,
-  },
-  
   // Progressive Web App configuration
   // Server Actions are now enabled by default in Next.js 14
 
   // Image optimization (disabled for static export)
-  // images config moved above
+  images: {
+    unoptimized: true,
+  },
 
   // Video support
   webpack: (config) => {
