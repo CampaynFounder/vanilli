@@ -83,6 +83,16 @@ const placeholderVideos: Video[] = [
     bpm: 140,
     bars: 8,
   },
+  {
+    id: '6',
+    videoUrl: '/videos/video7.MOV',
+    title: 'Easily AI Approach',
+    artist: 'ShawtAI Lo',
+    label: 'D4L AIsylum Records',
+    duration: '0:30',
+    bpm: 140,
+    bars: 8,
+  },
   // Add more videos here when ready
 ];
 

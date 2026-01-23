@@ -54,9 +54,9 @@ VALUES
   ('video3', '/videos/video3.MOV', 12348, 0),
   ('video4', '/videos/video4.MOV', 12349, 0),
   ('video5', '/videos/video5.MOV', 12350, 0),
-  ('video6', '/videos/video6.MOV', 12351, 0)
+  ('video6', '/videos/video6.MOV', 12351, 0),
+  ('video7', '/videos/video7.MOV', 12352, 0)
   -- Add new videos here following the pattern:
-  -- ('video7', '/videos/video7.MOV', 12352, 0),
   -- ('video8', '/videos/video8.MOV', 12353, 0),
 ON CONFLICT (video_id) DO NOTHING;
 
