@@ -84,6 +84,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://api.vannilli.xaino.io" />
         <link rel="dns-prefetch" href="https://api.vannilli.xaino.io" />
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Explicit favicon link for Google Search */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
       </head>
           <body className="font-sans antialiased min-h-screen">
             {children}
