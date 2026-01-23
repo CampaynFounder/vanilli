@@ -119,9 +119,16 @@ export function VideoGallery() {
           }
         } catch (error) {
           // Fallback to default count if API fails
-          // Extract number from video id (e.g., 'video2' -> 2)
-          const videoNumber = parseInt(video.id.replace('video', '')) || 2;
-          counts[video.id] = 12347 + (videoNumber - 2); // video2 = 12347, video3 = 12348, etc.
+          // Use varied counts matching database (1 std dev variation)
+          const variations: Record<string, number> = {
+            'video2': 12347,  // Mean (base)
+            'video3': 12547,  // +200 (+1 std dev)
+            'video4': 12147,  // -200 (-1 std dev)
+            'video5': 12447,  // +100 (+0.5 std dev)
+            'video6': 12247,  // -100 (-0.5 std dev)
+            'video7': 12647,  // +300 (+1.5 std dev)
+          };
+          counts[video.id] = variations[video.id] || 12347;
         }
       }
 

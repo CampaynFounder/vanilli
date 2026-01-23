@@ -468,7 +468,7 @@ videoRoutes.post('/track-video-play', async (c) => {
           user_agent: userAgent,
           ip_address: ipAddress,
         })
-        .select()
+        .select('display_count, actual_play_count, created_at')
         .single();
 
       if (insertError) {
@@ -476,9 +476,20 @@ videoRoutes.post('/track-video-play', async (c) => {
         return c.json({ error: 'Failed to create play record' }, 500);
       }
 
+      // Calculate time-based growth from creation: 138 plays per hour
+      // For newly created records, growth will be minimal (just created)
+      const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
+      const createdAt = new Date(created.created_at);
+      const now = new Date();
+      const secondsElapsed = (now.getTime() - createdAt.getTime()) / 1000;
+      const growthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
+      
+      // Return base count + growth
+      const finalDisplayCount = created.display_count + growthPlays;
+
       return c.json({
         videoId,
-        displayCount: created.display_count,
+        displayCount: finalDisplayCount,
         actualPlayCount: created.actual_play_count,
       });
     }
