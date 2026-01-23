@@ -34,7 +34,7 @@ interface Video {
 //
 const placeholderVideos: Video[] = [
   {
-    id: '1',
+    id: 'video2',
     videoUrl: '/videos/video2.MOV',
     title: 'NCLECTA',
     artist: 'ReCe',
@@ -44,7 +44,7 @@ const placeholderVideos: Video[] = [
     bars: 8,
   },
   {
-    id: '2',
+    id: 'video3',
     videoUrl: '/videos/video3.MOV',
     title: 'Textin\' Us Bae',
     artist: 'Rezzumai',
@@ -54,7 +54,7 @@ const placeholderVideos: Video[] = [
     bars: 8,
   },
   {
-    id: '3',
+    id: 'video4',
     videoUrl: '/videos/video4.MOV',
     title: '8-Figure Baby Daddy',
     artist: 'Ooh Chile-ay',
@@ -64,7 +64,7 @@ const placeholderVideos: Video[] = [
     bars: 8,
   },
   {
-    id: '4',
+    id: 'video5',
     videoUrl: '/videos/video5.MOV',
     title: 'Beat It',
     artist: '$PILLION',
@@ -74,7 +74,7 @@ const placeholderVideos: Video[] = [
     bars: 8,
   },
   {
-    id: '5',
+    id: 'video6',
     videoUrl: '/videos/video6.MOV',
     title: 'SACKRITE',
     artist: 'RIPSkreet',
