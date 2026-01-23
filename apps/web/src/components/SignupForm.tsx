@@ -226,15 +226,13 @@ export function SignupForm() {
       // Get user agent and IP (if available)
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
-      // Log the request details for debugging
+      // #region agent log
       if (typeof window !== 'undefined') {
-        console.log('Submitting email form:', {
-          email: email.toLowerCase().trim(),
-          phone: phone.trim(),
-          isInvestor,
-          source: 'pre_launch_modal',
-        });
+        const payload = {email: email.toLowerCase().trim(), phone: phone.trim(), is_investor: isInvestor, source: 'pre_launch_modal', user_agent: userAgent};
+        fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:230',message:'Before Supabase insert',data:{payload,hasSupabase:!!supabase},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+        console.log('Submitting email form:', payload);
       }
+      // #endregion
       
       // Insert into Supabase email_collections table
       const { data, error } = await supabase
@@ -249,19 +247,17 @@ export function SignupForm() {
         .select()
         .single();
       
-      // Log response for debugging
+      // #region agent log
       if (typeof window !== 'undefined') {
         if (error) {
-          console.error('Supabase insert error:', {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-          });
+          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:254',message:'Supabase insert error',data:{code:error.code,message:error.message,details:error.details,hint:error.hint},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+          console.error('Supabase insert error:', {code: error.code, message: error.message, details: error.details, hint: error.hint});
         } else {
+          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:256',message:'Supabase insert success',data:{insertedId:data?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
           console.log('Supabase insert success:', data);
         }
       }
+      // #endregion
 
       if (error) {
         console.error('Supabase error:', error);

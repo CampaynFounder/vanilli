@@ -7,6 +7,12 @@ function getSupabaseClient(): SupabaseClient | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:8',message:'getSupabaseClient called',data:{hasUrl:!!supabaseUrl,hasKey:!!supabaseAnonKey,urlLength:supabaseUrl.length,keyLength:supabaseAnonKey.length,urlStart:supabaseUrl.substring(0,40),keyStart:supabaseAnonKey.substring(0,20)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  }
+  // #endregion
+
   // Always log in browser to help debug
   if (typeof window !== 'undefined') {
     console.log('Supabase Config Check:', {
@@ -70,9 +76,12 @@ function getSupabaseClient(): SupabaseClient | null {
       },
     });
     
+    // #region agent log
     if (typeof window !== 'undefined') {
+      fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:71',message:'Client created with config',data:{url:supabaseUrl,keyPrefix:supabaseAnonKey.substring(0,20),hasApikey:!!supabaseAnonKey,hasAuth:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
       console.log('Supabase client created successfully');
     }
+    // #endregion
     
     return supabaseClient;
   } catch (error) {
