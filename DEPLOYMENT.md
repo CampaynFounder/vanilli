@@ -190,7 +190,7 @@ wrangler deploy src/queue/video-processor.ts --env production
 ### 5.2 Configure Build Settings
 ```
 Build command: npm run build:web
-Build output directory: apps/web/.next
+Build output directory: apps/web/out
 Root directory: /
 Node version: 20
 ```
