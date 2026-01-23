@@ -243,7 +243,8 @@ export function SignupForm() {
         console.error('Supabase error:', error);
         
         // Handle 401 Unauthorized - API key issue
-        if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.status === 401) {
+        // Supabase returns 401 errors with codes like 'PGRST301' or messages containing '401'/'Unauthorized'
+        if (error.code === 'PGRST301' || error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('JWT')) {
           console.error('401 Unauthorized - Check Supabase API key:', {
             hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
             hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
