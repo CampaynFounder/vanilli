@@ -216,9 +216,9 @@ export default function HomePage() {
                 description: 'From recording to final video',
               },
               { 
-                value: '72%', 
-                label: 'Profit Margin',
-                description: 'Competitive pricing with high margins',
+                value: '95%', 
+                label: 'Labels Signing AI Artists by 2030',
+                description: 'Record labels say they will sign more AI artists to major deals',
               },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
