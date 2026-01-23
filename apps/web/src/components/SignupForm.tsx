@@ -84,7 +84,21 @@ export function SignupForm() {
     showModal();
   };
 
-  // Auto-show on mount (when triggered by GlobalSignupModal or custom event)
+  // Listen for button clicks to show modal (always works, even if already shown)
+  useEffect(() => {
+    const handleCustomEvent = () => {
+      // Always show modal on button click, even if it was shown before
+      setShowBackdrop(true);
+      setTimeout(() => {
+        setIsVisible(true);
+      }, 200);
+    };
+
+    window.addEventListener('vannilli:show-signup', handleCustomEvent);
+    return () => window.removeEventListener('vannilli:show-signup', handleCustomEvent);
+  }, []); // No dependencies - always listen
+
+  // Auto-show on mount (when triggered by GlobalSignupModal or page load)
   useEffect(() => {
     const triggerModal = () => {
       if (!hasShown && !showBackdrop) {
@@ -104,20 +118,7 @@ export function SignupForm() {
       sessionStorage.removeItem('vannilli_signup_auto_show');
       // Small delay for smooth appearance
       const timer = setTimeout(triggerModal, 300);
-      
-      // Also listen for custom events
-      const handleCustomEvent = () => triggerModal();
-      window.addEventListener('vannilli:show-signup', handleCustomEvent);
-      
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('vannilli:show-signup', handleCustomEvent);
-      };
-    } else {
-      // Listen for custom events even if not auto-showing
-      const handleCustomEvent = () => triggerModal();
-      window.addEventListener('vannilli:show-signup', handleCustomEvent);
-      return () => window.removeEventListener('vannilli:show-signup', handleCustomEvent);
+      return () => clearTimeout(timer);
     }
   }, [hasShown, showBackdrop]);
 
