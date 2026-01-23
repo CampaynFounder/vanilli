@@ -114,6 +114,24 @@
   }
 }
 
+/* Ensure logo stays visible in fullscreen mode */
+video:fullscreen::backdrop,
+video:-webkit-full-screen::backdrop,
+video:-moz-full-screen::backdrop,
+video:-ms-fullscreen::backdrop {
+  /* This doesn't work for native video fullscreen, so we use container fullscreen instead */
+}
+
+/* Fullscreen container styling - keeps logo visible */
+:fullscreen .vannilli-logo-fullscreen,
+:-webkit-full-screen .vannilli-logo-fullscreen,
+:-moz-full-screen .vannilli-logo-fullscreen,
+:-ms-fullscreen .vannilli-logo-fullscreen {
+  display: block !important;
+  z-index: 99999 !important;
+  position: absolute !important;
+}
+
 /* Mobile-optimized tap targets */
 @media (max-width: 768px) {
   button,

@@ -82,6 +82,7 @@ const placeholderVideos: Video[] = [
 export function VideoGallery() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const videos = placeholderVideos.length > 0 ? placeholderVideos : [];
   const { showModal } = useSignupModal();
@@ -151,6 +152,25 @@ export function VideoGallery() {
       console.error('Failed to track video play:', error);
     }
   };
+
+  // Handle fullscreen changes to keep logo visible
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
 
   // Create infinite scroll by duplicating videos multiple times
   // We'll create 3 copies for seamless looping
@@ -300,6 +320,7 @@ export function VideoGallery() {
             return (
               <div
                 key={uniqueId}
+                id={`video-container-${uniqueId}`}
                 className="group relative aspect-[9/16] bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden hover:border-purple-500/50 transition-all flex-shrink-0 snap-start"
                 style={{ width: '280px' }}
               >
@@ -309,6 +330,7 @@ export function VideoGallery() {
                   src={video.videoUrl}
                   className="w-full h-full object-cover pointer-events-none"
                   controls={isPlaying}
+                  controlsList="nodownload" // Prevent download, but allow fullscreen
                   playsInline
                   preload="metadata"
                   muted={!isPlaying}
@@ -342,8 +364,62 @@ export function VideoGallery() {
                     trackVideoPlay(video.id, video.videoUrl);
                     // Ensure video can receive pointer events when playing
                     const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
+                    const container = document.getElementById(`video-container-${uniqueId}`);
+                    
                     if (videoElement) {
                       videoElement.style.pointerEvents = 'auto';
+                      
+                      // Intercept fullscreen requests to use container fullscreen (keeps logo visible)
+                      if (container) {
+                        // Override video's requestFullscreen method
+                        const originalRequestFullscreen = videoElement.requestFullscreen?.bind(videoElement);
+                        if (videoElement.requestFullscreen) {
+                          videoElement.requestFullscreen = function() {
+                            if (container.requestFullscreen) {
+                              return container.requestFullscreen() as Promise<void>;
+                            } else if ((container as any).webkitRequestFullscreen) {
+                              return (container as any).webkitRequestFullscreen();
+                            } else if ((container as any).mozRequestFullScreen) {
+                              return (container as any).mozRequestFullScreen();
+                            } else if ((container as any).msRequestFullscreen) {
+                              return (container as any).msRequestFullscreen();
+                            }
+                            return Promise.reject(new Error('Fullscreen not supported'));
+                          };
+                        }
+                        
+                        // Listen for fullscreen changes and redirect to container
+                        const handleFullscreenChange = () => {
+                          if (document.fullscreenElement === videoElement) {
+                            // Video went fullscreen - exit and make container fullscreen instead
+                            document.exitFullscreen();
+                            setTimeout(() => {
+                              if (container.requestFullscreen) {
+                                container.requestFullscreen();
+                              } else if ((container as any).webkitRequestFullscreen) {
+                                (container as any).webkitRequestFullscreen();
+                              } else if ((container as any).mozRequestFullScreen) {
+                                (container as any).mozRequestFullScreen();
+                              } else if ((container as any).msRequestFullscreen) {
+                                (container as any).msRequestFullscreen();
+                              }
+                            }, 100);
+                          }
+                        };
+                        
+                        document.addEventListener('fullscreenchange', handleFullscreenChange);
+                        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+                        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+                        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+                        
+                        // Cleanup on pause
+                        videoElement.addEventListener('pause', () => {
+                          document.removeEventListener('fullscreenchange', handleFullscreenChange);
+                          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+                          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+                          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+                        }, { once: true });
+                      }
                     }
                   }}
                   onPause={() => {
@@ -421,8 +497,15 @@ export function VideoGallery() {
                   </div>
                 )}
 
-                {/* Vannilli Logo Badge */}
-                <div className="absolute top-3 right-3 pointer-events-none z-10">
+                {/* Vannilli Logo Badge - Always visible, even in fullscreen */}
+                <div 
+                  className="vannilli-logo-fullscreen absolute top-3 right-3 pointer-events-none z-10"
+                  style={{
+                    // Ensure logo stays visible in fullscreen
+                    position: 'absolute',
+                    zIndex: 9999,
+                  }}
+                >
                   <Image
                     src="/logo/logo.png"
                     alt="Vannilli"
