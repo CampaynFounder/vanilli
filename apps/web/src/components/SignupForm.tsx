@@ -226,14 +226,6 @@ export function SignupForm() {
       // Get user agent and IP (if available)
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
-      // #region agent log
-      if (typeof window !== 'undefined') {
-        const payload = {email: email.toLowerCase().trim(), phone: phone.trim(), is_investor: isInvestor, source: 'pre_launch_modal', user_agent: userAgent};
-        fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:230',message:'Before Supabase insert',data:{payload,hasSupabase:!!supabase},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
-        console.log('Submitting email form:', payload);
-      }
-      // #endregion
-      
       // Insert into Supabase email_collections table
       // Note: Don't use .select() - anon role doesn't have SELECT permission
       const { error } = await supabase
@@ -245,18 +237,6 @@ export function SignupForm() {
           source: 'pre_launch_modal',
           user_agent: userAgent,
         });
-      
-      // #region agent log
-      if (typeof window !== 'undefined') {
-        if (error) {
-          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:254',message:'Supabase insert error',data:{code:error.code,message:error.message,details:error.details,hint:error.hint},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4'})}).catch(()=>{});
-          console.error('Supabase insert error:', {code: error.code, message: error.message, details: error.details, hint: error.hint});
-        } else {
-          fetch('http://127.0.0.1:7242/ingest/50453eff-0e4c-403f-92dd-2be5a0f65cd8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignupForm.tsx:256',message:'Supabase insert success',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4'})}).catch(()=>{});
-          console.log('Supabase insert success');
-        }
-      }
-      // #endregion
 
       if (error) {
         console.error('Supabase error:', error);
@@ -435,10 +415,21 @@ export function SignupForm() {
           {isSubmitted ? (
             <div className="text-center py-6">
               <div className="text-4xl mb-3">✅</div>
-              <p className="text-white font-semibold mb-2">You&apos;re All Set! Your Free Credits Are Locked In.</p>
-              <p className="text-slate-300 text-sm">
-                Someone from our team will reach out to you for our next investor call.
-              </p>
+              {isInvestor ? (
+                <>
+                  <p className="text-white font-semibold mb-2">You&apos;re All Set! Your Free Credits Are Locked In.</p>
+                  <p className="text-slate-300 text-sm">
+                    Someone from our team will reach out to you for our next investor call.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white font-semibold mb-2">You&apos;re All Set! We&apos;ll keep you posted on the launch date via email or text.</p>
+                  <p className="text-slate-300 text-sm">
+                    Your Free Credits will be applied to the Email You Provided.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
