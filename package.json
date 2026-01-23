@@ -19,7 +19,7 @@
     "test:watch": "npm run test:watch --workspaces --if-present",
     "test:e2e": "cd apps/web && npm run test:e2e",
     "lint": "npm run lint --workspaces --if-present",
-    "deploy:workers": "cd apps/workers && npm run deploy",
+    "deploy:workers": "npm run build:packages && cd apps/workers && npm run deploy",
     "db:migrate": "cd packages/database && supabase db push",
     "db:reset": "cd packages/database && supabase db reset",
     "prepare": "husky install"
