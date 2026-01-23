@@ -39,6 +39,14 @@ supabase db reset
 - `audit_log` - User action logging for compliance
 - `referrals` - Viral referral system
 - `content_reports` - Content moderation
+- `video_plays` - Video play counts for network effect display
+
+### ⚠️ Important Reminders
+
+**When adding new sample videos to the homepage:**
+- See `REMINDER_ADD_VIDEO.md` in project root
+- Must update `video_plays` table in Supabase
+- See `VIDEO_PLAYS_SETUP.md` for detailed instructions
 
 ### Security
 
