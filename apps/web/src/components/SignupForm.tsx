@@ -223,6 +223,17 @@ export function SignupForm() {
     setSubmitError('');
     
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      
+      if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+        // Supabase not configured - show friendly message
+        setSubmitError('Email collection is not yet configured. Please contact support.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Get user agent and IP (if available)
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
@@ -293,7 +304,7 @@ export function SignupForm() {
           showBackdrop ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-          backgroundImage: 'url(/images/hero-background.PNG)',
+            backgroundImage: 'url(/images/hero-background.png)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',

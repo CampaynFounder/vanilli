@@ -3,47 +3,43 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Lazy initialization to avoid build-time errors when env vars aren't set
 let supabaseClient: SupabaseClient | null = null;
 
-function getSupabaseClient(): SupabaseClient {
+function getSupabaseClient(): SupabaseClient | null {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+  // Return null if env vars aren't set (instead of creating invalid client)
+  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+    return null;
+  }
+
   if (supabaseClient) {
     return supabaseClient;
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  // Only create client if we have the required env vars
-  // During build, these might be empty, so we create a dummy client
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Create a client with placeholder values for build-time
-    // This will fail at runtime if env vars aren't set, but allows build to complete
-    supabaseClient = createClient(
-      supabaseUrl || 'https://placeholder.supabase.co',
-      supabaseAnonKey || 'placeholder-key',
-      {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true,
-        },
-      }
-    );
-  } else {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    });
-  }
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
 
   return supabaseClient;
 }
 
 // Export a getter function instead of direct client
+// Returns null if Supabase is not configured
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    return getSupabaseClient()[prop as keyof SupabaseClient];
+    const client = getSupabaseClient();
+    if (!client) {
+      // Return a no-op function for methods, null for properties
+      if (typeof prop === 'string' && prop !== 'from') {
+        return () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
+      }
+      return null;
+    }
+    return client[prop as keyof SupabaseClient];
   },
 });
 
