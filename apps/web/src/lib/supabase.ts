@@ -20,36 +20,25 @@ function getSupabaseClient(): SupabaseClient | null {
     });
   }
 
-  // Return null if env vars aren't set (instead of creating invalid client)
-  // Check for valid Supabase URL format (should start with https:// and contain .supabase.co)
-  const isValidUrl = supabaseUrl && 
-                     supabaseUrl.startsWith('https://') && 
-                     supabaseUrl.includes('.supabase.co') &&
-                     !supabaseUrl.includes('placeholder');
-  
-  const isValidKey = supabaseAnonKey && 
-                     supabaseAnonKey.length > 20 && // Anon keys are typically long
-                     !supabaseAnonKey.includes('placeholder');
-
-  if (!isValidUrl || !isValidKey) {
+  // Only return null if both are completely empty (not set at all)
+  // Otherwise, try to create the client and let it fail gracefully if invalid
+  if (!supabaseUrl && !supabaseAnonKey) {
     if (typeof window !== 'undefined') {
-      console.warn('Supabase not configured:', {
-        urlValid: isValidUrl,
-        keyValid: isValidKey,
-        url: supabaseUrl ? `${supabaseUrl.substring(0, 50)}...` : 'missing',
-        keyPresent: !!supabaseAnonKey,
-        keyLength: supabaseAnonKey?.length || 0
-      });
+      console.warn('Supabase env vars not found');
     }
     return null;
   }
 
+  // If we have values, try to create the client (even if they might be invalid)
+  // This allows the actual Supabase API to return proper errors
   if (supabaseClient) {
     return supabaseClient;
   }
 
   try {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    // Create client with whatever values we have
+    // Supabase will return proper errors if they're invalid
+    supabaseClient = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder-key', {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -64,34 +53,37 @@ function getSupabaseClient(): SupabaseClient | null {
 }
 
 // Export a getter function instead of direct client
-// Returns null if Supabase is not configured
+// Always try to use the real client if possible
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getSupabaseClient();
-    if (!client) {
-      // Return a mock query builder for 'from' method
-      if (prop === 'from') {
-        return () => ({
-          insert: () => ({
-            select: () => ({
-              single: () => Promise.resolve({ 
-                data: null, 
-                error: { 
-                  message: 'Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.',
-                  code: 'CONFIG_ERROR'
-                } 
-              })
+    // If we have a client (even if env vars might be placeholders), use it
+    // This allows Supabase to return real API errors instead of our mock errors
+    if (client) {
+      return client[prop as keyof SupabaseClient];
+    }
+    
+    // Only return mock if we truly have no client
+    if (prop === 'from') {
+      return () => ({
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ 
+              data: null, 
+              error: { 
+                message: 'Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.',
+                code: 'CONFIG_ERROR'
+              } 
             })
           })
-        });
-      }
-      // Return a no-op function for other methods
-      if (typeof prop === 'string') {
-        return () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
-      }
-      return null;
+        })
+      });
     }
-    return client[prop as keyof SupabaseClient];
+    // Return a no-op function for other methods
+    if (typeof prop === 'string') {
+      return () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
+    }
+    return null;
   },
 });
 
