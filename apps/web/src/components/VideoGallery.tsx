@@ -84,7 +84,7 @@ const placeholderVideos: Video[] = [
     bars: 8,
   },
   {
-    id: '6',
+    id: 'video7',
     videoUrl: '/videos/video7.MOV',
     title: 'Easily AI Approach',
     artist: 'ShawtAI Lo',
