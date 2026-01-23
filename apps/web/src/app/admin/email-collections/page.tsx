@@ -20,7 +20,10 @@ interface DashboardData {
   investors: EmailCollection[];
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
+// API URL - try custom domain first, fallback to workers.dev if DNS not configured
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+  process.env.NEXT_PUBLIC_WORKER_URL || 
+  'https://api.vannilli.xaino.io';
 
 export default function AdminEmailCollections() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
