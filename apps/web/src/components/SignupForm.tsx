@@ -242,6 +242,19 @@ export function SignupForm() {
       if (error) {
         console.error('Supabase error:', error);
         
+        // Handle 42501 - Row Level Security policy violation
+        // This means the RLS policy doesn't allow 'anon' role to insert
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+          console.error('42501 RLS Policy Error - The anon role cannot insert:', {
+            errorCode: error.code,
+            errorMessage: error.message,
+            fix: 'Run the SQL script: packages/database/fix-email-collections-rls-anon.sql in Supabase SQL Editor',
+          });
+          setSubmitError('Database policy error. Please ensure the RLS policy allows anonymous inserts. Contact support if this persists.');
+          setIsSubmitting(false);
+          return;
+        }
+        
         // Handle 401 Unauthorized - API key issue
         // Supabase returns 401 errors with codes like 'PGRST301' or messages containing '401'/'Unauthorized'
         if (error.code === 'PGRST301' || error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('JWT')) {
