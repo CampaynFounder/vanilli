@@ -7,23 +7,38 @@ function getSupabaseClient(): SupabaseClient | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  // Debug logging (only in development)
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // Always log in browser to help debug
+  if (typeof window !== 'undefined') {
     console.log('Supabase Config Check:', {
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseAnonKey,
       urlLength: supabaseUrl.length,
       keyLength: supabaseAnonKey.length,
-      urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'empty'
+      urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'empty',
+      urlStartsWith: supabaseUrl ? supabaseUrl.substring(0, 8) : 'none',
+      keyStartsWith: supabaseAnonKey ? supabaseAnonKey.substring(0, 10) : 'none'
     });
   }
 
   // Return null if env vars aren't set (instead of creating invalid client)
-  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+  // Check for valid Supabase URL format (should start with https:// and contain .supabase.co)
+  const isValidUrl = supabaseUrl && 
+                     supabaseUrl.startsWith('https://') && 
+                     supabaseUrl.includes('.supabase.co') &&
+                     !supabaseUrl.includes('placeholder');
+  
+  const isValidKey = supabaseAnonKey && 
+                     supabaseAnonKey.length > 20 && // Anon keys are typically long
+                     !supabaseAnonKey.includes('placeholder');
+
+  if (!isValidUrl || !isValidKey) {
     if (typeof window !== 'undefined') {
       console.warn('Supabase not configured:', {
-        url: supabaseUrl || 'missing',
-        key: supabaseAnonKey ? 'present' : 'missing'
+        urlValid: isValidUrl,
+        keyValid: isValidKey,
+        url: supabaseUrl ? `${supabaseUrl.substring(0, 50)}...` : 'missing',
+        keyPresent: !!supabaseAnonKey,
+        keyLength: supabaseAnonKey?.length || 0
       });
     }
     return null;
