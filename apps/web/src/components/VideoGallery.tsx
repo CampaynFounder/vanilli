@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useSignupModal } from '@/hooks/useSignupModal';
 
@@ -73,8 +73,52 @@ const placeholderVideos: Video[] = [
 
 export function VideoGallery() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const videos = placeholderVideos.length > 0 ? placeholderVideos : [];
   const { showModal } = useSignupModal();
+
+  // Create infinite scroll by duplicating videos multiple times
+  // We'll create 3 copies for seamless looping
+  const infiniteVideos = videos.length > 0 ? [...videos, ...videos, ...videos] : [];
+  // Calculate width: 280px per video + 24px gap (gap-6 = 1.5rem = 24px)
+  // Last video doesn't have gap, so: (videos.length - 1) * 24 + videos.length * 280
+  const singleSetWidth = videos.length > 0 
+    ? (videos.length - 1) * 24 + videos.length * 280 
+    : 0;
+
+  // Handle infinite scroll - reset position when near the end
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || videos.length === 0) return;
+
+    const handleScroll = () => {
+      const scrollLeft = container.scrollLeft;
+      const scrollWidth = container.scrollWidth;
+      const clientWidth = container.clientWidth;
+      
+      // When user scrolls past 2/3 of the content (second set of videos),
+      // seamlessly reset to the beginning of the second set
+      // This creates the illusion of infinite scroll
+      if (scrollLeft >= singleSetWidth * 1.5) {
+        // Reset to the start of the second set (appears seamless)
+        container.scrollLeft = scrollLeft - singleSetWidth;
+      } else if (scrollLeft <= 0) {
+        // If user scrolls back to the very beginning, jump to the start of the second set
+        container.scrollLeft = singleSetWidth;
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    
+    // Initialize scroll position to the middle set (second copy) for seamless scrolling in both directions
+    if (container.scrollLeft === 0) {
+      container.scrollLeft = singleSetWidth;
+    }
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [videos.length, singleSetWidth]);
 
   const handlePreLaunchLink = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -145,6 +189,7 @@ export function VideoGallery() {
       ) : (
         // Horizontal scroll container for videos (9:16 portrait for TikTok/social media)
         <div 
+          ref={scrollContainerRef}
           className="video-gallery-scroll overflow-x-auto overflow-y-visible pb-4 -mx-6 px-6 snap-x snap-mandatory"
           style={{
             scrollbarWidth: 'thin',
@@ -175,17 +220,19 @@ export function VideoGallery() {
           }}
         >
           <div className="flex gap-6" style={{ width: 'max-content' }}>
-            {videos.map((video) => {
-            const isPlaying = playingVideoId === video.id;
+            {infiniteVideos.map((video, index) => {
+              // Create unique IDs for duplicated videos
+              const uniqueId = `${video.id}-${Math.floor(index / videos.length)}`;
+              const isPlaying = playingVideoId === uniqueId;
             return (
               <div
-                key={video.id}
+                key={uniqueId}
                 className="group relative aspect-[9/16] bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden hover:border-purple-500/50 transition-all flex-shrink-0 snap-start"
                 style={{ width: '280px' }}
               >
                 {/* Video player - inline */}
                 <video
-                  id={`video-${video.id}`}
+                  id={`video-${uniqueId}`}
                   src={video.videoUrl}
                   className="w-full h-full object-cover pointer-events-none"
                   controls={isPlaying}
@@ -217,18 +264,18 @@ export function VideoGallery() {
                     }
                   }}
                   onPlay={() => {
-                    setPlayingVideoId(video.id);
+                    setPlayingVideoId(uniqueId);
                     // Ensure video can receive pointer events when playing
-                    const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
+                    const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
                     if (videoElement) {
                       videoElement.style.pointerEvents = 'auto';
                     }
                   }}
                   onPause={() => {
-                    if (playingVideoId === video.id) {
+                    if (playingVideoId === uniqueId) {
                       setPlayingVideoId(null);
                       // Disable pointer events when paused so play button works
-                      const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
+                      const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
                       if (videoElement) {
                         videoElement.style.pointerEvents = 'none';
                       }
@@ -242,7 +289,7 @@ export function VideoGallery() {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
+                      const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
                       if (videoElement) {
                         // Pause all other videos
                         document.querySelectorAll('video').forEach((v) => {
@@ -256,7 +303,7 @@ export function VideoGallery() {
                         videoElement.play().catch((err) => {
                           console.error('Error playing video:', err);
                         });
-                        setPlayingVideoId(video.id);
+                        setPlayingVideoId(uniqueId);
                       }
                     }}
                     className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-20 group"
