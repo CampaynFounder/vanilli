@@ -33,8 +33,24 @@ export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getSupabaseClient();
     if (!client) {
-      // Return a no-op function for methods, null for properties
-      if (typeof prop === 'string' && prop !== 'from') {
+      // Return a mock query builder for 'from' method
+      if (prop === 'from') {
+        return () => ({
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ 
+                data: null, 
+                error: { 
+                  message: 'Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.',
+                  code: 'CONFIG_ERROR'
+                } 
+              })
+            })
+          })
+        });
+      }
+      // Return a no-op function for other methods
+      if (typeof prop === 'string') {
         return () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
       }
       return null;
