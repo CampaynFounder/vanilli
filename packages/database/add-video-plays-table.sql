@@ -51,13 +51,13 @@ CREATE POLICY video_plays_update_service_role ON video_plays
 -- Growth rate: 138 plays per hour (calculated dynamically based on time elapsed)
 INSERT INTO video_plays (video_id, video_url, display_count, actual_play_count)
 VALUES
-  ('video2', '/videos/video2.MOV', 12347, 0),  -- Mean (base)
-  ('video3', '/videos/video3.MOV', 12547, 0),  -- +200 (+1 std dev)
-  ('video4', '/videos/video4.MOV', 12147, 0),  -- -200 (-1 std dev)
-  ('video5', '/videos/video5.MOV', 12447, 0),  -- +100 (+0.5 std dev)
-  ('video6', '/videos/video6.MOV', 12247, 0),  -- -100 (-0.5 std dev)
-  ('video7', '/videos/video7.MOV', 12647, 0)   -- +300 (+1.5 std dev)
+  ('video2', '/videos/video2.mp4', 12347, 0),  -- Mean (base)
+  ('video3', '/videos/video3.mp4', 12547, 0),  -- +200 (+1 std dev)
+  ('video4', '/videos/video4.mp4', 12147, 0),  -- -200 (-1 std dev)
+  ('video5', '/videos/video5.mp4', 12447, 0),  -- +100 (+0.5 std dev)
+  ('video6', '/videos/video6.mp4', 12247, 0),  -- -100 (-0.5 std dev)
+  ('video7', '/videos/video7.mp4', 12647, 0)   -- +300 (+1.5 std dev)
   -- Add new videos here with variation around 12347 ± (200 * multiplier)
-  -- Example for video8: ('video8', '/videos/video8.MOV', 12347 + (200 * random_multiplier), 0),
+  -- Example for video8: ('video8', '/videos/video8.mp4', 12347 + (200 * random_multiplier), 0),
 ON CONFLICT (video_id) DO NOTHING;
 

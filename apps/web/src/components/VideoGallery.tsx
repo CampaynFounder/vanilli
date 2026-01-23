@@ -27,10 +27,11 @@ interface Video {
 // Placeholder data - replace with your actual videos
 // 
 // ⚠️ REMINDER: When adding a new video here, you MUST also:
-// 1. Run SQL in Supabase to add the video to video_plays table
-// 2. Use pattern: INSERT INTO video_plays (video_id, video_url, display_count, actual_play_count)
-//    VALUES ('video7', '/videos/video7.MOV', 12352, 0) ON CONFLICT (video_id) DO NOTHING;
-// 3. See: REMINDER_ADD_VIDEO.md or packages/database/VIDEO_PLAYS_SETUP.md
+// 1. Convert video to .mp4 format using convert-to-mp4.sh script
+// 2. Run SQL in Supabase to add the video to video_plays table
+// 3. Use pattern: INSERT INTO video_plays (video_id, video_url, display_count, actual_play_count)
+//    VALUES ('video8', '/videos/video8.mp4', 12353, 0) ON CONFLICT (video_id) DO NOTHING;
+// 4. See: REMINDER_ADD_VIDEO.md or packages/database/VIDEO_PLAYS_SETUP.md
 //
 const placeholderVideos: Video[] = [
   {
