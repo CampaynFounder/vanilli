@@ -61,19 +61,15 @@ function getSupabaseClient(): SupabaseClient | null {
 
   try {
     // Create client with validated values
-    // Note: Supabase client automatically sets Authorization header with anon key
+    // Supabase client automatically sets Authorization header with the anon key
+    // We only need to pass the key to createClient - don't manually set Authorization header
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false, // Disable for anonymous operations
         persistSession: false, // Don't persist session for anonymous users
         detectSessionInUrl: false, // Don't detect session in URL
       },
-      global: {
-        headers: {
-          'apikey': supabaseAnonKey, // Explicitly set apikey header
-          'Authorization': `Bearer ${supabaseAnonKey}`, // Explicitly set Authorization header
-        },
-      },
+      // Don't manually set Authorization header - let Supabase client handle it
     });
     
     // #region agent log
