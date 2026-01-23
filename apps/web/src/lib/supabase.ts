@@ -55,18 +55,25 @@ function getSupabaseClient(): SupabaseClient | null {
 
   try {
     // Create client with validated values
+    // Note: Supabase client automatically sets Authorization header with anon key
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
+        autoRefreshToken: false, // Disable for anonymous operations
+        persistSession: false, // Don't persist session for anonymous users
+        detectSessionInUrl: false, // Don't detect session in URL
       },
       global: {
         headers: {
           'apikey': supabaseAnonKey, // Explicitly set apikey header
+          'Authorization': `Bearer ${supabaseAnonKey}`, // Explicitly set Authorization header
         },
       },
     });
+    
+    if (typeof window !== 'undefined') {
+      console.log('Supabase client created successfully');
+    }
+    
     return supabaseClient;
   } catch (error) {
     console.error('Error creating Supabase client:', error);

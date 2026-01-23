@@ -226,8 +226,18 @@ export function SignupForm() {
       // Get user agent and IP (if available)
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
+      // Log the request details for debugging
+      if (typeof window !== 'undefined') {
+        console.log('Submitting email form:', {
+          email: email.toLowerCase().trim(),
+          phone: phone.trim(),
+          isInvestor,
+          source: 'pre_launch_modal',
+        });
+      }
+      
       // Insert into Supabase email_collections table
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('email_collections')
         .insert({
           email: email.toLowerCase().trim(), // Normalize email
@@ -238,6 +248,20 @@ export function SignupForm() {
         })
         .select()
         .single();
+      
+      // Log response for debugging
+      if (typeof window !== 'undefined') {
+        if (error) {
+          console.error('Supabase insert error:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+        } else {
+          console.log('Supabase insert success:', data);
+        }
+      }
 
       if (error) {
         console.error('Supabase error:', error);
