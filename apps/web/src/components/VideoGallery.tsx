@@ -4,6 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useSignupModal } from '@/hooks/useSignupModal';
 
+// Fullscreen API vendor prefixes
+interface FullscreenElement extends HTMLElement {
+  webkitRequestFullscreen?: () => Promise<void>;
+  mozRequestFullScreen?: () => Promise<void>;
+  msRequestFullscreen?: () => Promise<void>;
+}
+
 interface Video {
   id: string;
   thumbnail?: string;
@@ -375,15 +382,16 @@ export function VideoGallery() {
                         const originalRequestFullscreen = videoElement.requestFullscreen?.bind(videoElement);
                         if (videoElement.requestFullscreen) {
                           videoElement.requestFullscreen = function() {
-                            if (container.requestFullscreen) {
-                              return container.requestFullscreen() as Promise<void>;
-                            } else if ((container as any).webkitRequestFullscreen) {
-                              return (container as any).webkitRequestFullscreen();
-                            } else if ((container as any).mozRequestFullScreen) {
-                              return (container as any).mozRequestFullScreen();
-                            } else if ((container as any).msRequestFullscreen) {
-                              return (container as any).msRequestFullscreen();
-                            }
+                        const fullscreenContainer = container as FullscreenElement;
+                        if (container.requestFullscreen) {
+                          return container.requestFullscreen() as Promise<void>;
+                        } else if (fullscreenContainer.webkitRequestFullscreen) {
+                          return fullscreenContainer.webkitRequestFullscreen();
+                        } else if (fullscreenContainer.mozRequestFullScreen) {
+                          return fullscreenContainer.mozRequestFullScreen();
+                        } else if (fullscreenContainer.msRequestFullscreen) {
+                          return fullscreenContainer.msRequestFullscreen();
+                        }
                             return Promise.reject(new Error('Fullscreen not supported'));
                           };
                         }
@@ -394,14 +402,15 @@ export function VideoGallery() {
                             // Video went fullscreen - exit and make container fullscreen instead
                             document.exitFullscreen();
                             setTimeout(() => {
+                              const fullscreenContainer = container as FullscreenElement;
                               if (container.requestFullscreen) {
                                 container.requestFullscreen();
-                              } else if ((container as any).webkitRequestFullscreen) {
-                                (container as any).webkitRequestFullscreen();
-                              } else if ((container as any).mozRequestFullScreen) {
-                                (container as any).mozRequestFullScreen();
-                              } else if ((container as any).msRequestFullscreen) {
-                                (container as any).msRequestFullscreen();
+                              } else if (fullscreenContainer.webkitRequestFullscreen) {
+                                fullscreenContainer.webkitRequestFullscreen();
+                              } else if (fullscreenContainer.mozRequestFullScreen) {
+                                fullscreenContainer.mozRequestFullScreen();
+                              } else if (fullscreenContainer.msRequestFullscreen) {
+                                fullscreenContainer.msRequestFullscreen();
                               }
                             }, 100);
                           }
