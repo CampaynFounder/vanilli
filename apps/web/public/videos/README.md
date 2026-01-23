@@ -9,12 +9,14 @@ Place your video files in this directory: `/apps/web/public/videos/`
 ```
 public/
   videos/
-    video1.mp4          # Your video file
+    video1.mp4          # Your video file (or .MOV, .mov, .webm)
     video1-thumb.jpg    # Thumbnail (optional but recommended)
-    video2.mp4
+    video2.MOV          # Case-sensitive: match the exact filename in code
     video2-thumb.jpg
     ...
 ```
+
+**Important**: The file extension in your code must match the actual file extension (case-sensitive). If your file is `video2.MOV`, use `/videos/video2.MOV` in the code.
 
 ## Video Requirements
 

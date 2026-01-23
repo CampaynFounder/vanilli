@@ -20,7 +20,7 @@ interface Video {
 const placeholderVideos: Video[] = [
   {
     id: '1',
-    videoUrl: '/videos/video2.mov',
+    videoUrl: '/videos/video2.MOV',
     title: 'NCLECTA',
     artist: 'ReCe',
     label: 'Atlantic Records',
@@ -30,7 +30,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: '2',
-    videoUrl: '/videos/video3.mov',
+    videoUrl: '/videos/video3.MOV',
     title: 'Textin\' Us Bae',
     artist: 'Rezzumai',
     label: 'Universal Records',
@@ -40,7 +40,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: '3',
-    videoUrl: '/videos/video4.mov',
+    videoUrl: '/videos/video4.MOV',
     title: '8-Figure Baby Daddy',
     artist: 'Ooh Chile-ay',
     label: 'Capitol Records',
@@ -50,7 +50,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: '4',
-    videoUrl: '/videos/video5.mov',
+    videoUrl: '/videos/video5.MOV',
     title: 'Beat It',
     artist: '$PILLION',
     label: 'Universal Republic',
