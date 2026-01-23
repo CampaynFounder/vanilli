@@ -1,12 +1,7 @@
 name = "vannilli-api"
-main = "src/index.ts"
+main = "apps/workers/src/index.ts"
 compatibility_date = "2026-01-22"
 node_compat = true
-
-# Help Wrangler resolve workspace packages from root node_modules
-[build]
-command = ""
-node_modules = true
 
 # Production environment
 [env.production]
