@@ -18,6 +18,8 @@ interface Video {
 }
 
 // Placeholder data - replace with your actual videos
+// IMPORTANT: When adding a new video here, also add it to the video_plays table in Supabase!
+// See: packages/database/VIDEO_PLAYS_SETUP.md
 const placeholderVideos: Video[] = [
   {
     id: '1',

@@ -45,6 +45,9 @@ CREATE POLICY video_plays_update_service_role ON video_plays
   USING (true);
 
 -- Initialize play counts for existing videos (starting at 12347, 12348, etc.)
+-- IMPORTANT: When adding new videos, update this INSERT statement!
+-- Pattern: video_number -> display_count = 12347 + (video_number - 2)
+-- Example: video7 -> 12352, video8 -> 12353, etc.
 INSERT INTO video_plays (video_id, video_url, display_count, actual_play_count)
 VALUES
   ('video2', '/videos/video2.MOV', 12347, 0),
@@ -52,5 +55,8 @@ VALUES
   ('video4', '/videos/video4.MOV', 12349, 0),
   ('video5', '/videos/video5.MOV', 12350, 0),
   ('video6', '/videos/video6.MOV', 12351, 0)
+  -- Add new videos here following the pattern:
+  -- ('video7', '/videos/video7.MOV', 12352, 0),
+  -- ('video8', '/videos/video8.MOV', 12353, 0),
 ON CONFLICT (video_id) DO NOTHING;
 
