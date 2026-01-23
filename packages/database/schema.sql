@@ -372,15 +372,19 @@ CREATE UNIQUE INDEX idx_email_collections_email_unique ON email_collections(emai
 -- RLS Policy: Allow public inserts (for pre-launch signups), but restrict reads to admins
 ALTER TABLE email_collections ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to insert (for pre-launch signups)
+-- Allow anyone (including anonymous users) to insert into email_collections
+-- This is needed for pre-launch signups from the public website
 CREATE POLICY email_collections_insert_public ON email_collections 
   FOR INSERT 
+  TO anon, authenticated
   WITH CHECK (true);
 
--- Only authenticated admin users can read (will be handled via service role key in backend)
-CREATE POLICY email_collections_select_admin ON email_collections 
+-- Allow service role to read (for admin access via backend)
+-- Public/anonymous users cannot read
+CREATE POLICY email_collections_select_service_role ON email_collections 
   FOR SELECT 
-  USING (false); -- Disable public reads, use service role key for admin access
+  TO service_role
+  USING (true);
 
 -- ============================================================================
 -- INITIAL DATA

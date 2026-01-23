@@ -25,6 +25,17 @@ This will create:
 - **New `email_collections` table** for pre-launch signups
 - Indexes and RLS policies
 
+### Step 2.1: Fix RLS Policy (If Getting 42501 Errors)
+
+If you get "row-level security policy" errors when submitting emails:
+
+1. Go to **SQL Editor** in Supabase
+2. Open the file: `packages/database/fix-email-collections-rls.sql`
+3. Copy and paste the contents
+4. Click **Run**
+
+This will fix the RLS policy to allow anonymous users to insert emails.
+
 ## Step 3: Get API Credentials
 
 1. In Supabase dashboard, go to **Settings** → **API**
