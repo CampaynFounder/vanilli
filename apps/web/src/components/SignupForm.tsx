@@ -26,7 +26,7 @@ export function SignupForm() {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   
   // Phone regex validation (supports various formats: (555) 123-4567, 555-123-4567, 5551234567, +1 555 123 4567, etc.)
-  const phoneRegex = /^[\+]?[1]?[\s\-\(\)\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,4}[-\s\.]?[0-9]{1,9}$/;
+  const phoneRegex = /^[+]?[1]?[\s\-().]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/;
 
   const validateEmail = (value: string): boolean => {
     if (!value) {
@@ -47,7 +47,7 @@ export function SignupForm() {
       return false;
     }
     // Remove common formatting characters for validation
-    const cleanedPhone = value.replace(/[\s\-\(\)\.]/g, '');
+    const cleanedPhone = value.replace(/[\s\-().]/g, '');
     if (!phoneRegex.test(value) || cleanedPhone.length < 10) {
       setPhoneError('Please enter a valid phone number');
       return false;
@@ -227,7 +227,7 @@ export function SignupForm() {
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
       // Insert into Supabase email_collections table
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('email_collections')
         .insert({
           email: email.toLowerCase().trim(), // Normalize email
