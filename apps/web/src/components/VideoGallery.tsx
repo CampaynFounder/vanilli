@@ -149,15 +149,30 @@ export function VideoGallery() {
                   className="w-full h-full object-cover pointer-events-none"
                   controls={isPlaying}
                   playsInline
-                  preload="auto"
+                  preload="metadata"
                   muted={!isPlaying}
                   poster={video.thumbnail}
                   onLoadedMetadata={(e) => {
                     // Ensure first frame is visible as thumbnail
                     const videoElement = e.currentTarget;
                     if (!isPlaying) {
-                      videoElement.currentTime = 0.1; // Load first frame
-                      videoElement.pause(); // Ensure it stays paused
+                      // Set to first frame and ensure it's visible
+                      videoElement.currentTime = 0.1;
+                      videoElement.pause();
+                      // Force a seek to ensure thumbnail is visible on mobile
+                      setTimeout(() => {
+                        if (!isPlaying && videoElement.readyState >= 2) {
+                          videoElement.currentTime = 0.1;
+                        }
+                      }, 100);
+                    }
+                  }}
+                  onLoadedData={(e) => {
+                    // Additional event to ensure thumbnail loads on mobile
+                    const videoElement = e.currentTarget;
+                    if (!isPlaying && videoElement.readyState >= 2) {
+                      videoElement.currentTime = 0.1;
+                      videoElement.pause();
                     }
                   }}
                   onPlay={() => {
