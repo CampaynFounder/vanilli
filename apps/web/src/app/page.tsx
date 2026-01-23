@@ -118,7 +118,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="mb-12 text-center">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-3">
-              Our AI Artist Roster
+              AI Artist Creator Roster
             </h2>
             <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto">
               Watch real music videos created with perfect lip-sync and talking movements
