@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler build",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env production",
     "test": "vitest",
     "lint": "eslint src --ext .ts"
   },
