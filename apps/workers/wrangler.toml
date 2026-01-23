@@ -1,5 +1,5 @@
 name = "vannilli-api"
-main = "apps/workers/src/index.ts"
+main = "src/index.ts"
 compatibility_date = "2026-01-22"
 node_compat = true
 
