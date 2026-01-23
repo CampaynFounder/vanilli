@@ -45,18 +45,21 @@ export const supabase = new Proxy({} as SupabaseClient, {
 
 export async function getSession() {
   const client = getSupabaseClient();
+  if (!client) return null;
   const { data } = await client.auth.getSession();
   return data.session;
 }
 
 export async function getUser() {
   const client = getSupabaseClient();
+  if (!client) return null;
   const { data } = await client.auth.getUser();
   return data.user;
 }
 
 export async function signOut() {
   const client = getSupabaseClient();
+  if (!client) return;
   await client.auth.signOut();
 }
 
