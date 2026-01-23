@@ -35,7 +35,7 @@ interface Video {
 const placeholderVideos: Video[] = [
   {
     id: 'video2',
-    videoUrl: '/videos/video2.MOV',
+    videoUrl: '/videos/video2.mp4',
     title: 'NCLECTA',
     artist: 'ReCe',
     label: 'Atlantic Records',
@@ -45,7 +45,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: 'video3',
-    videoUrl: '/videos/video3.MOV',
+    videoUrl: '/videos/video3.mp4',
     title: 'Textin\' Us Bae',
     artist: 'Rezzumai',
     label: 'Universal Records',
@@ -55,7 +55,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: 'video4',
-    videoUrl: '/videos/video4.MOV',
+    videoUrl: '/videos/video4.mp4',
     title: '8-Figure Baby Daddy',
     artist: 'Ooh Chile-ay',
     label: 'Capitol Records',
@@ -65,7 +65,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: 'video5',
-    videoUrl: '/videos/video5.MOV',
+    videoUrl: '/videos/video5.mp4',
     title: 'Beat It',
     artist: '$PILLION',
     label: 'Universal Republic',
@@ -75,7 +75,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: 'video6',
-    videoUrl: '/videos/video6.MOV',
+    videoUrl: '/videos/video6.mp4',
     title: 'SACKRITE',
     artist: 'RIPSkreet',
     label: 'BlackAImigo Records',
@@ -85,7 +85,7 @@ const placeholderVideos: Video[] = [
   },
   {
     id: 'video7',
-    videoUrl: '/videos/video7.MOV',
+    videoUrl: '/videos/video7.mp4',
     title: 'Easily AI Approach',
     artist: 'ShawtAI Lo',
     label: 'D4L AIsylum Records',

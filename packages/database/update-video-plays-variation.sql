@@ -18,8 +18,21 @@ SET display_count = CASE video_id
 END
 WHERE video_id IN ('video2', 'video3', 'video4', 'video5', 'video6', 'video7');
 
+-- Also update video URLs to .mp4 format (if videos have been converted)
+UPDATE video_plays
+SET video_url = CASE video_id
+  WHEN 'video2' THEN '/videos/video2.mp4'
+  WHEN 'video3' THEN '/videos/video3.mp4'
+  WHEN 'video4' THEN '/videos/video4.mp4'
+  WHEN 'video5' THEN '/videos/video5.mp4'
+  WHEN 'video6' THEN '/videos/video6.mp4'
+  WHEN 'video7' THEN '/videos/video7.mp4'
+  ELSE video_url
+END
+WHERE video_id IN ('video2', 'video3', 'video4', 'video5', 'video6', 'video7');
+
 -- Verify the updates
-SELECT video_id, display_count, actual_play_count, created_at
+SELECT video_id, video_url, display_count, actual_play_count, created_at
 FROM video_plays
 WHERE video_id IN ('video2', 'video3', 'video4', 'video5', 'video6', 'video7')
 ORDER BY video_id;
