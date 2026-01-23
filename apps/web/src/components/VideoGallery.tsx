@@ -146,10 +146,18 @@ export function VideoGallery() {
                 <video
                   src={video.videoUrl}
                   className="w-full h-full object-cover"
-                  controls
+                  controls={isPlaying}
                   playsInline
-                  preload="metadata"
+                  preload="auto"
                   muted={!isPlaying}
+                  poster={video.thumbnail}
+                  onLoadedMetadata={(e) => {
+                    // Ensure first frame is visible as thumbnail
+                    const videoElement = e.currentTarget;
+                    if (!isPlaying) {
+                      videoElement.currentTime = 0.1; // Load first frame
+                    }
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     const videoElement = e.currentTarget;
