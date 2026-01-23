@@ -58,6 +58,16 @@ const placeholderVideos: Video[] = [
     bpm: 140,
     bars: 8,
   },
+  {
+    id: '5',
+    videoUrl: '/videos/video6.MOV',
+    title: 'SACKRITE',
+    artist: 'RIPSkreet',
+    label: 'BlackmAIgo Records',
+    duration: '0:30',
+    bpm: 140,
+    bars: 8,
+  },
   // Add more videos here when ready
 ];
 
@@ -133,14 +143,45 @@ export function VideoGallery() {
           ))}
         </div>
       ) : (
-        // Video grid when videos are uploaded (9:16 portrait for TikTok/social media)
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {videos.map((video) => {
+        // Horizontal scroll container for videos (9:16 portrait for TikTok/social media)
+        <div 
+          className="video-gallery-scroll overflow-x-auto overflow-y-visible pb-4 -mx-6 px-6 snap-x snap-mandatory"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#475569 #0f172a',
+            WebkitOverflowScrolling: 'touch',
+          }}
+          onWheel={(e) => {
+            // Only intercept horizontal scroll when user is clearly scrolling horizontally
+            // or holding shift (which typically means horizontal scroll intent)
+            const container = e.currentTarget;
+            const deltaX = e.deltaX;
+            const deltaY = e.deltaY;
+            const isScrollingHorizontally = Math.abs(deltaX) > Math.abs(deltaY) * 2;
+            
+            // Only prevent default if user is clearly scrolling horizontally
+            // This allows vertical scroll to work normally
+            if (isScrollingHorizontally && Math.abs(deltaX) > 10) {
+              e.preventDefault();
+              e.stopPropagation();
+              container.scrollLeft += deltaX;
+            } else if (e.shiftKey && Math.abs(deltaY) > 10) {
+              // Shift + vertical scroll = horizontal scroll
+              e.preventDefault();
+              e.stopPropagation();
+              container.scrollLeft += deltaY;
+            }
+            // Otherwise, let the event bubble for normal vertical scrolling
+          }}
+        >
+          <div className="flex gap-6" style={{ width: 'max-content' }}>
+            {videos.map((video) => {
             const isPlaying = playingVideoId === video.id;
             return (
               <div
                 key={video.id}
-                className="group relative aspect-[9/16] bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden hover:border-purple-500/50 transition-all"
+                className="group relative aspect-[9/16] bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden hover:border-purple-500/50 transition-all flex-shrink-0 snap-start"
+                style={{ width: '280px' }}
               >
                 {/* Video player - inline */}
                 <video
@@ -270,6 +311,7 @@ export function VideoGallery() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

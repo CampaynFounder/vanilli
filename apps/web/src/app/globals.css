@@ -21,17 +21,36 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #1e293b;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #9333ea;
+  background: #475569;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #7e22ce;
+  background: #64748b;
+}
+
+/* Horizontal scrollbar for video gallery */
+.video-gallery-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.video-gallery-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 3px;
+}
+
+.video-gallery-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+.video-gallery-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 /* Custom utilities */
