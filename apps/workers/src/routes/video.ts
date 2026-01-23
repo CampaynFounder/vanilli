@@ -417,19 +417,21 @@ videoRoutes.post('/track-video-play', async (c) => {
     }
 
     if (existing) {
-      // Calculate time-based growth since last update: 138 plays per hour
+      // Calculate total time-based growth from creation: 138 plays per hour
+      // We always calculate from created_at to ensure consistency with GET endpoint
       const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
-      const updatedAt = new Date(existing.updated_at);
+      const createdAt = new Date(existing.created_at);
       const now = new Date();
-      const secondsElapsed = (now.getTime() - updatedAt.getTime()) / 1000;
-      const growthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
+      const secondsElapsed = (now.getTime() - createdAt.getTime()) / 1000;
+      const totalGrowthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
 
-      // Update existing record - add growth + 1 for actual play
-      const newDisplayCount = existing.display_count + growthPlays + 1;
+      // Update existing record - base count + total growth + 1 for actual play
+      // Note: display_count stores the base count, growth is calculated from created_at
+      const newDisplayCount = existing.display_count + totalGrowthPlays + 1;
       const { data: updated, error: updateError } = await supabase
         .from('video_plays')
         .update({
-          display_count: newDisplayCount,
+          display_count: existing.display_count + 1, // Increment base count only
           actual_play_count: existing.actual_play_count + 1,
           updated_at: now.toISOString(),
         })
@@ -442,9 +444,15 @@ videoRoutes.post('/track-video-play', async (c) => {
         return c.json({ error: 'Failed to update play count' }, 500);
       }
 
+      // Return count with growth calculated from created_at
+      const createdAtAfterUpdate = new Date(updated.created_at);
+      const secondsElapsedAfterUpdate = (now.getTime() - createdAtAfterUpdate.getTime()) / 1000;
+      const growthAfterUpdate = Math.floor(secondsElapsedAfterUpdate * GROWTH_RATE_PER_SECOND);
+      const finalDisplayCount = updated.display_count + growthAfterUpdate;
+
       return c.json({
         videoId,
-        displayCount: updated.display_count,
+        displayCount: finalDisplayCount,
         actualPlayCount: updated.actual_play_count,
       });
     } else {
