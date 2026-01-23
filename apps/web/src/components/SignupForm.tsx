@@ -334,7 +334,7 @@ export function SignupForm() {
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
         showBackdrop ? 'block' : 'hidden'
       }`}
       onClick={handleBackdropClick}
@@ -351,11 +351,11 @@ export function SignupForm() {
           backgroundRepeat: 'no-repeat',
         }}
       />
-      {/* Dark backdrop overlay */}
+      {/* Dark backdrop overlay - darker when showing success */}
       <div 
-        className={`absolute inset-0 bg-black/80 backdrop-blur-sm z-[1] transition-opacity duration-500 ease-out ${
+        className={`absolute inset-0 backdrop-blur-sm z-[1] transition-opacity duration-500 ease-out ${
           showBackdrop ? 'opacity-100' : 'opacity-0'
-        }`}
+        } ${isSubmitted ? 'bg-black/95' : 'bg-black/80'}`}
       />
 
       {/* Modal Content - Slides in from center */}
@@ -378,8 +378,10 @@ export function SignupForm() {
           </svg>
         </button>
 
-        {/* Modal Card - Scrollable on mobile */}
-        <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-slate-800/50 p-6 sm:p-8 lg:p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* Modal Card - Scrollable on mobile - solid background when showing success */}
+        <div className={`backdrop-blur-xl rounded-xl sm:rounded-2xl border border-slate-800/50 p-6 sm:p-8 lg:p-10 shadow-2xl max-h-[90vh] overflow-y-auto ${
+          isSubmitted ? 'bg-slate-950' : 'bg-slate-900/95'
+        }`}>
           {/* Logo */}
           <div className="flex justify-center mb-4 sm:mb-6">
             <a href="/" className="flex items-center">
@@ -416,7 +418,7 @@ export function SignupForm() {
 
           {/* Email Form */}
           {isSubmitted ? (
-            <div className="text-center py-6">
+            <div className="text-center py-6 relative z-[9999] bg-slate-950 rounded-lg">
               <div className="text-4xl mb-3">✅</div>
               {isInvestor ? (
                 <>
