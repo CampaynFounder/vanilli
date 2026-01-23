@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { CountdownTimer } from './CountdownTimer';
 import { shouldShowCountdown } from '@/config/launch';
 import { useSignupModal } from '@/hooks/useSignupModal';
@@ -77,7 +76,7 @@ export function SignupForm() {
   };
 
   const isFormValid = (): boolean => {
-    return emailRegex.test(email) && phoneRegex.test(phone) && phone.replace(/[\s\-\(\)\.]/g, '').length >= 10;
+    return emailRegex.test(email) && phoneRegex.test(phone) && phone.replace(/[\s\-().]/g, '').length >= 10;
   };
 
   const handlePreLaunchLink = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -330,7 +329,7 @@ export function SignupForm() {
         <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-slate-800/50 p-6 sm:p-8 lg:p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
           {/* Logo */}
           <div className="flex justify-center mb-4 sm:mb-6">
-            <Link href="/" className="flex items-center">
+            <a href="/" className="flex items-center">
               <Image
                 src="/logo/logo.png"
                 alt="Vannilli"
@@ -343,7 +342,7 @@ export function SignupForm() {
                   objectFit: 'contain',
                 }}
               />
-            </Link>
+            </a>
           </div>
 
           <div className="text-center mb-5 sm:mb-6">

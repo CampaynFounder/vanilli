@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { SignupForm } from './SignupForm';
 
 export function GlobalSignupModal() {
-  const [shouldShow, setShouldShow] = useState(true); // Always render SignupForm
   const pathname = usePathname();
 
   useEffect(() => {
@@ -43,7 +42,6 @@ export function GlobalSignupModal() {
           if (!hasSeenModal) {
             sessionStorage.setItem('vannilli_signup_auto_show', 'true');
             window.dispatchEvent(new CustomEvent('vannilli:show-signup'));
-            setShouldShow(true);
             sessionStorage.setItem('vannilli_signup_seen', 'true');
           }
         }
