@@ -1,8 +1,9 @@
 {
-  "name": "Vannilli - Music Video AI",
-  "short_name": "Vannilli",
-  "description": "Create professional music videos by paying for bars, not compute",
+  "name": "VANNILLI | Hyper-Realistic AI Music Videos",
+  "short_name": "VANNILLI",
+  "description": "Professional Music Videos For AI Music Artists That Get You Signed.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#9333ea",
