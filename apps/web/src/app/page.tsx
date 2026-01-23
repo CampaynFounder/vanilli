@@ -216,7 +216,7 @@ export default function HomePage() {
                 description: 'From recording to final video',
               },
               { 
-                value: '95%', 
+                value: '98%', 
                 label: 'Labels Signing AI Artists by 2030',
                 description: 'Record labels say they will sign more AI artists to major deals',
               },
