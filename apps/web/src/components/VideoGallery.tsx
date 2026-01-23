@@ -93,8 +93,6 @@ export function VideoGallery() {
 
     const handleScroll = () => {
       const scrollLeft = container.scrollLeft;
-      const scrollWidth = container.scrollWidth;
-      const clientWidth = container.clientWidth;
       
       // When user scrolls past 2/3 of the content (second set of videos),
       // seamlessly reset to the beginning of the second set

@@ -7,9 +7,10 @@ function getSupabaseClient(): SupabaseClient | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  // Always log in browser to help debug
-  if (typeof window !== 'undefined') {
-    console.log('Supabase Config Check:', {
+      // Always log in browser to help debug
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.log('Supabase Config Check:', {
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseAnonKey,
       urlLength: supabaseUrl.length,
@@ -67,6 +68,7 @@ function getSupabaseClient(): SupabaseClient | null {
     });
     
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
       console.log('Supabase client created successfully');
     }
     
