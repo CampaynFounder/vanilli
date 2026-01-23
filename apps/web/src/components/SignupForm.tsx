@@ -400,16 +400,18 @@ export function SignupForm() {
 
           <div className="text-center mb-5 sm:mb-6">
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-2 sm:mb-3">
-              Get Your Free Credits
+              {isSubmitted && !isInvestor ? "You're all Set!" : "Get Your Free Credits"}
             </h2>
-            <p className="text-sm sm:text-base text-slate-300 px-2 mb-4">
-              {shouldShowCountdown()
-                ? 'Enter your email to be notified when we launch and receive free credits'
-                : 'Enter your email to get started with free credits'}
-            </p>
+            {!isSubmitted && (
+              <p className="text-sm sm:text-base text-slate-300 px-2 mb-4">
+                {shouldShowCountdown()
+                  ? 'Enter your email to be notified when we launch and receive free credits'
+                  : 'Enter your email to get started with free credits'}
+              </p>
+            )}
             
             {/* Countdown Timer */}
-            <CountdownTimer />
+            {!isSubmitted && <CountdownTimer />}
           </div>
 
           {/* Email Form */}
@@ -425,9 +427,9 @@ export function SignupForm() {
                 </>
               ) : (
                 <>
-                  <p className="text-white font-semibold mb-2">You&apos;re All Set! We&apos;ll keep you posted on the launch date via email or text.</p>
+                  <p className="text-white font-semibold mb-2">Your Free Credits will be applied to the Email You Provided.</p>
                   <p className="text-slate-300 text-sm">
-                    Your Free Credits will be applied to the Email You Provided.
+                    We&apos;ll keep you posted on the launch date via email or text.
                   </p>
                 </>
               )}
