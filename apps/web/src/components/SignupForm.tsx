@@ -279,11 +279,16 @@ export function SignupForm() {
       }
     } catch (err: any) {
       console.error('Unexpected error:', err);
+      console.error('Error details:', {
+        message: err?.message,
+        stack: err?.stack,
+        name: err?.name
+      });
       // Check if it's a network/configuration error
-      if (err?.message?.includes('not configured') || err?.message?.includes('ERR_NAME_NOT_RESOLVED') || err?.message?.includes('Failed to fetch')) {
-        setSubmitError('Email collection is not yet configured. Please contact support.');
+      if (err?.message?.includes('not configured') || err?.message?.includes('ERR_NAME_NOT_RESOLVED') || err?.message?.includes('Failed to fetch') || err?.message?.includes('CONFIG_ERROR')) {
+        setSubmitError('Email collection is not yet configured. Please contact support. Check console for details.');
       } else {
-        setSubmitError('An unexpected error occurred. Please try again.');
+        setSubmitError(`An unexpected error occurred: ${err?.message || 'Please try again.'}`);
       }
       setIsSubmitting(false);
     }
