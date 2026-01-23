@@ -7,8 +7,25 @@ function getSupabaseClient(): SupabaseClient | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+  // Debug logging (only in development)
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('Supabase Config Check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseAnonKey,
+      urlLength: supabaseUrl.length,
+      keyLength: supabaseAnonKey.length,
+      urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'empty'
+    });
+  }
+
   // Return null if env vars aren't set (instead of creating invalid client)
   if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+    if (typeof window !== 'undefined') {
+      console.warn('Supabase not configured:', {
+        url: supabaseUrl || 'missing',
+        key: supabaseAnonKey ? 'present' : 'missing'
+      });
+    }
     return null;
   }
 
@@ -16,15 +33,19 @@ function getSupabaseClient(): SupabaseClient | null {
     return supabaseClient;
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  });
-
-  return supabaseClient;
+  try {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    });
+    return supabaseClient;
+  } catch (error) {
+    console.error('Error creating Supabase client:', error);
+    return null;
+  }
 }
 
 // Export a getter function instead of direct client

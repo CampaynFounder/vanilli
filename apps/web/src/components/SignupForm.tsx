@@ -240,6 +240,7 @@ export function SignupForm() {
         .single();
 
       if (error) {
+        console.error('Supabase error:', error);
         // Handle duplicate email error gracefully
         if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
           setSubmitError('This email is already registered. Thank you for your interest!');
@@ -248,14 +249,22 @@ export function SignupForm() {
           setTimeout(() => {
             handleClose();
           }, 3000);
-        } else if (error.message && error.message.includes('not configured')) {
+        } else if (error.code === 'CONFIG_ERROR' || (error.message && error.message.includes('not configured'))) {
           // Supabase not configured
+          console.error('Supabase configuration error:', {
+            code: error.code,
+            message: error.message,
+            envCheck: {
+              url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'missing',
+              key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'set' : 'missing'
+            }
+          });
           setSubmitError('Email collection is not yet configured. Please contact support.');
           setIsSubmitting(false);
           return;
         } else {
           console.error('Error submitting email:', error);
-          setSubmitError('Something went wrong. Please try again.');
+          setSubmitError(`Something went wrong: ${error.message || 'Please try again.'}`);
           setIsSubmitting(false);
           return;
         }
