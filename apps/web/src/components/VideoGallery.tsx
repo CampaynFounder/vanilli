@@ -14,6 +14,7 @@ interface Video {
   duration: string;
   bpm?: number;
   bars?: number;
+  playCount?: number; // Display count for network effect
 }
 
 // Placeholder data - replace with your actual videos
@@ -73,9 +74,69 @@ const placeholderVideos: Video[] = [
 
 export function VideoGallery() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const videos = placeholderVideos.length > 0 ? placeholderVideos : [];
   const { showModal } = useSignupModal();
+
+  // Fetch play counts on mount
+  useEffect(() => {
+    const fetchPlayCounts = async () => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
+      const counts: Record<string, number> = {};
+
+      for (const video of videos) {
+        try {
+          const videoId = `video${video.id}`; // video2, video3, etc.
+          const response = await fetch(`${apiUrl}/api/video-play-count/${videoId}`);
+          if (response.ok) {
+            const data = await response.json();
+            counts[video.id] = data.displayCount || 12347;
+          }
+        } catch (error) {
+          // Fallback to default count if API fails
+          const videoNumber = parseInt(video.id) || 1;
+          counts[video.id] = 12347 + (videoNumber - 2);
+        }
+      }
+
+      setPlayCounts(counts);
+    };
+
+    if (videos.length > 0) {
+      fetchPlayCounts();
+    }
+  }, [videos]);
+
+  // Track video play
+  const trackVideoPlay = async (videoId: string, videoUrl: string) => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
+    const videoIdForApi = `video${videoId}`; // video2, video3, etc.
+
+    try {
+      const response = await fetch(`${apiUrl}/api/track-video-play`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoId: videoIdForApi,
+          videoUrl,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPlayCounts((prev) => ({
+          ...prev,
+          [videoId]: data.displayCount,
+        }));
+      }
+    } catch (error) {
+      // Silently fail - don't block video playback
+      console.error('Failed to track video play:', error);
+    }
+  };
 
   // Create infinite scroll by duplicating videos multiple times
   // We'll create 3 copies for seamless looping
@@ -263,6 +324,8 @@ export function VideoGallery() {
                   }}
                   onPlay={() => {
                     setPlayingVideoId(uniqueId);
+                    // Track video play
+                    trackVideoPlay(video.id, video.videoUrl);
                     // Ensure video can receive pointer events when playing
                     const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
                     if (videoElement) {
@@ -302,6 +365,8 @@ export function VideoGallery() {
                           console.error('Error playing video:', err);
                         });
                         setPlayingVideoId(uniqueId);
+                        // Track video play
+                        trackVideoPlay(video.id, video.videoUrl);
                       }
                     }}
                     className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-20 group"
@@ -334,6 +399,10 @@ export function VideoGallery() {
                           <span>{video.label}</span>
                         </>
                       )}
+                    </div>
+                    {/* Play count for network effect */}
+                    <div className="text-slate-500 text-xs mt-1">
+                      {playCounts[video.id]?.toLocaleString() || '12,347'} plays
                     </div>
                   </div>
                 )}

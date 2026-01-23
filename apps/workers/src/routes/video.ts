@@ -388,3 +388,125 @@ videoRoutes.get('/download/:generationId', requireAuth, async (c) => {
   });
 });
 
+/**
+ * POST /api/track-video-play
+ * Track a video play and increment counters (no auth required for public videos)
+ */
+videoRoutes.post('/track-video-play', async (c) => {
+  const { videoId, videoUrl } = await c.req.json();
+  const userAgent = c.req.header('user-agent') || null;
+  const ipAddress = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null;
+
+  if (!videoId || !videoUrl) {
+    return c.json({ error: 'videoId and videoUrl are required' }, 400);
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  try {
+    // Get or create video play record
+    const { data: existing, error: selectError } = await supabase
+      .from('video_plays')
+      .select('*')
+      .eq('video_id', videoId)
+      .single();
+
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = not found
+      console.error('Error fetching video play record:', selectError);
+      return c.json({ error: 'Failed to fetch video play record' }, 500);
+    }
+
+    if (existing) {
+      // Update existing record - increment both counters
+      const { data: updated, error: updateError } = await supabase
+        .from('video_plays')
+        .update({
+          display_count: existing.display_count + 1,
+          actual_play_count: existing.actual_play_count + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('video_id', videoId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating video play count:', updateError);
+        return c.json({ error: 'Failed to update play count' }, 500);
+      }
+
+      return c.json({
+        videoId,
+        displayCount: updated.display_count,
+        actualPlayCount: updated.actual_play_count,
+      });
+    } else {
+      // Create new record - start at 12347 + offset based on video number
+      const videoNumber = parseInt(videoId.replace('video', '')) || 1;
+      const initialDisplayCount = 12347 + (videoNumber - 2); // video2 = 12347, video3 = 12348, etc.
+
+      const { data: created, error: insertError } = await supabase
+        .from('video_plays')
+        .insert({
+          video_id: videoId,
+          video_url: videoUrl,
+          display_count: initialDisplayCount + 1, // First play increments
+          actual_play_count: 1,
+          user_agent: userAgent,
+          ip_address: ipAddress,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating video play record:', insertError);
+        return c.json({ error: 'Failed to create play record' }, 500);
+      }
+
+      return c.json({
+        videoId,
+        displayCount: created.display_count,
+        actualPlayCount: created.actual_play_count,
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error tracking video play:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * GET /api/video-play-count/:videoId
+ * Get play count for a video (no auth required)
+ */
+videoRoutes.get('/video-play-count/:videoId', async (c) => {
+  const videoId = c.req.param('videoId');
+
+  const supabase = getSupabaseClient(c.env);
+
+  const { data, error } = await supabase
+    .from('video_plays')
+    .select('display_count, actual_play_count')
+    .eq('video_id', videoId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // Not found - return default starting count
+      const videoNumber = parseInt(videoId.replace('video', '')) || 1;
+      const initialDisplayCount = 12347 + (videoNumber - 2);
+      return c.json({
+        videoId,
+        displayCount: initialDisplayCount,
+        actualPlayCount: 0,
+      });
+    }
+    return c.json({ error: 'Failed to fetch play count' }, 500);
+  }
+
+  return c.json({
+    videoId,
+    displayCount: data.display_count,
+    actualPlayCount: data.actual_play_count,
+  });
+});
+
