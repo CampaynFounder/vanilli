@@ -7,6 +7,13 @@
   --font-poppins: 'Poppins', system-ui, sans-serif;
 }
 
+/* Ultra-dark theme base */
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -34,13 +41,27 @@
   }
 
   .glass {
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-500;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400;
+    /* WCAG compliant - gradient text with drop shadow for accessibility */
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+  }
+
+  .gradient-bg {
+    @apply bg-gradient-to-br from-purple-500/20 via-pink-500/20 to-orange-500/20;
   }
 }
 

@@ -347,6 +347,42 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================================
+-- EMAIL COLLECTIONS TABLE (Pre-Launch Signups)
+-- ============================================================================
+CREATE TABLE email_collections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  is_investor BOOLEAN NOT NULL DEFAULT false,
+  source TEXT DEFAULT 'pre_launch_modal' CHECK (source IN ('pre_launch_modal', 'landing_page', 'referral', 'other')),
+  user_agent TEXT,
+  ip_address INET,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for email_collections
+CREATE INDEX idx_email_collections_email ON email_collections(email);
+CREATE INDEX idx_email_collections_created_at ON email_collections(created_at DESC);
+CREATE INDEX idx_email_collections_is_investor ON email_collections(is_investor);
+CREATE INDEX idx_email_collections_source ON email_collections(source);
+
+-- Unique constraint on email to prevent duplicates
+CREATE UNIQUE INDEX idx_email_collections_email_unique ON email_collections(email);
+
+-- RLS Policy: Allow public inserts (for pre-launch signups), but restrict reads to admins
+ALTER TABLE email_collections ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to insert (for pre-launch signups)
+CREATE POLICY email_collections_insert_public ON email_collections 
+  FOR INSERT 
+  WITH CHECK (true);
+
+-- Only authenticated admin users can read (will be handled via service role key in backend)
+CREATE POLICY email_collections_select_admin ON email_collections 
+  FOR SELECT 
+  USING (false); -- Disable public reads, use service role key for admin access
+
+-- ============================================================================
 -- INITIAL DATA
 -- ============================================================================
 

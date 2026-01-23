@@ -4,14 +4,22 @@ const nextConfig = {
   swcMinify: true,
   
   // Progressive Web App configuration
-  experimental: {
-    serverActions: true,
-  },
+  // Server Actions are now enabled by default in Next.js 14
 
   // Image optimization
   images: {
     domains: ['r2.vannilli.io'],
     formats: ['image/avif', 'image/webp'],
+    unoptimized: false,
+  },
+
+  // Video support
+  webpack: (config) => {
+    config.module.rules.push({
+      test: /\.(mp4|webm|ogg)$/,
+      type: 'asset/resource',
+    });
+    return config;
   },
 
   // Environment variables

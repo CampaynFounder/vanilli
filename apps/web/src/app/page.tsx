@@ -1,48 +1,197 @@
+'use client';
+
 import Link from 'next/link';
+import Image from 'next/image';
 import { Calculator } from '@/components/Calculator';
+import { VideoGallery } from '@/components/VideoGallery';
+import { useSignupModal } from '@/hooks/useSignupModal';
 
 export default function HomePage() {
+  const { showModal } = useSignupModal();
+
+  const handlePreLaunchLink = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    showModal();
+  };
+
   return (
-    <main className="min-h-screen">
-      {/* Hero Section */}
-      <section className="px-4 py-16 sm:py-24 max-w-7xl mx-auto">
-        <div className="text-center space-y-6">
-          <h1 className="text-5xl sm:text-7xl font-display font-bold gradient-text">
-            Pay for Bars,
-            <br />
-            Not Compute
+    <main className="min-h-screen bg-slate-950">
+      {/* Navigation - Kling Style */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center h-full">
+              <Link href="/" className="flex items-center h-full">
+                <Image
+                  src="/logo/logo.png"
+                  alt="Vannilli"
+                  width={768}
+                  height={256}
+                  className="h-full w-auto"
+                  style={{
+                    width: 'auto',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                  priority
+                />
+              </Link>
+            </div>
+            <div className="hidden md:flex items-center gap-6 lg:gap-8">
+              <Link href="#gallery" className="text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center">
+                Gallery
+              </Link>
+              <Link href="#features" className="text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center">
+                Features
+              </Link>
+              <Link href="#calculator" className="text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center">
+                Calculator
+              </Link>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <a
+                href="#"
+                onClick={handlePreLaunchLink}
+                className="text-xs sm:text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center cursor-pointer"
+              >
+                Sign In
+              </a>
+              <a
+                href="#"
+                onClick={handlePreLaunchLink}
+                className="px-3 py-2.5 sm:px-4 sm:py-2 bg-white text-slate-950 text-xs sm:text-sm font-semibold rounded-lg hover:bg-slate-100 transition-all min-h-[44px] flex items-center justify-center cursor-pointer"
+              >
+                Get Started
+              </a>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section - Kling Pricing Style with Background Image */}
+      <section className="relative pt-32 pb-16 px-6 lg:px-8 bg-slate-950 overflow-hidden min-h-[600px]">
+        {/* Background Image - z-index 0 */}
+        <div 
+          className="absolute inset-0 w-full h-full z-0"
+          style={{
+            backgroundImage: 'url(/images/hero-background.PNG)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+        {/* Dark overlay for WCAG compliance - z-index 1 (reduced opacity for visibility) */}
+        <div className="absolute inset-0 bg-slate-950/50 z-[1]" />
+        {/* Additional gradient overlay for better text readability - z-index 2 (lighter) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/50 to-slate-950/60 z-[2]" />
+        
+        {/* Content with proper z-index */}
+        <div className="relative z-[10] max-w-4xl mx-auto text-center space-y-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] leading-tight">
+            Hyper-Realistic, Music Industry-Grade Lip Sync For AI Music Videos
           </h1>
           
-          <p className="text-xl sm:text-2xl text-slate-600 max-w-2xl mx-auto">
-            Transform your music performances into stunning AI-powered videos. 
-            Enter your BPM, record your verse, and let Vannilli do the magic.
+          <p className="text-xl text-white max-w-2xl mx-auto drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] font-semibold">
+            Transform your music performances into stunning AI-powered videos with perfect lip-sync
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
-            <Link
-              href="/auth/signup"
-              className="px-8 py-4 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center pt-4 w-full sm:w-auto">
+            <a
+              href="#"
+              onClick={handlePreLaunchLink}
+              className="px-6 py-3.5 sm:py-3 bg-white text-slate-950 text-sm sm:text-base font-semibold rounded-lg hover:bg-slate-100 transition-all shadow-lg min-h-[48px] flex items-center justify-center w-full sm:w-auto cursor-pointer"
             >
               Start Creating Free
-            </Link>
+            </a>
             <Link
-              href="/pricing"
-              className="px-8 py-4 bg-white text-primary-600 font-semibold rounded-xl hover:bg-slate-50 transition-all border-2 border-primary-600"
+              href="#calculator"
+              className="px-6 py-3.5 sm:py-3 bg-white/10 backdrop-blur-sm text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-white/20 transition-all border border-white/20 shadow-lg min-h-[48px] flex items-center justify-center w-full sm:w-auto"
             >
-              View Pricing
+              Try Calculator
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Calculator Section */}
-      <section className="px-4 py-16 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-display font-bold text-slate-900 mb-4">
+      {/* Video Gallery Section - Main Feature (Landscape) */}
+      <section id="gallery" className="py-16 px-6 lg:px-8 bg-slate-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-3">
+              Our AI Artist Roster
+            </h2>
+            <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto">
+              Watch real music videos created with perfect lip-sync and talking movements
+            </p>
+          </div>
+          
+          <VideoGallery />
+        </div>
+      </section>
+
+      {/* Features Section - Kling Style Grid */}
+      <section id="features" className="py-16 px-6 lg:px-8 bg-slate-950 border-t border-slate-800/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
+              How It Works
+            </h2>
+            <p className="text-lg text-slate-400">
+              Create professional music videos in 4 simple steps
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                step: '01',
+                title: 'Enter Your BPM',
+                description: 'Tell us the tempo of your track and how many bars you need.',
+                icon: '🎵',
+              },
+              {
+                step: '02',
+                title: 'Upload Your Style',
+                description: 'Upload an AI-generated image that defines your visual aesthetic.',
+                icon: '🎨',
+              },
+              {
+                step: '03',
+                title: 'Record Performance',
+                description: 'Rap or sing along to your track while we capture your movements.',
+                icon: '📹',
+              },
+              {
+                step: '04',
+                title: 'Download Video',
+                description: 'Get your professional music video in minutes, ready to share.',
+                icon: '⬇️',
+              },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 hover:border-slate-700 transition-all"
+              >
+                <div className="text-4xl mb-4">{item.icon}</div>
+                <div className="text-xs font-semibold text-purple-400 mb-2 tracking-wider">
+                  STEP {item.step}
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Calculator Section - Kling Style */}
+      <section id="calculator" className="py-16 px-6 lg:px-8 bg-slate-950 border-t border-slate-800/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
               Calculate Your Video Cost
             </h2>
-            <p className="text-lg text-slate-600">
+            <p className="text-lg text-slate-400">
               See how much a traditional music video would cost vs. Vannilli
             </p>
           </div>
@@ -51,139 +200,112 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="px-4 py-16 max-w-7xl mx-auto">
-        <h2 className="text-3xl sm:text-4xl font-display font-bold text-center text-slate-900 mb-12">
-          Create in 4 Simple Steps
-        </h2>
-
-        <div className="grid md:grid-cols-4 gap-8">
-          {[
-            {
-              step: '1',
-              title: 'Enter Your BPM',
-              description: 'Tell us the tempo of your track and how many bars you need.',
-              icon: '🎵',
-            },
-            {
-              step: '2',
-              title: 'Upload Your Style',
-              description: 'Upload an AI-generated image that defines your visual aesthetic.',
-              icon: '🎨',
-            },
-            {
-              step: '3',
-              title: 'Record Performance',
-              description: 'Rap or sing along to your track while we capture your movements.',
-              icon: '📹',
-            },
-            {
-              step: '4',
-              title: 'Download Video',
-              description: 'Get your professional music video in minutes, ready to share.',
-              icon: '⬇️',
-            },
-          ].map((item) => (
-            <div
-              key={item.step}
-              className="glass p-6 rounded-2xl border border-slate-200 hover:shadow-xl transition-all"
-            >
-              <div className="text-5xl mb-4">{item.icon}</div>
-              <div className="text-sm font-semibold text-primary-600 mb-2">
-                STEP {item.step}
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{item.title}</h3>
-              <p className="text-slate-600">{item.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <section className="px-4 py-16 bg-primary-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-slate-900 mb-4">
-            Join the Next Wave of Music Production
-          </h2>
-          <p className="text-xl text-slate-600 mb-8">
-            MySpace → YouTube → Social Media → AI Twins
-          </p>
-          
-          <div className="grid md:grid-cols-3 gap-8 mt-12">
+      {/* Stats Section - Kling Style */}
+      <section className="py-16 px-6 lg:px-8 bg-slate-950 border-t border-slate-800/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8">
             {[
-              { stat: '72%', label: 'Profit Margin vs Traditional Studios' },
-              { stat: '5 min', label: 'Average Video Generation Time' },
-              { stat: '$20', label: 'Starting at Artist Tier' },
-            ].map((item) => (
-              <div key={item.label} className="glass p-8 rounded-2xl">
-                <div className="text-5xl font-bold gradient-text mb-2">{item.stat}</div>
-                <div className="text-slate-600">{item.label}</div>
+              { 
+                value: '95%', 
+                label: 'Cost Savings vs Traditional Studios',
+                description: 'Save thousands on music video production',
+              },
+              { 
+                value: '5 min', 
+                label: 'Average Generation Time',
+                description: 'From recording to final video',
+              },
+              { 
+                value: '72%', 
+                label: 'Profit Margin',
+                description: 'Competitive pricing with high margins',
+              },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="text-5xl font-bold gradient-text mb-3">{stat.value}</div>
+                <div className="text-lg font-semibold text-white mb-2">{stat.label}</div>
+                <div className="text-sm text-slate-400">{stat.description}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="px-4 py-16 max-w-4xl mx-auto text-center">
-        <div className="glass p-12 rounded-3xl border border-primary-200">
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-slate-900 mb-4">
+      {/* CTA Section - Kling Style */}
+      <section className="py-16 px-6 lg:px-8 bg-slate-950 border-t border-slate-800/50">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Ready to Create Your First Video?
           </h2>
-          <p className="text-lg text-slate-600 mb-8">
-            Get started with one free 3-second generation. No credit card required to try.
+          <p className="text-lg text-slate-400 mb-8">
+            Get started with one free 3-second generation.
           </p>
-          <Link
-            href="/auth/signup"
-            className="inline-block px-10 py-5 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg"
+          <a
+            href="#"
+            onClick={handlePreLaunchLink}
+            className="inline-block px-6 sm:px-8 py-3.5 sm:py-3 bg-white text-slate-950 text-sm sm:text-base font-semibold rounded-lg hover:bg-slate-100 transition-all min-h-[48px] flex items-center justify-center cursor-pointer"
           >
-            Start Creating Now
-          </Link>
+            Start Creating Now →
+          </a>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="px-4 py-12 bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-8">
-          <div>
-            <div className="text-2xl font-display font-bold mb-4">Vannilli</div>
-            <p className="text-slate-400">
-              Democratizing high-end music video production
-            </p>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold mb-4">Product</h3>
-            <ul className="space-y-2 text-slate-400">
-              <li><Link href="/pricing">Pricing</Link></li>
-              <li><Link href="/showcase">Showcase</Link></li>
-              <li><Link href="/calculator">Calculator</Link></li>
-            </ul>
+      {/* Footer - Kling Style */}
+      <footer className="border-t border-slate-800/50 py-12 px-6 lg:px-8 bg-slate-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <Link href="/" className="inline-block mb-4">
+                <Image
+                  src="/logo/logo.png"
+                  alt="Vannilli"
+                  width={768}
+                  height={256}
+                  className="h-16 w-auto"
+                  style={{
+                    width: 'auto',
+                    height: '64px',
+                    objectFit: 'contain',
+                  }}
+                />
+              </Link>
+              <p className="text-slate-500 text-sm">
+                Bring Your AI Artists and Music to Life
+              </p>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold text-white mb-4 text-sm">Product</h3>
+              <ul className="space-y-2 text-slate-500 text-sm">
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Pricing</a></li>
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Showcase</a></li>
+                <li><Link href="#calculator" className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center">Calculator</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-white mb-4 text-sm">Company</h3>
+              <ul className="space-y-2 text-slate-500 text-sm">
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">About</a></li>
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Blog</a></li>
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Contact</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-white mb-4 text-sm">Legal</h3>
+              <ul className="space-y-2 text-slate-500 text-sm">
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Terms</a></li>
+                <li><a href="#" onClick={handlePreLaunchLink} className="hover:text-white transition-colors block py-2 min-h-[44px] flex items-center cursor-pointer">Privacy</a></li>
+              </ul>
+            </div>
           </div>
 
-          <div>
-            <h3 className="font-semibold mb-4">Company</h3>
-            <ul className="space-y-2 text-slate-400">
-              <li><Link href="/about">About</Link></li>
-              <li><Link href="/blog">Blog</Link></li>
-              <li><Link href="/contact">Contact</Link></li>
-            </ul>
+          <div className="pt-8 border-t border-slate-800/50 text-center text-slate-500 text-sm">
+            <p>&copy; 2026 Vannilli. All rights reserved.</p>
           </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">Legal</h3>
-            <ul className="space-y-2 text-slate-400">
-              <li><Link href="/legal/terms">Terms of Service</Link></li>
-              <li><Link href="/legal/privacy">Privacy Policy</Link></li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-slate-800 text-center text-slate-400">
-          <p>&copy; 2026 Vannilli. All rights reserved.</p>
         </div>
       </footer>
     </main>
   );
 }
-

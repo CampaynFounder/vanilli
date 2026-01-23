@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
+import { GlobalSignupModal } from '@/components/GlobalSignupModal';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -56,8 +57,9 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
   },
   appleWebApp: {
     capable: true,
@@ -76,10 +78,12 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://api.vannilli.xaino.io" />
         <link rel="dns-prefetch" href="https://api.vannilli.xaino.io" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="font-sans antialiased bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
-        {children}
-      </body>
+          <body className="font-sans antialiased min-h-screen">
+            {children}
+            <GlobalSignupModal />
+          </body>
     </html>
   );
 }
