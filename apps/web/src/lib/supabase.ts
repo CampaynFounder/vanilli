@@ -20,29 +20,51 @@ function getSupabaseClient(): SupabaseClient | null {
     });
   }
 
-  // Only return null if both are completely empty (not set at all)
-  // Otherwise, try to create the client and let it fail gracefully if invalid
-  if (!supabaseUrl && !supabaseAnonKey) {
+  // Only create client if we have BOTH valid-looking values
+  // Don't create with placeholder values - that causes 401 errors
+  if (!supabaseUrl || !supabaseAnonKey) {
     if (typeof window !== 'undefined') {
-      console.warn('Supabase env vars not found');
+      console.warn('Supabase env vars not found or incomplete:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseAnonKey,
+      });
     }
     return null;
   }
 
-  // If we have values, try to create the client (even if they might be invalid)
-  // This allows the actual Supabase API to return proper errors
+  // Validate that URL looks like a Supabase URL
+  if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
+    if (typeof window !== 'undefined') {
+      console.warn('Invalid Supabase URL format:', supabaseUrl.substring(0, 50));
+    }
+    return null;
+  }
+
+  // Validate that key looks like a JWT (starts with eyJ)
+  if (!supabaseAnonKey.startsWith('eyJ')) {
+    if (typeof window !== 'undefined') {
+      console.warn('Invalid Supabase anon key format (should start with eyJ)');
+    }
+    return null;
+  }
+
+  // If we have a valid client already, return it
   if (supabaseClient) {
     return supabaseClient;
   }
 
   try {
-    // Create client with whatever values we have
-    // Supabase will return proper errors if they're invalid
-    supabaseClient = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder-key', {
+    // Create client with validated values
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+      },
+      global: {
+        headers: {
+          'apikey': supabaseAnonKey, // Explicitly set apikey header
+        },
       },
     });
     return supabaseClient;

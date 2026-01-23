@@ -241,6 +241,20 @@ export function SignupForm() {
 
       if (error) {
         console.error('Supabase error:', error);
+        
+        // Handle 401 Unauthorized - API key issue
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.status === 401) {
+          console.error('401 Unauthorized - Check Supabase API key:', {
+            hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+            hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            urlPreview: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30),
+            keyPreview: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20),
+          });
+          setSubmitError('Authentication failed. Please verify Supabase API key is correctly configured.');
+          setIsSubmitting(false);
+          return;
+        }
+        
         // Handle duplicate email error gracefully
         if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
           setSubmitError('This email is already registered. Thank you for your interest!');
