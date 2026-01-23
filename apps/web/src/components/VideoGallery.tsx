@@ -71,7 +71,7 @@ const placeholderVideos: Video[] = [
     videoUrl: '/videos/video6.MOV',
     title: 'SACKRITE',
     artist: 'RIPSkreet',
-    label: 'BlackmAIgo Records',
+    label: 'BlackAImigo Records',
     duration: '0:30',
     bpm: 140,
     bars: 8,
