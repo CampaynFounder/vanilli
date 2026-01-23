@@ -41,10 +41,28 @@ export default function DebugPage() {
         <div className="mt-6 p-4 bg-slate-900 rounded">
           <strong>Status:</strong>
           {supabaseUrl && supabaseKey ? (
-            <div className="text-green-400 mt-2">✓ Supabase should be configured</div>
+            <div className="text-green-400 mt-2">
+              ✓ Variables are set in the build
+              <div className="text-sm text-slate-400 mt-2">
+                If you still see "not configured" errors, the build may have happened before the variables were set.
+                <br />
+                <strong>Solution:</strong> Trigger a new deployment in Cloudflare Pages after setting the variables.
+              </div>
+            </div>
           ) : (
             <div className="text-red-400 mt-2">
-              ✗ Supabase is not configured. Please set environment variables in Cloudflare Pages.
+              ✗ Supabase is not configured in this build.
+              <div className="text-sm text-slate-400 mt-2">
+                <strong>Important:</strong> With static export, environment variables must be set BEFORE the build runs.
+                <br />
+                <br />
+                Steps to fix:
+                <ol className="list-decimal list-inside mt-2 space-y-1">
+                  <li>Set NEXT_PUBLIC_SUPABASE_URL in Cloudflare Pages → Settings → Environment Variables</li>
+                  <li>Set NEXT_PUBLIC_SUPABASE_ANON_KEY in Cloudflare Pages → Settings → Environment Variables</li>
+                  <li>Trigger a NEW deployment (the build needs to run with the variables available)</li>
+                </ol>
+              </div>
             </div>
           )}
         </div>
