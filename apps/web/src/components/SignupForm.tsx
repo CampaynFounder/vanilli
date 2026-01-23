@@ -223,17 +223,6 @@ export function SignupForm() {
     setSubmitError('');
     
     try {
-      // Check if Supabase is configured
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-      
-      if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
-        // Supabase not configured - show friendly message
-        setSubmitError('Email collection is not yet configured. Please contact support.');
-        setIsSubmitting(false);
-        return;
-      }
-
       // Get user agent and IP (if available)
       const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : null;
       
@@ -259,6 +248,11 @@ export function SignupForm() {
           setTimeout(() => {
             handleClose();
           }, 3000);
+        } else if (error.message && error.message.includes('not configured')) {
+          // Supabase not configured
+          setSubmitError('Email collection is not yet configured. Please contact support.');
+          setIsSubmitting(false);
+          return;
         } else {
           console.error('Error submitting email:', error);
           setSubmitError('Something went wrong. Please try again.');
@@ -274,9 +268,14 @@ export function SignupForm() {
           handleClose();
         }, 2000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error:', err);
-      setSubmitError('An unexpected error occurred. Please try again.');
+      // Check if it's a network/configuration error
+      if (err?.message?.includes('not configured') || err?.message?.includes('ERR_NAME_NOT_RESOLVED') || err?.message?.includes('Failed to fetch')) {
+        setSubmitError('Email collection is not yet configured. Please contact support.');
+      } else {
+        setSubmitError('An unexpected error occurred. Please try again.');
+      }
       setIsSubmitting(false);
     }
   };
