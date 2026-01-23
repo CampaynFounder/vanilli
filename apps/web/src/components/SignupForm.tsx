@@ -306,16 +306,17 @@ export function SignupForm() {
       }
         } catch (err: unknown) {
       console.error('Unexpected error:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('Error details:', {
-        message: err?.message,
-        stack: err?.stack,
-        name: err?.name
+        message: errorMessage,
+        stack: err instanceof Error ? err.stack : undefined,
+        name: err instanceof Error ? err.name : undefined
       });
       // Check if it's a network/configuration error
-      if (err?.message?.includes('not configured') || err?.message?.includes('ERR_NAME_NOT_RESOLVED') || err?.message?.includes('Failed to fetch') || err?.message?.includes('CONFIG_ERROR')) {
+      if (errorMessage.includes('not configured') || errorMessage.includes('ERR_NAME_NOT_RESOLVED') || errorMessage.includes('Failed to fetch') || errorMessage.includes('CONFIG_ERROR')) {
         setSubmitError('Email collection is not yet configured. Please contact support. Check console for details.');
       } else {
-        setSubmitError(`An unexpected error occurred: ${err?.message || 'Please try again.'}`);
+        setSubmitError(`An unexpected error occurred: ${errorMessage || 'Please try again.'}`);
       }
       setIsSubmitting(false);
     }
