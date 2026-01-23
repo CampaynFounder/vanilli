@@ -435,11 +435,9 @@ export function SignupForm() {
           {isSubmitted ? (
             <div className="text-center py-6">
               <div className="text-4xl mb-3">✅</div>
-              <p className="text-white font-semibold mb-2">Thank you!</p>
+              <p className="text-white font-semibold mb-2">You&apos;re All Set! Your Free Credits Are Locked In.</p>
               <p className="text-slate-300 text-sm">
-                {isInvestor 
-                  ? 'We\'ll be in touch soon about investment opportunities.'
-                  : 'Check your email for your free credits.'}
+                Someone from our team will reach out to you for our next investor call.
               </p>
             </div>
           ) : (
