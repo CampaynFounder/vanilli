@@ -158,24 +158,6 @@ export function VideoGallery() {
                       videoElement.currentTime = 0.1; // Load first frame
                     }
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const videoElement = e.currentTarget;
-                    if (isPlaying) {
-                      videoElement.pause();
-                      setPlayingVideoId(null);
-                    } else {
-                      // Pause all other videos
-                      document.querySelectorAll('video').forEach((v) => {
-                        if (v !== videoElement) {
-                          v.pause();
-                          v.currentTime = 0;
-                        }
-                      });
-                      videoElement.play();
-                      setPlayingVideoId(video.id);
-                    }
-                  }}
                   onPlay={() => setPlayingVideoId(video.id)}
                   onPause={() => {
                     if (playingVideoId === video.id) {
@@ -184,9 +166,42 @@ export function VideoGallery() {
                   }}
                 />
 
+                {/* Custom Play Button Overlay - Center */}
+                {!isPlaying && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const videoElement = e.currentTarget.parentElement?.querySelector('video') as HTMLVideoElement;
+                      if (videoElement) {
+                        // Pause all other videos
+                        document.querySelectorAll('video').forEach((v) => {
+                          if (v !== videoElement) {
+                            v.pause();
+                            v.currentTime = 0;
+                          }
+                        });
+                        videoElement.play();
+                        setPlayingVideoId(video.id);
+                      }
+                    }}
+                    className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-10 group"
+                    aria-label="Play video"
+                  >
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/90 hover:bg-white group-hover:scale-110 rounded-full flex items-center justify-center transition-all shadow-lg">
+                      <svg
+                        className="w-8 h-8 sm:w-10 sm:h-10 text-slate-950 ml-1"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </button>
+                )}
+
                 {/* Video info overlay - shows when not playing, positioned to not cover controls */}
                 {!isPlaying && (
-                  <div className="absolute bottom-0 left-0 right-0 p-3 pb-16 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none">
+                  <div className="absolute bottom-0 left-0 right-0 p-3 pb-16 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none z-0">
                     <div className="text-white font-semibold text-sm mb-1">
                       {video.title}
                     </div>

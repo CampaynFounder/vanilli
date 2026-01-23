@@ -52,14 +52,14 @@ export default function HomePage() {
               <a
                 href="#"
                 onClick={handlePreLaunchLink}
-                className="text-xs sm:text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center cursor-pointer"
+                className="text-sm sm:text-base text-slate-400 hover:text-white transition-colors px-3 py-2 min-h-[44px] flex items-center cursor-pointer"
               >
                 Sign In
               </a>
               <a
                 href="#"
                 onClick={handlePreLaunchLink}
-                className="px-3 py-2.5 sm:px-4 sm:py-2 bg-white text-slate-950 text-xs sm:text-sm font-semibold rounded-lg hover:bg-slate-100 transition-all min-h-[44px] flex items-center justify-center cursor-pointer"
+                className="px-4 py-2.5 sm:px-5 sm:py-2.5 bg-white text-slate-950 text-sm sm:text-base font-semibold rounded-lg hover:bg-slate-100 transition-all min-h-[44px] flex items-center justify-center cursor-pointer whitespace-nowrap"
               >
                 Get Started
               </a>
