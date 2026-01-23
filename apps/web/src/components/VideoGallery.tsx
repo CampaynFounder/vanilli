@@ -103,13 +103,6 @@ export function VideoGallery() {
   const videos = placeholderVideos.length > 0 ? placeholderVideos : [];
   const { showModal } = useSignupModal();
 
-  // Helper to map video array index to video file number
-  // video[0] (id: '1') -> video2, video[1] (id: '2') -> video3, etc.
-  const getVideoFileId = (videoId: string) => {
-    const index = parseInt(videoId) - 1; // '1' -> 0, '2' -> 1, etc.
-    return `video${index + 2}`; // video2, video3, video4, etc.
-  };
-
   // Fetch play counts on mount
   useEffect(() => {
     const fetchPlayCounts = async () => {
@@ -118,16 +111,17 @@ export function VideoGallery() {
 
       for (const video of videos) {
         try {
-          const videoFileId = getVideoFileId(video.id);
-          const response = await fetch(`${apiUrl}/api/video-play-count/${videoFileId}`);
+          // video.id now matches database format (video2, video3, etc.)
+          const response = await fetch(`${apiUrl}/api/video-play-count/${video.id}`);
           if (response.ok) {
             const data = await response.json();
             counts[video.id] = data.displayCount || 12347;
           }
         } catch (error) {
           // Fallback to default count if API fails
-          const videoNumber = parseInt(video.id) || 1;
-          counts[video.id] = 12347 + (videoNumber - 1); // video[0] = 12347, video[1] = 12348
+          // Extract number from video id (e.g., 'video2' -> 2)
+          const videoNumber = parseInt(video.id.replace('video', '')) || 2;
+          counts[video.id] = 12347 + (videoNumber - 2); // video2 = 12347, video3 = 12348, etc.
         }
       }
 
@@ -142,16 +136,16 @@ export function VideoGallery() {
   // Track video play
   const trackVideoPlay = async (videoId: string, videoUrl: string) => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-    const videoFileId = getVideoFileId(videoId);
 
     try {
+      // videoId now matches database format (video2, video3, etc.)
       const response = await fetch(`${apiUrl}/api/track-video-play`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          videoId: videoFileId,
+          videoId: videoId, // Already in correct format
           videoUrl,
         }),
       });
