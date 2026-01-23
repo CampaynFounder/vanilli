@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Vannilli - Music Video AI Platform',
+  title: 'VANNILLI - Hyper-Realistic Lip Sync For AI Music Videos',
   description: 'Create professional music videos by paying for bars, not compute. Transform your performance into stunning AI-powered music videos.',
   keywords: ['music video', 'AI', 'video generation', 'music production', 'artist tools'],
   authors: [{ name: 'Vannilli Team' }],
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   publisher: 'Vannilli',
   metadataBase: new URL('https://vannilli.xaino.io'),
   openGraph: {
-    title: 'Vannilli - Music Video AI Platform',
+    title: 'VANNILLI - Hyper-Realistic Lip Sync For AI Music Videos',
     description: 'Create professional music videos by paying for bars, not compute',
     url: 'https://vannilli.xaino.io',
     siteName: 'Vannilli',
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
         url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Vannilli Music Video AI',
+        alt: 'VANNILLI - Hyper-Realistic Lip Sync For AI Music Videos',
       },
     ],
     locale: 'en_US',
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Vannilli - Music Video AI Platform',
+    title: 'VANNILLI - Hyper-Realistic Lip Sync For AI Music Videos',
     description: 'Create professional music videos by paying for bars, not compute',
     images: ['/og-image.jpg'],
     creator: '@VannilliAI',
