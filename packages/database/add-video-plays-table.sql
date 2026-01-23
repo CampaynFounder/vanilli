@@ -44,19 +44,20 @@ CREATE POLICY video_plays_update_service_role ON video_plays
   TO service_role
   USING (true);
 
--- Initialize play counts for existing videos (starting at 12347, 12348, etc.)
+-- Initialize play counts for existing videos with 1 standard deviation variation
 -- IMPORTANT: When adding new videos, update this INSERT statement!
--- Pattern: video_number -> display_count = 12347 + (video_number - 2)
--- Example: video7 -> 12352, video8 -> 12353, etc.
+-- Pattern: Base count = 12347, std dev = ~200
+-- Each video should vary by approximately 1 standard deviation from each other
+-- Growth rate: 138 plays per hour (calculated dynamically based on time elapsed)
 INSERT INTO video_plays (video_id, video_url, display_count, actual_play_count)
 VALUES
-  ('video2', '/videos/video2.MOV', 12347, 0),
-  ('video3', '/videos/video3.MOV', 12348, 0),
-  ('video4', '/videos/video4.MOV', 12349, 0),
-  ('video5', '/videos/video5.MOV', 12350, 0),
-  ('video6', '/videos/video6.MOV', 12351, 0),
-  ('video7', '/videos/video7.MOV', 12352, 0)
-  -- Add new videos here following the pattern:
-  -- ('video8', '/videos/video8.MOV', 12353, 0),
+  ('video2', '/videos/video2.MOV', 12347, 0),  -- Mean (base)
+  ('video3', '/videos/video3.MOV', 12547, 0),  -- +200 (+1 std dev)
+  ('video4', '/videos/video4.MOV', 12147, 0),  -- -200 (-1 std dev)
+  ('video5', '/videos/video5.MOV', 12447, 0),  -- +100 (+0.5 std dev)
+  ('video6', '/videos/video6.MOV', 12247, 0),  -- -100 (-0.5 std dev)
+  ('video7', '/videos/video7.MOV', 12647, 0)   -- +300 (+1.5 std dev)
+  -- Add new videos here with variation around 12347 ± (200 * multiplier)
+  -- Example for video8: ('video8', '/videos/video8.MOV', 12347 + (200 * random_multiplier), 0),
 ON CONFLICT (video_id) DO NOTHING;
 

@@ -417,13 +417,21 @@ videoRoutes.post('/track-video-play', async (c) => {
     }
 
     if (existing) {
-      // Update existing record - increment both counters
+      // Calculate time-based growth since last update: 138 plays per hour
+      const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
+      const updatedAt = new Date(existing.updated_at);
+      const now = new Date();
+      const secondsElapsed = (now.getTime() - updatedAt.getTime()) / 1000;
+      const growthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
+
+      // Update existing record - add growth + 1 for actual play
+      const newDisplayCount = existing.display_count + growthPlays + 1;
       const { data: updated, error: updateError } = await supabase
         .from('video_plays')
         .update({
-          display_count: existing.display_count + 1,
+          display_count: newDisplayCount,
           actual_play_count: existing.actual_play_count + 1,
-          updated_at: new Date().toISOString(),
+          updated_at: now.toISOString(),
         })
         .eq('video_id', videoId)
         .select()
@@ -440,16 +448,19 @@ videoRoutes.post('/track-video-play', async (c) => {
         actualPlayCount: updated.actual_play_count,
       });
     } else {
-      // Create new record - start at 12347 + offset based on video number
-      const videoNumber = parseInt(videoId.replace('video', '')) || 1;
-      const initialDisplayCount = 12347 + (videoNumber - 2); // video2 = 12347, video3 = 12348, etc.
+      // Create new record - start with 1 std dev variation
+      const videoNumber = parseInt(videoId.replace('video', '')) || 2;
+      // Base count with 1 std dev variation (std dev = 200)
+      const variations = [0, 200, -200, 100, -100, 300]; // video2-video7 variations
+      const variationIndex = Math.min(videoNumber - 2, variations.length - 1);
+      const initialDisplayCount = 12347 + (variations[variationIndex] || 0) + 1; // First play increments
 
       const { data: created, error: insertError } = await supabase
         .from('video_plays')
         .insert({
           video_id: videoId,
           video_url: videoUrl,
-          display_count: initialDisplayCount + 1, // First play increments
+          display_count: initialDisplayCount,
           actual_play_count: 1,
           user_agent: userAgent,
           ip_address: ipAddress,
@@ -477,6 +488,7 @@ videoRoutes.post('/track-video-play', async (c) => {
 /**
  * GET /api/video-play-count/:videoId
  * Get play count for a video (no auth required)
+ * Calculates time-based growth: 138 plays per hour
  */
 videoRoutes.get('/video-play-count/:videoId', async (c) => {
   const videoId = c.req.param('videoId');
@@ -485,15 +497,18 @@ videoRoutes.get('/video-play-count/:videoId', async (c) => {
 
   const { data, error } = await supabase
     .from('video_plays')
-    .select('display_count, actual_play_count')
+    .select('display_count, actual_play_count, created_at')
     .eq('video_id', videoId)
     .single();
 
   if (error) {
     if (error.code === 'PGRST116') {
-      // Not found - return default starting count
-      const videoNumber = parseInt(videoId.replace('video', '')) || 1;
-      const initialDisplayCount = 12347 + (videoNumber - 2);
+      // Not found - return default starting count with variation
+      const videoNumber = parseInt(videoId.replace('video', '')) || 2;
+      // Base count with 1 std dev variation (std dev = 200)
+      const variations = [0, 200, -200, 100, -100, 300]; // video2-video7 variations
+      const variationIndex = Math.min(videoNumber - 2, variations.length - 1);
+      const initialDisplayCount = 12347 + (variations[variationIndex] || 0);
       return c.json({
         videoId,
         displayCount: initialDisplayCount,
@@ -503,9 +518,19 @@ videoRoutes.get('/video-play-count/:videoId', async (c) => {
     return c.json({ error: 'Failed to fetch play count' }, 500);
   }
 
+  // Calculate time-based growth: 138 plays per hour = 0.0383 plays per second
+  const GROWTH_RATE_PER_SECOND = 138 / 3600; // 138 plays per hour
+  const createdAt = new Date(data.created_at);
+  const now = new Date();
+  const secondsElapsed = (now.getTime() - createdAt.getTime()) / 1000;
+  const growthPlays = Math.floor(secondsElapsed * GROWTH_RATE_PER_SECOND);
+
+  // Add growth to the base display count
+  const currentDisplayCount = data.display_count + growthPlays;
+
   return c.json({
     videoId,
-    displayCount: data.display_count,
+    displayCount: currentDisplayCount,
     actualPlayCount: data.actual_play_count,
   });
 });
