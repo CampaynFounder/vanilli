@@ -144,8 +144,9 @@ export function VideoGallery() {
               >
                 {/* Video player - inline */}
                 <video
+                  id={`video-${video.id}`}
                   src={video.videoUrl}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover pointer-events-none"
                   controls={isPlaying}
                   playsInline
                   preload="auto"
@@ -156,12 +157,25 @@ export function VideoGallery() {
                     const videoElement = e.currentTarget;
                     if (!isPlaying) {
                       videoElement.currentTime = 0.1; // Load first frame
+                      videoElement.pause(); // Ensure it stays paused
                     }
                   }}
-                  onPlay={() => setPlayingVideoId(video.id)}
+                  onPlay={() => {
+                    setPlayingVideoId(video.id);
+                    // Ensure video can receive pointer events when playing
+                    const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
+                    if (videoElement) {
+                      videoElement.style.pointerEvents = 'auto';
+                    }
+                  }}
                   onPause={() => {
                     if (playingVideoId === video.id) {
                       setPlayingVideoId(null);
+                      // Disable pointer events when paused so play button works
+                      const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
+                      if (videoElement) {
+                        videoElement.style.pointerEvents = 'none';
+                      }
                     }
                   }}
                 />
@@ -171,7 +185,8 @@ export function VideoGallery() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const videoElement = e.currentTarget.parentElement?.querySelector('video') as HTMLVideoElement;
+                      e.preventDefault();
+                      const videoElement = document.getElementById(`video-${video.id}`) as HTMLVideoElement;
                       if (videoElement) {
                         // Pause all other videos
                         document.querySelectorAll('video').forEach((v) => {
@@ -180,14 +195,19 @@ export function VideoGallery() {
                             v.currentTime = 0;
                           }
                         });
-                        videoElement.play();
+                        // Enable pointer events on video when playing
+                        videoElement.style.pointerEvents = 'auto';
+                        videoElement.play().catch((err) => {
+                          console.error('Error playing video:', err);
+                        });
                         setPlayingVideoId(video.id);
                       }
                     }}
-                    className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-10 group"
+                    className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-20 group"
                     aria-label="Play video"
+                    type="button"
                   >
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/90 hover:bg-white group-hover:scale-110 rounded-full flex items-center justify-center transition-all shadow-lg">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/90 hover:bg-white group-hover:scale-110 rounded-full flex items-center justify-center transition-all shadow-lg pointer-events-auto">
                       <svg
                         className="w-8 h-8 sm:w-10 sm:h-10 text-slate-950 ml-1"
                         fill="currentColor"
