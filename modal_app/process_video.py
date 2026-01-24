@@ -10,7 +10,7 @@ import modal
 from starlette.requests import Request
 
 app = modal.App("vannilli-process-video")
-img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "starlette")
+img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "starlette", "fastapi")
 
 BUCKET = "vannilli"
 INPUTS_PREFIX = "inputs"
@@ -61,12 +61,13 @@ async def process_video(request: Request):
             _fail(supabase, generation_id, str(e))
             return {"ok": False, "error": f"Download failed: {e}"}
 
-        # Kling motion-control: driver_video + target_image
+        # Kling motion-control: driver_video + target_image (mode=std, character_orientation=image). Only VANNILLI watermark for trial.
+        # When Kling supports it, add optional "watermark": False to request no Kling watermark.
         payload = {
             "model_name": "kling-v2",
             "driver_video_url": tracking_url,
             "target_image_url": target_url,
-            "mode": "standard",
+            "mode": "std",
             "character_orientation": "image",
         }
         try:
@@ -87,6 +88,8 @@ async def process_video(request: Request):
 
         supabase.table("generations").update({"kling_task_id": task_id, "status": "processing"}).eq("id", generation_id).execute()
 
+        kling_units_used = None
+
         # Poll Kling
         for _ in range(60):
             time.sleep(5)
@@ -100,17 +103,25 @@ async def process_video(request: Request):
                 j = r.json()
                 if j.get("code") != 0:
                     continue
-                st = (j.get("data") or {}).get("task_status")
+                data = j.get("data") or {}
+                st = data.get("task_status")
                 if st == "failed":
                     _fail(supabase, generation_id, j.get("message", "Kling failed"))
                     return {"ok": False, "error": "Kling failed"}
                 if st == "succeed":
-                    videos = (j.get("data") or {}).get("task_result") or {}
-                    urls = (videos.get("videos") or [])
+                    task_result = data.get("task_result") or {}
+                    urls = task_result.get("videos") or []
                     if not urls:
                         _fail(supabase, generation_id, "No video URL in Kling result")
                         return {"ok": False, "error": "No video URL"}
-                    kling_video_url = urls[0].get("url")
+                    v0 = urls[0] or {}
+                    kling_video_url = v0.get("url")
+                    if not kling_video_url:
+                        _fail(supabase, generation_id, "No video URL in Kling result")
+                        return {"ok": False, "error": "No video URL"}
+
+                    # Final unit deduction (Kling may use unit_deduction, credit_used, units_used)
+                    kling_units_used = data.get("unit_deduction") or data.get("credit_used") or data.get("units_used") or task_result.get("unit_deduction") or task_result.get("credit_used")
                     break
             except Exception as e:
                 continue
@@ -127,8 +138,8 @@ async def process_video(request: Request):
             capture_output=True,
         )
 
+        # Only watermark: VANNILLI logo, for trial users only
         if is_trial:
-            # Watermark
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(synced_path), "-vf", "drawtext=text='VANNILLI.io':x=(w-text_w)/2:y=h-50:fontsize=24:fontcolor=white@0.7", "-c:a", "copy", str(final_path)],
                 check=True,
@@ -158,7 +169,7 @@ async def process_video(request: Request):
             except Exception:
                 pass
 
-    return {"ok": True, "path": out_key}
+    return {"ok": True, "path": out_key, "kling_units_used": kling_units_used}
 
 
 def _fail(supabase, generation_id: str, msg: str):

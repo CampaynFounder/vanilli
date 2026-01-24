@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { GlassCard } from '@/components/ui/GlassCard';
 
 interface GenerationFlowProps {
@@ -17,6 +18,12 @@ interface GenerationFlowProps {
   durationValid?: boolean;
   /** Billable seconds when duration valid. */
   generationSeconds?: number | null;
+  /** If false, Generate is disabled (need 9+ credits). Default true. */
+  hasCredits?: boolean;
+  /** When true, show "Link payment below for 3 free credits" instead of Get more. */
+  showLinkCard?: boolean;
+  /** When hasCredits false and !showLinkCard, use this href for the CTA. */
+  getCreditsHref?: string;
 }
 
 export function GenerationFlow({
@@ -30,6 +37,9 @@ export function GenerationFlow({
   durationError,
   durationValid,
   generationSeconds,
+  hasCredits = true,
+  showLinkCard = false,
+  getCreditsHref = '/pricing',
 }: GenerationFlowProps) {
   const steps = [
     { id: 'preparing', label: 'Preparing Your Files', icon: '⬇️' },
@@ -41,7 +51,7 @@ export function GenerationFlow({
   ];
 
   const allFilesReady = hasVideo && hasImage && hasAudio;
-  const canGenerate = allFilesReady && durationValid === true;
+  const canGenerate = allFilesReady && durationValid === true && hasCredits;
 
   const getStepStatus = (stepId: string) => {
     if (!isGenerating) return 'pending';
@@ -134,36 +144,47 @@ export function GenerationFlow({
         </div>
       )}
 
-      {/* Generate Button */}
-      <button
-        disabled={!canGenerate || isGenerating}
-        onClick={canGenerate && !isGenerating ? onGenerate : undefined}
-        className={`
-          w-full mt-6 px-6 py-4 rounded-xl font-semibold text-white transition-all
-          ${canGenerate && !isGenerating
-            ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 tap-effect animate-glow-pulse'
-            : 'bg-slate-700 cursor-not-allowed opacity-50'
-          }
-        `}
-      >
-        {isGenerating ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Generating...
-          </span>
-        ) : canGenerate ? (
-          generationSeconds != null ? `🚀 Generate Music Video (${generationSeconds}s)` : '🚀 Generate Music Video'
-        ) : allFilesReady && durationValid === false ? (
-          'Fix duration mismatch to generate'
-        ) : allFilesReady && hasVideo && hasAudio && durationValid !== true ? (
-          'Checking durations...'
-        ) : (
-          '📤 Upload All 3 Files to Start'
-        )}
-      </button>
+      {/* Generate Button or Get Credits CTA */}
+      {!hasCredits && allFilesReady && durationValid === true && !showLinkCard && getCreditsHref ? (
+        <Link
+          href={getCreditsHref}
+          className="w-full mt-6 px-6 py-4 rounded-xl font-semibold text-white bg-slate-700 hover:bg-slate-600 transition-all block text-center"
+        >
+          Need 9+ credits — Get more
+        </Link>
+      ) : (
+        <button
+          disabled={!canGenerate || isGenerating}
+          onClick={canGenerate && !isGenerating ? onGenerate : undefined}
+          className={`
+            w-full mt-6 px-6 py-4 rounded-xl font-semibold text-white transition-all
+            ${canGenerate && !isGenerating
+              ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 tap-effect animate-glow-pulse'
+              : 'bg-slate-700 cursor-not-allowed opacity-50'
+            }
+          `}
+        >
+          {isGenerating ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Generating...
+            </span>
+          ) : canGenerate ? (
+            generationSeconds != null ? `🚀 Generate Music Video (${generationSeconds}s)` : '🚀 Generate Music Video'
+          ) : !hasCredits && allFilesReady && durationValid === true && showLinkCard ? (
+            'Link payment below for 3 free credits'
+          ) : allFilesReady && durationValid === false ? (
+            'Fix duration to generate (3–9s, within 2s)'
+          ) : allFilesReady && hasVideo && hasAudio && durationValid !== true ? (
+            'Checking durations...'
+          ) : (
+            '📤 Upload All 3 Files to Start'
+          )}
+        </button>
+      )}
 
       {!allFilesReady && (
         <p className="text-xs text-slate-400 text-center mt-2">
@@ -172,7 +193,7 @@ export function GenerationFlow({
       )}
       {allFilesReady && durationValid === true && generationSeconds != null && (
         <p className="text-xs text-slate-400 text-center mt-2">
-          {generationSeconds} seconds · within 2s match for lip-sync
+          {generationSeconds}s (3–9s, within 2s for lip-sync) · 9+ credits required
         </p>
       )}
     </GlassCard>

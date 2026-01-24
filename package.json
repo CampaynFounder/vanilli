@@ -18,6 +18,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "db:migrate": "cd packages/database && supabase db push",
     "db:reset": "cd packages/database && supabase db reset",
+    "supabase:deploy:create-checkout": "supabase functions deploy create-checkout-session",
+    "supabase:deploy:functions": "supabase functions deploy",
     "prepare": "husky install"
   },
   "devDependencies": {

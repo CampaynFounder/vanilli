@@ -7,9 +7,14 @@ import { supabase } from '@/lib/supabase';
 interface AvatarUploadProps {
   currentAvatarUrl?: string;
   onAvatarUpdate: (url: string) => void;
+  /** Required: used for storage path and must match auth.uid() for policies. */
+  userId: string;
 }
 
-export function AvatarUpload({ currentAvatarUrl, onAvatarUpdate }: AvatarUploadProps) {
+const BUCKET = 'vannilli';
+const AVATARS_PREFIX = 'avatars';
+
+export function AvatarUpload({ currentAvatarUrl, onAvatarUpdate, userId }: AvatarUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(currentAvatarUrl || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,46 +45,26 @@ export function AvatarUpload({ currentAvatarUrl, onAvatarUpdate }: AvatarUploadP
       };
       reader.readAsDataURL(file);
 
-      // Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      // Upload to Supabase Storage: vannilli/avatars/{userId}_{timestamp}.{ext}
+      const fileExt = file.name.split('.').pop() || 'png';
+      const fileName = `${userId}_${Date.now()}.${fileExt}`;
+      const filePath = `${AVATARS_PREFIX}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('user-avatars')
+        .from(BUCKET)
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false,
+          upsert: true,
         });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage
-        .from('user-avatars')
-        .getPublicUrl(filePath);
-
+      // Public URL (requires storage policy: avatars_public_read on vannilli/avatars/*)
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
       const publicUrl = data.publicUrl;
 
-      // Update profile via API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-      const session = await supabase.auth.getSession();
-
-      if (session.data.session) {
-        const response = await fetch(`${apiUrl}/api/auth/profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.data.session.access_token}`,
-          },
-          body: JSON.stringify({ avatarUrl: publicUrl }),
-        });
-
-        if (response.ok) {
-          onAvatarUpdate(publicUrl);
-          setPreviewUrl(publicUrl);
-        }
-      }
+      onAvatarUpdate(publicUrl);
+      setPreviewUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading avatar:', error);
       alert('Failed to upload avatar');

@@ -10,6 +10,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
+import { LinkPaymentForFreeCredits } from '@/components/LinkPaymentForFreeCredits';
 
 const BUCKET = 'vannilli';
 const INPUTS = 'inputs';
@@ -17,7 +18,7 @@ const OUTPUTS = 'outputs';
 
 function StudioPage() {
   const router = useRouter();
-  const { signOut, user } = useAuth();
+  const { signOut, user, refreshUser } = useAuth();
 
   // Upload states
   const [trackingVideo, setTrackingVideo] = useState<File | null>(null);
@@ -42,15 +43,24 @@ function StudioPage() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Client-side: audio and video within 2s for lip-sync
+  // Client-side: both 3–9s, within 2s for lip-sync. 1 credit = 1 second.
   useEffect(() => {
     if (videoDuration == null || audioDuration == null || videoDuration <= 0 || audioDuration <= 0) {
       setDurationValidation(null);
       return;
     }
-    const diff = Math.abs((videoDuration ?? 0) - (audioDuration ?? 0));
+    if (videoDuration < 3 || audioDuration < 3) {
+      setDurationValidation({ valid: false, error: 'Video and audio must be at least 3 seconds' });
+      return;
+    }
+    if (videoDuration > 9 || audioDuration > 9) {
+      setDurationValidation({ valid: false, error: 'Video and audio must be at most 9 seconds' });
+      return;
+    }
+    const diff = Math.abs(videoDuration - audioDuration);
     if (diff <= 2) {
-      setDurationValidation({ valid: true, generationSeconds: Math.min(videoDuration, audioDuration) });
+      const secs = Math.round(Math.min(videoDuration, audioDuration));
+      setDurationValidation({ valid: true, generationSeconds: Math.max(3, Math.min(9, secs)) });
     } else {
       setDurationValidation({ valid: false, error: 'Audio and video must be within 2s for lip-sync' });
     }
@@ -88,7 +98,7 @@ function StudioPage() {
     setCurrentStep('preparing');
 
     try {
-      const secs = Math.round((videoDuration ?? 0) || (audioDuration ?? 0) || 60);
+      const genSecs = durationValidation?.valid === true ? durationValidation.generationSeconds : 3;
 
       // 1) Create project (placeholders for r2_paths; real files go to inputs/{genId}/)
       const { data: proj, error: pe } = await supabase
@@ -98,7 +108,7 @@ function StudioPage() {
           track_name: 'Studio',
           bpm: 120,
           bars: 4,
-          duration_seconds: secs,
+          duration_seconds: genSecs,
           target_image_r2_path: 'inputs/pl/target.jpg',
           driver_video_r2_path: 'inputs/pl/tracking.mp4',
           status: 'processing',
@@ -107,10 +117,10 @@ function StudioPage() {
         .single();
       if (pe || !proj?.id) throw new Error(pe?.message || 'Failed to create project');
 
-      // 2) Create generation
+      // 2) Create generation (cost_credits = seconds; trigger deducts on completion)
       const { data: gen, error: ge } = await supabase
         .from('generations')
-        .insert({ project_id: proj.id, cost_credits: 1, status: 'pending' })
+        .insert({ project_id: proj.id, cost_credits: genSecs, status: 'pending' })
         .select('id')
         .single();
       if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
@@ -146,6 +156,7 @@ function StudioPage() {
           target_image_url: i.signedUrl,
           audio_track_url: a.signedUrl,
           generation_id: gid,
+          generation_seconds: genSecs,
           is_trial: user?.tier === 'free',
         }),
       });
@@ -160,6 +171,7 @@ function StudioPage() {
           setGenerationProgress(100);
           setGenerationStatus('completed');
           setIsGenerating(false);
+          refreshUser(); // refresh credits after trigger deducts
           return;
         }
         if (row?.status === 'failed') {
@@ -197,6 +209,9 @@ function StudioPage() {
                 <Link href="/history" className="text-slate-400 hover:text-white transition-colors">
                   History
                 </Link>
+                <Link href="/pricing" className="text-slate-400 hover:text-white transition-colors">
+                  Pricing
+                </Link>
               </div>
             </div>
             <button
@@ -227,7 +242,7 @@ function StudioPage() {
             {/* Video Upload */}
             <MediaUpload
               type="video"
-              label="1. Tracking Video"
+              label="1. Vannilli Video"
               description="Your performance recording (lip-sync movements)"
               accept="video/mp4,video/quicktime,video/webm"
               onFileSelect={handleVideoSelect}
@@ -243,7 +258,7 @@ function StudioPage() {
             {/* Image Upload */}
             <MediaUpload
               type="image"
-              label="2. Target Image"
+              label="2. Vannilli Image"
               description="Character face to animate (your AI-generated image)"
               accept="image/jpeg,image/png,image/webp"
               onFileSelect={handleImageSelect}
@@ -258,7 +273,7 @@ function StudioPage() {
             {/* Audio Upload */}
             <MediaUpload
               type="audio"
-              label="3. Audio Track"
+              label="3. Vannilli Track"
               description="Your music track (final audio for the video)"
               accept="audio/mpeg,audio/wav,audio/mp4"
               onFileSelect={handleAudioSelect}
@@ -273,7 +288,14 @@ function StudioPage() {
           </div>
 
           {/* Right Column - Generation Flow */}
-          <div>
+          <div className="space-y-6">
+            {user && user.creditsRemaining === 0 && !user.freeGenerationRedeemed && (
+              <GlassCard>
+                <h3 className="text-sm font-semibold text-slate-300 mb-2">Get 3 free credits</h3>
+                <p className="text-xs text-slate-400 mb-4">Link a payment method to unlock 3 free credits. No charge. One grant per card. You need 9+ credits to create.</p>
+                <LinkPaymentForFreeCredits onSuccess={refreshUser} />
+              </GlassCard>
+            )}
             <GenerationFlow
               hasVideo={!!trackingVideo}
               hasImage={!!targetImage}
@@ -285,6 +307,9 @@ function StudioPage() {
               durationError={durationValidation?.valid === false ? durationValidation.error : null}
               durationValid={durationValidation?.valid === true ? true : durationValidation?.valid === false ? false : undefined}
               generationSeconds={durationValidation?.valid === true ? durationValidation.generationSeconds : null}
+              hasCredits={(user?.creditsRemaining ?? 0) >= 9}
+              showLinkCard={user?.creditsRemaining === 0 && !user?.freeGenerationRedeemed}
+              getCreditsHref="/pricing"
             />
 
             {/* How It Works - VANNILLI branded */}
@@ -333,6 +358,24 @@ function StudioPage() {
                   ? async () => {
                       const { data } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${generationId}/final.mp4`, 3600);
                       if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                    }
+                  : undefined
+              }
+              onCreateAnother={
+                user?.id
+                  ? async () => {
+                      const { data: row } = await supabase.from('users').select('credits_remaining').eq('id', user.id).single();
+                      if ((row?.credits_remaining ?? 0) < 9) {
+                        router.replace('/pricing');
+                        return;
+                      }
+                      [videoPreview, imagePreview, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
+                      setTrackingVideo(null); setTargetImage(null); setAudioTrack(null);
+                      setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
+                      setVideoPreview(null); setImagePreview(null); setAudioPreview(null);
+                      setIsGenerating(false); setGenerationProgress(0); setCurrentStep('idle');
+                      setGenerationStatus('pending'); setGenerationId(null); setGenerationError(null);
+                      refreshUser();
                     }
                   : undefined
               }

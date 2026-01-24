@@ -10,9 +10,11 @@ interface GenerationPreviewProps {
   placeholderImage?: string;
   /** When provided, the completed-state Download button calls this (e.g. to fetch /api/download and open URL). */
   onDownloadClick?: () => void;
+  /** When provided, completed state shows "Create another" — call when user has 9+ credits to reset flow. */
+  onCreateAnother?: () => void;
 }
 
-export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick }: GenerationPreviewProps) {
+export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother }: GenerationPreviewProps) {
   const [showNoise, setShowNoise] = useState(true);
 
   useEffect(() => {
@@ -69,15 +71,25 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
     return (
       <div className="relative aspect-video bg-slate-900 rounded-3xl overflow-hidden glass-card-elevated">
         <div className="flex items-center justify-center h-full">
-          <div className="text-center">
+          <div className="text-center space-y-3">
             <div className="text-6xl mb-4">✅</div>
             <p className="text-2xl font-bold text-white mb-2">Video Ready!</p>
-            <button
-              onClick={onDownloadClick}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all tap-effect animate-glow-pulse"
-            >
-              Download Video
-            </button>
+            <div className="flex flex-wrap gap-3 justify-center">
+              <button
+                onClick={onDownloadClick}
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all tap-effect animate-glow-pulse"
+              >
+                Download Video
+              </button>
+              {onCreateAnother && (
+                <button
+                  onClick={onCreateAnother}
+                  className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold rounded-lg transition-all"
+                >
+                  Create another
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

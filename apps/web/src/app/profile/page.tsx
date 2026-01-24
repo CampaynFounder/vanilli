@@ -11,6 +11,7 @@ import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { AvatarUpload } from '@/components/profile/AvatarUpload';
 import { ReferralCode } from '@/components/profile/ReferralCode';
 import { ReferralStats } from '@/components/profile/ReferralStats';
+import { LinkPaymentForFreeCredits } from '@/components/LinkPaymentForFreeCredits';
 
 interface ProfileData {
   id: string;
@@ -153,6 +154,7 @@ function ProfilePage() {
             {/* Avatar */}
             <GlassCard elevated className="text-center">
               <AvatarUpload
+                userId={authUser?.id ?? ''}
                 currentAvatarUrl={displayProfile.avatarUrl}
                 onAvatarUpdate={async (url) => {
                   if (authUser?.id) await supabase.from('users').update({ avatar_url: url }).eq('id', authUser.id);
@@ -172,6 +174,12 @@ function ProfilePage() {
               <div className="text-4xl font-bold gradient-text-premium mb-4">
                 {displayProfile.creditsRemaining}
               </div>
+              {!displayProfile.freeGenerationRedeemed && displayProfile.creditsRemaining === 0 && (
+                <div className="mb-4">
+                  <p className="text-xs text-slate-400 mb-3">Link a payment method to get 3 free credits. No charge.</p>
+                  <LinkPaymentForFreeCredits onSuccess={refreshUser} />
+                </div>
+              )}
               <Link
                 href="/pricing"
                 className="block w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg text-center transition-all tap-effect"
