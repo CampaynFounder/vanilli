@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { PremiumBadge } from '@/components/ui/PremiumBadge';
@@ -59,41 +60,28 @@ function ProfilePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!session) return;
-
+      if (!session?.user?.id) return;
+      const uid = session.user.id;
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-
-        // Fetch profile
-        const profileResponse = await fetch(`${apiUrl}/api/auth/profile`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          setProfile(profileData);
+        const { data: u } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url,created_at').eq('id', uid).single();
+        if (u) {
+          let refCode = '';
+          const { data: r } = await supabase.from('referrals').select('referral_code').eq('referrer_user_id', uid).limit(1).single();
+          if (r?.referral_code) refCode = r.referral_code;
+          else refCode = `VANNI-${uid.slice(0, 8).toUpperCase()}`;
+          const { data: sub } = await supabase.from('subscriptions').select('status,tier,current_period_end').eq('user_id', uid).eq('status', 'active').single();
+          setProfile({ id: u.id, email: u.email, tier: u.tier, creditsRemaining: u.credits_remaining ?? 0, freeGenerationRedeemed: u.free_generation_redeemed ?? false, avatarUrl: u.avatar_url, referralCode: refCode, createdAt: u.created_at, subscription: sub ? { status: sub.status, tier: sub.tier, currentPeriodEnd: sub.current_period_end } : undefined });
         }
-
-        // Fetch referral data
-        const referralResponse = await fetch(`${apiUrl}/api/auth/referrals`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (referralResponse.ok) {
-          const referralData = await referralResponse.json();
-          setReferralData(referralData);
-        }
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-      } finally {
-        setLoading(false);
-      }
+        const { data: refs } = await supabase.from('referrals').select('id,referral_code,credits_awarded,status,referred_product,created_at,completed_at,referred_user_id').eq('referrer_user_id', uid).order('created_at', { ascending: false });
+        if (refs?.length) {
+          const ids = refs.map((r) => r.referred_user_id).filter(Boolean);
+          const { data: us } = await supabase.from('users').select('id,email,tier,created_at').in('id', ids);
+          const usersMap = new Map((us || []).map((x) => [x.id, x]));
+          setReferralData({ stats: { totalReferrals: refs.length, completedReferrals: refs.filter((r) => r.status === 'completed').length, pendingReferrals: refs.filter((r) => r.status === 'pending').length, totalCreditsEarned: refs.reduce((s, r) => s + (r.credits_awarded || 0), 0) }, referrals: refs.map((r) => ({ id: r.id, referralCode: r.referral_code, creditsAwarded: r.credits_awarded || 0, status: r.status, referredProduct: r.referred_product || '', createdAt: r.created_at, completedAt: r.completed_at, referredUser: usersMap.get(r.referred_user_id) ? { email: usersMap.get(r.referred_user_id)!.email, tier: usersMap.get(r.referred_user_id)!.tier, signedUpAt: usersMap.get(r.referred_user_id)!.created_at } : null })) });
+        } else setReferralData({ stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] });
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
     };
-
     fetchData();
   }, [session]);
 
@@ -105,28 +93,8 @@ function ProfilePage() {
     );
   }
 
-  // Use profile data if available, otherwise create mock profile from user session
-  const displayProfile: ProfileData = profile || {
-    id: authUser?.id || 'temp-id',
-    email: authUser?.email || 'user@example.com',
-    tier: authUser?.tier || 'free',
-    creditsRemaining: authUser?.creditsRemaining || 0,
-    freeGenerationRedeemed: authUser?.freeGenerationRedeemed || false,
-    avatarUrl: authUser?.avatarUrl,
-    referralCode: 'LOADING',
-    createdAt: new Date().toISOString(),
-  };
-
-  // Use mock referral data if backend not available
-  const displayReferralData: ReferralData = referralData || {
-    stats: {
-      totalReferrals: 0,
-      completedReferrals: 0,
-      pendingReferrals: 0,
-      totalCreditsEarned: 0,
-    },
-    referrals: [],
-  };
+  const displayProfile: ProfileData = profile || { id: authUser?.id || '', email: authUser?.email || '', tier: authUser?.tier || 'free', creditsRemaining: authUser?.creditsRemaining ?? 0, freeGenerationRedeemed: authUser?.freeGenerationRedeemed ?? false, avatarUrl: authUser?.avatarUrl, referralCode: authUser?.id ? `VANNI-${authUser.id.slice(0, 8).toUpperCase()}` : '', createdAt: new Date().toISOString() };
+  const displayReferralData: ReferralData = referralData || { stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] };
 
   const referredUsers = displayReferralData.referrals.map((r) => ({
     email: r.referredUser?.email || 'Unknown',
@@ -186,10 +154,9 @@ function ProfilePage() {
             <GlassCard elevated className="text-center">
               <AvatarUpload
                 currentAvatarUrl={displayProfile.avatarUrl}
-                onAvatarUpdate={(url) => {
-                  if (profile) {
-                    setProfile({ ...profile, avatarUrl: url });
-                  }
+                onAvatarUpdate={async (url) => {
+                  if (authUser?.id) await supabase.from('users').update({ avatar_url: url }).eq('id', authUser.id);
+                  if (profile) setProfile({ ...profile, avatarUrl: url });
                   refreshUser();
                 }}
               />

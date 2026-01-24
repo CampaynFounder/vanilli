@@ -8,18 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm:dev:web\" \"npm:dev:workers\"",
+    "dev": "npm run dev:web",
     "dev:web": "cd apps/web && npm run dev",
-    "dev:workers": "cd apps/workers && npm run dev",
-    "build": "npm run build:packages && npm run build:web && npm run build:workers",
-    "build:packages": "npm run build --workspaces --if-present",
+    "build": "npm run build:web",
     "build:web": "cd apps/web && npm run build",
-    "build:workers": "cd apps/workers && npm run build",
     "test": "npm run test --workspaces --if-present",
     "test:watch": "npm run test:watch --workspaces --if-present",
     "test:e2e": "cd apps/web && npm run test:e2e",
     "lint": "npm run lint --workspaces --if-present",
-    "deploy:workers": "npm run build:packages && cd apps/workers && npx wrangler deploy --env production",
     "db:migrate": "cd packages/database && supabase db push",
     "db:reset": "cd packages/database && supabase db reset",
     "prepare": "husky install"

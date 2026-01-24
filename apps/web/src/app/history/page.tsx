@@ -4,66 +4,53 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { HistoryTabs } from '@/components/history/HistoryTabs';
-import { GenerationsList } from '@/components/history/GenerationsList';
+import { GenerationsList, type Generation } from '@/components/history/GenerationsList';
 import { GlassCard } from '@/components/ui/GlassCard';
+
+interface Project {
+  id?: string;
+  track_name?: string;
+  bpm?: number;
+  bars?: number;
+  status?: string;
+}
+
+interface ActivityItem {
+  action?: string;
+  created_at?: string;
+  metadata?: { credits?: number };
+}
 
 function HistoryPage() {
   const router = useRouter();
   const { session, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<'generations' | 'projects' | 'activity'>('generations');
-  const [generations, setGenerations] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!session) return;
-
+      if (!session?.user?.id) return;
+      const uid = session.user.id;
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-
-        // Fetch based on active tab
         if (activeTab === 'generations') {
-          const response = await fetch(`${apiUrl}/api/generations/history`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setGenerations(data.generations || []);
-          }
+          const { data: g } = await supabase.from('generations').select('*, projects!inner(user_id,track_name,bpm,bars)').eq('projects.user_id', uid).order('created_at', { ascending: false }).limit(50);
+          setGenerations((g || []) as Generation[]);
         } else if (activeTab === 'projects') {
-          const response = await fetch(`${apiUrl}/api/projects/history`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setProjects(data.projects || []);
-          }
-        } else if (activeTab === 'activity') {
-          const response = await fetch(`${apiUrl}/api/activity/payments`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setActivity(data.activity || []);
-          }
+          const { data: p } = await supabase.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50);
+          setProjects((p || []) as Project[]);
+        } else {
+          const { data: a } = await supabase.from('audit_log').select('*').eq('user_id', uid).in('action', ['credit_purchase', 'subscription_created', 'subscription_renewed', 'referral_credit_earned']).order('created_at', { ascending: false }).limit(50);
+          setActivity((a || []) as ActivityItem[]);
         }
-      } catch (error) {
-        console.error('Error fetching history:', error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
     };
-
     fetchData();
   }, [session, activeTab]);
 
@@ -153,9 +140,9 @@ function HistoryPage() {
                     <GlassCard key={index} elevated>
                       <div className="flex justify-between items-center">
                         <div>
-                          <div className="text-white font-semibold capitalize">{item.action.replace('_', ' ')}</div>
+                          <div className="text-white font-semibold capitalize">{(item.action ?? '').replace('_', ' ')}</div>
                           <div className="text-xs text-slate-400">
-                            {new Date(item.created_at).toLocaleString()}
+                            {new Date(item.created_at ?? 0).toLocaleString()}
                           </div>
                         </div>
                         {item.metadata?.credits && (

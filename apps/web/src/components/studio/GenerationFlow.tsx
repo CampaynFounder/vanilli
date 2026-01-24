@@ -87,7 +87,7 @@ export function GenerationFlow({
 
       {/* Processing Steps */}
       <div className="space-y-3">
-        {steps.map((step, index) => {
+        {steps.map((step) => {
           const status = getStepStatus(step.id);
           return (
             <div

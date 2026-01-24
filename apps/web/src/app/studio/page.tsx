@@ -1,18 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
 
+const BUCKET = 'vannilli';
+const INPUTS = 'inputs';
+const OUTPUTS = 'outputs';
+
 function StudioPage() {
   const router = useRouter();
-  const { signOut, session } = useAuth();
+  const { signOut, user } = useAuth();
 
   // Upload states
   const [trackingVideo, setTrackingVideo] = useState<File | null>(null);
@@ -37,27 +42,18 @@ function StudioPage() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Validate audio vs video durations when both are set
+  // Client-side: audio and video within 2s for lip-sync
   useEffect(() => {
     if (videoDuration == null || audioDuration == null || videoDuration <= 0 || audioDuration <= 0) {
       setDurationValidation(null);
       return;
     }
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-    fetch(`${apiUrl}/api/validate-media-durations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoDurationSeconds: videoDuration, audioDurationSeconds: audioDuration }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.valid === true) {
-          setDurationValidation({ valid: true, generationSeconds: data.generationSeconds });
-        } else {
-          setDurationValidation({ valid: false, error: data.error || 'Audio and video must be within 2s for lip-sync' });
-        }
-      })
-      .catch(() => setDurationValidation({ valid: false, error: 'Could not validate durations' }));
+    const diff = Math.abs((videoDuration ?? 0) - (audioDuration ?? 0));
+    if (diff <= 2) {
+      setDurationValidation({ valid: true, generationSeconds: Math.min(videoDuration, audioDuration) });
+    } else {
+      setDurationValidation({ valid: false, error: 'Audio and video must be within 2s for lip-sync' });
+    }
   }, [videoDuration, audioDuration]);
 
   // Handle file uploads
@@ -79,77 +75,96 @@ function StudioPage() {
   };
 
   const handleGenerate = async () => {
-    if (!session?.access_token || !trackingVideo || !targetImage || !audioTrack) return;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-    const token = session.access_token;
+    const uid = user?.id;
+    if (!uid || !trackingVideo || !targetImage || !audioTrack) return;
+    const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
+    if (!modalUrl) {
+      setGenerationError('Processing endpoint not configured. Set NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL.');
+      return;
+    }
 
     setGenerationError(null);
     setIsGenerating(true);
     setCurrentStep('preparing');
 
     try {
-      // 1) Upload assets
-      const upload = async (file: File, assetType: string) => {
-        const res = await fetch(`${apiUrl}/api/upload/studio-asset`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'X-Asset-Type': assetType },
-          body: file,
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j?.error?.message || `Upload ${assetType} failed: ${res.status}`);
-        }
-        const data = await res.json();
-        return data.key as string;
-      };
+      const secs = Math.round((videoDuration ?? 0) || (audioDuration ?? 0) || 60);
 
-      const [driverVideoKey, targetImageKey, audioKey] = await Promise.all([
-        upload(trackingVideo, 'driverVideo'),
-        upload(targetImage, 'targetImage'),
-        upload(audioTrack, 'audio'),
-      ]);
+      // 1) Create project (placeholders for r2_paths; real files go to inputs/{genId}/)
+      const { data: proj, error: pe } = await supabase
+        .from('projects')
+        .insert({
+          user_id: uid,
+          track_name: 'Studio',
+          bpm: 120,
+          bars: 4,
+          duration_seconds: secs,
+          target_image_r2_path: 'inputs/pl/target.jpg',
+          driver_video_r2_path: 'inputs/pl/tracking.mp4',
+          status: 'processing',
+        })
+        .select('id')
+        .single();
+      if (pe || !proj?.id) throw new Error(pe?.message || 'Failed to create project');
+
+      // 2) Create generation
+      const { data: gen, error: ge } = await supabase
+        .from('generations')
+        .insert({ project_id: proj.id, cost_credits: 1, status: 'pending' })
+        .select('id')
+        .single();
+      if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
+      const gid = gen.id;
+
+      // 3) Upload to Storage: inputs/{gid}/tracking.mp4, target.jpg, audio.mp3
+      const base = `${INPUTS}/${gid}`;
+      const up = async (path: string, file: File) => {
+        const { error: ue } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+        if (ue) throw new Error(`Upload ${path} failed: ${ue.message}`);
+      };
+      await up(`${base}/tracking.mp4`, trackingVideo);
+      await up(`${base}/target.jpg`, targetImage);
+      await up(`${base}/audio.mp3`, audioTrack);
 
       setCurrentStep('lipsync');
-
-      // 2) Start generation
-      const startRes = await fetch(`${apiUrl}/api/start-generation-with-audio`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverVideoKey,
-          targetImageKey,
-          audioKey,
-          videoDurationSeconds: videoDuration ?? 0,
-          audioDurationSeconds: audioDuration ?? 0,
-        }),
-      });
-
-      const startData = await startRes.json();
-      if (!startRes.ok) {
-        throw new Error(startData?.error?.message || `Start failed: ${startRes.status}`);
-      }
-
-      const taskId = startData.internalTaskId as string;
       setGenerationStatus('processing');
       setGenerationProgress(10);
+      setGenerationId(gid);
 
-      // 3) Poll status
+      // 4) Signed URLs for Modal to download (1h)
+      const { data: t } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/tracking.mp4`, 3600);
+      const { data: i } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/target.jpg`, 3600);
+      const { data: a } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/audio.mp3`, 3600);
+      if (!t?.signedUrl || !i?.signedUrl || !a?.signedUrl) throw new Error('Could not create signed URLs');
+
+      // 5) Call Modal
+      const res = await fetch(modalUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracking_video_url: t.signedUrl,
+          target_image_url: i.signedUrl,
+          audio_track_url: a.signedUrl,
+          generation_id: gid,
+          is_trial: user?.tier === 'free',
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || `Processing failed: ${res.status}`);
+
+      // 6) Poll generations
       const poll = async (): Promise<void> => {
-        const r = await fetch(`${apiUrl}/api/poll-status/${taskId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const d = await r.json();
-        if (d.status === 'completed') {
+        const { data: row } = await supabase.from('generations').select('status, error_message, final_video_r2_path').eq('id', gid).single();
+        if (row?.status === 'completed') {
           setCurrentStep('complete');
           setGenerationProgress(100);
           setGenerationStatus('completed');
-          setGenerationId(d.generationId ?? null);
           setIsGenerating(false);
           return;
         }
-        if (d.status === 'failed') {
+        if (row?.status === 'failed') {
           setGenerationStatus('failed');
-          setGenerationError(d.error || d.message || 'Generation failed');
+          setGenerationError(row?.error_message || 'Generation failed');
           setIsGenerating(false);
           return;
         }
@@ -314,14 +329,10 @@ function StudioPage() {
               status={generationStatus}
               progress={generationProgress}
               onDownloadClick={
-                generationId && session?.access_token
+                generationId
                   ? async () => {
-                      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-                      const r = await fetch(`${apiUrl}/api/download/${generationId}`, {
-                        headers: { Authorization: `Bearer ${session.access_token}` },
-                      });
-                      const d = await r.json();
-                      if (d.downloadUrl) window.open(d.downloadUrl, '_blank');
+                      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${generationId}/final.mp4`, 3600);
+                      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
                     }
                   : undefined
               }

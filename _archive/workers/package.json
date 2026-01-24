@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "wrangler build",
+    "build": "WRANGLER_LOG=none wrangler build",
     "deploy": "wrangler deploy --env production",
     "test": "vitest",
     "lint": "eslint src --ext .ts"

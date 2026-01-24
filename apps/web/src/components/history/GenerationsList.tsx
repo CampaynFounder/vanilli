@@ -2,7 +2,7 @@
 
 import { GlassCard } from '../ui/GlassCard';
 
-interface Generation {
+export interface Generation {
   id: string;
   internal_task_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';

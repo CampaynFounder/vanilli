@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, getSession, getUser, signOut as supabaseSignOut } from './supabase';
+import type { Session } from '@supabase/supabase-js';
+import { supabase, getSession, signOut as supabaseSignOut } from './supabase';
 
 export interface User {
   id: string;
@@ -15,7 +16,7 @@ export interface User {
 export interface AuthState {
   user: User | null;
   loading: boolean;
-  session: any | null;
+  session: Session | null;
 }
 
 /**
@@ -23,14 +24,14 @@ export interface AuthState {
  * Checks Supabase session and fetches user data from API
  */
 export function useAuth(): AuthState & {
-  signIn: (email: string, password: string) => Promise<{ error?: any }>;
-  signUp: (email: string, password: string) => Promise<{ error?: any }>;
+  signIn: (email: string, password: string) => Promise<{ error?: { message?: string } | null }>;
+  signUp: (email: string, password: string) => Promise<{ error?: { message?: string } | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 } {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<any | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   const fetchUserProfile = async () => {
     try {
@@ -43,48 +44,18 @@ export function useAuth(): AuthState & {
       }
 
       setSession(currentSession);
-
-      // Try to fetch from backend API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.vannilli.xaino.io';
-      
-      try {
-        const response = await fetch(`${apiUrl}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${currentSession.access_token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUser({
-            id: data.id,
-            email: data.email,
-            tier: data.tier,
-            creditsRemaining: data.creditsRemaining,
-            freeGenerationRedeemed: data.freeGenerationRedeemed,
-            avatarUrl: data.avatarUrl,
-          });
-          setLoading(false);
-          return;
-        }
-      } catch (apiError) {
-        console.warn('Backend API not available, using Supabase user data only');
-      }
-
-      // Fallback: Use Supabase user data directly
-      const supabaseUser = currentSession.user;
-      if (supabaseUser) {
-        setUser({
-          id: supabaseUser.id,
-          email: supabaseUser.email || '',
-          tier: 'free', // Default tier when backend is unavailable
-          creditsRemaining: 0,
-          freeGenerationRedeemed: false,
-          avatarUrl: supabaseUser.user_metadata?.avatar_url,
-        });
+      const uid = currentSession.user?.id;
+      const fallback = () => {
+        const u = currentSession.user;
+        if (u) setUser({ id: u.id, email: u.email || '', tier: 'free', creditsRemaining: 0, freeGenerationRedeemed: false, avatarUrl: u.user_metadata?.avatar_url });
+        else { setUser(null); setSession(null); }
+      };
+      if (!uid) { fallback(); setLoading(false); return; }
+      const { data, error } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url').eq('id', uid).single();
+      if (!error && data) {
+        setUser({ id: data.id, email: data.email, tier: data.tier, creditsRemaining: data.credits_remaining ?? 0, freeGenerationRedeemed: data.free_generation_redeemed ?? false, avatarUrl: data.avatar_url });
       } else {
-        setUser(null);
-        setSession(null);
+        fallback();
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -100,7 +71,7 @@ export function useAuth(): AuthState & {
 
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event, _session) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           fetchUserProfile();
         } else if (event === 'SIGNED_OUT') {
