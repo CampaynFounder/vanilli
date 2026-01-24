@@ -59,3 +59,4 @@ After setting variables, test the connection:
 3. Submit a test email/phone
 4. Check Supabase dashboard → Table Editor → `email_collections` to verify
 
+

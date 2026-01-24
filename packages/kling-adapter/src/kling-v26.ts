@@ -247,3 +247,4 @@ export class KlingV26Adapter implements IVideoGenerator {
   }
 }
 
+

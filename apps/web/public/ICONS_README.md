@@ -50,3 +50,4 @@ Once you add the icons, update `/public/manifest.json`:
 ✅ Meta tags updated (mobile-web-app-capable)
 ✅ PWA will work without icons (they're optional)
 
+

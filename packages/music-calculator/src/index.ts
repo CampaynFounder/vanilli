@@ -229,3 +229,4 @@ export function getMaxGenerations(creditsRemaining: number, durationSeconds: num
   return Math.floor(creditsRemaining / durationSeconds);
 }
 
+

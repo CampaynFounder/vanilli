@@ -1,0 +1,21 @@
+# Copy to .dev.vars and fill in real values for local `wrangler dev`.
+# .dev.vars is gitignored; never commit secrets.
+
+# Supabase (required for auth and DB)
+SUPABASE_SERVICE_KEY=
+
+# Kling (required for the video generation queue consumer)
+# Get from https://klingai.com
+KLING_API_KEY=
+
+# Stripe (required for payment routes)
+# Get from https://dashboard.stripe.com/apikeys
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# Admin (required for /api/admin/*)
+ADMIN_PASSWORD=
+
+# Optional: FFmpeg service for merging Kling video + user audio and watermark.
+# If unset, the queue uses Kling output as-is (driver video audio, not user's track).
+# FFMPEG_SERVICE_URL=https://your-ffmpeg-service.com

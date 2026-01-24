@@ -15,3 +15,4 @@ CREATE POLICY email_collections_insert_public ON email_collections
 
 -- After running, you should see: roles = {anon,authenticated,public}
 
+

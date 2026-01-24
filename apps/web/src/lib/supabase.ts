@@ -60,9 +60,9 @@ function getSupabaseClient(): SupabaseClient | null {
     // We only need to pass the key to createClient - don't manually set Authorization header
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: false, // Disable for anonymous operations
-        persistSession: false, // Don't persist session for anonymous users
-        detectSessionInUrl: false, // Don't detect session in URL
+        autoRefreshToken: true, // Enable for authenticated users
+        persistSession: true, // Persist session for authenticated users
+        detectSessionInUrl: true, // Detect session in URL for OAuth redirects
       },
       // Don't manually set Authorization header - let Supabase client handle it
     });

@@ -41,6 +41,13 @@ module.exports = {
         'pulse-ring': 'pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fadeIn 0.3s ease-in',
         'slide-up': 'slideUp 0.4s ease-out',
+        'scan': 'scan 3s linear infinite',
+        'fade-out': 'fadeOut 2s ease-out forwards',
+        'unblur': 'unblur 3s ease-out forwards',
+        'shimmer': 'shimmer 2s linear infinite',
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'float': 'float 3s ease-in-out infinite',
+        'gradient-shift': 'gradientShift 8s ease infinite',
       },
       keyframes: {
         pulseRing: {
@@ -56,9 +63,42 @@ module.exports = {
           '0%': { transform: 'translateY(20px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
+        scan: {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(100%)' },
+        },
+        fadeOut: {
+          '0%': { opacity: '0.5' },
+          '100%': { opacity: '0' },
+        },
+        unblur: {
+          '0%': { filter: 'blur(40px)' },
+          '100%': { filter: 'blur(0px)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-1000px 0' },
+          '100%': { backgroundPosition: '1000px 0' },
+        },
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(168, 85, 247, 0.4)' },
+          '50%': { boxShadow: '0 0 40px rgba(168, 85, 247, 0.8)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        gradientShift: {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+      },
+      backdropBlur: {
+        xs: '2px',
       },
     },
   },
   plugins: [],
 };
+
 

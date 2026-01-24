@@ -26,3 +26,4 @@ WHERE tablename = 'email_collections';
 -- DONE! Now try submitting the email form again.
 -- ============================================================================
 
+

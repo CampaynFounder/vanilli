@@ -101,6 +101,98 @@ adminRoutes.get('/admin/email-collections', async (c) => {
 });
 
 /**
+ * GET /api/admin/referral-rewards
+ * Get referral rewards configuration
+ */
+adminRoutes.get('/admin/referral-rewards', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+
+  // Simple admin check - label tier only (TODO: add proper admin role)
+  if (user.tier !== 'label') {
+    return c.json(
+      {
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Admin access required',
+        },
+      },
+      403
+    );
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  const { data, error } = await supabase
+    .from('referral_rewards')
+    .select('*')
+    .order('referrer_tier, referred_product');
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'QUERY_FAILED',
+          message: 'Failed to fetch referral rewards',
+        },
+      },
+      500
+    );
+  }
+
+  return c.json({ rewards: data || [] });
+});
+
+/**
+ * PUT /api/admin/referral-rewards
+ * Update referral reward amounts (batch update)
+ */
+adminRoutes.put('/admin/referral-rewards', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+
+  // Simple admin check - label tier only
+  if (user.tier !== 'label') {
+    return c.json(
+      {
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Admin access required',
+        },
+      },
+      403
+    );
+  }
+
+  const { rewards } = await c.req.json();
+
+  if (!Array.isArray(rewards)) {
+    return c.json(
+      {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'rewards must be an array',
+        },
+      },
+      400
+    );
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Update each reward
+  const updates = rewards.map(async (reward: { referrer_tier: string; referred_product: string; credits_awarded: number }) => {
+    return supabase
+      .from('referral_rewards')
+      .update({ credits_awarded: reward.credits_awarded })
+      .eq('referrer_tier', reward.referrer_tier)
+      .eq('referred_product', reward.referred_product);
+  });
+
+  await Promise.all(updates);
+
+  return c.json({ success: true, updated: rewards.length });
+});
+
+/**
  * GET /api/metrics
  * Get cost monitoring metrics (admin only - simplified auth for now)
  */

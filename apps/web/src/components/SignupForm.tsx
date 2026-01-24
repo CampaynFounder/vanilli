@@ -5,9 +5,11 @@ import Image from 'next/image';
 import { CountdownTimer } from './CountdownTimer';
 import { shouldShowCountdown } from '@/config/launch';
 import { useSignupModal } from '@/hooks/useSignupModal';
+import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 export function SignupForm() {
+  const { session } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [hasShown, setHasShown] = useState(false);
   const [showBackdrop, setShowBackdrop] = useState(false);
@@ -100,6 +102,9 @@ export function SignupForm() {
 
   // Auto-show on mount (when triggered by GlobalSignupModal or page load)
   useEffect(() => {
+    // Suppress in all logged-in views
+    if (session) return;
+
     const triggerModal = () => {
       if (!hasShown && !showBackdrop) {
         setHasShown(true);
@@ -120,10 +125,13 @@ export function SignupForm() {
       const timer = setTimeout(triggerModal, 300);
       return () => clearTimeout(timer);
     }
-  }, [hasShown, showBackdrop]);
+  }, [hasShown, showBackdrop, session]);
 
   // Also check periodically for the flag (in case component mounts after flag is set)
   useEffect(() => {
+    // Suppress in all logged-in views
+    if (session) return;
+
     const checkFlag = setInterval(() => {
       if (!hasShown && !showBackdrop) {
         const shouldAutoShow = sessionStorage.getItem('vannilli_signup_auto_show') === 'true';
@@ -139,7 +147,7 @@ export function SignupForm() {
     }, 500);
 
     return () => clearInterval(checkFlag);
-  }, [hasShown, showBackdrop]);
+  }, [hasShown, showBackdrop, session]);
 
   // Scroll trigger - show when scrolling past video gallery
   useEffect(() => {
@@ -198,7 +206,7 @@ export function SignupForm() {
       window.removeEventListener('scroll', throttledScroll);
       clearTimeout(timeout);
     };
-  }, [hasShown, showBackdrop]);
+  }, [hasShown, showBackdrop, session]);
 
   const handleClose = () => {
     setIsVisible(false);

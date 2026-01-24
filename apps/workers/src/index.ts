@@ -15,6 +15,7 @@ import { videoRoutes } from './routes/video';
 import { paymentRoutes } from './routes/payment';
 import { projectRoutes } from './routes/projects';
 import { adminRoutes } from './routes/admin';
+import { uploadRoutes } from './routes/upload';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -47,6 +48,7 @@ app.route('/api', videoRoutes);
 app.route('/api', paymentRoutes);
 app.route('/api/projects', projectRoutes);
 app.route('/api', adminRoutes);
+app.route('/api/upload', uploadRoutes);
 
 // 404 handler
 app.notFound((c) => {
@@ -78,4 +80,5 @@ app.onError((err, c) => {
 });
 
 export default app;
+
 

@@ -59,3 +59,4 @@ WHERE tablename = 'email_collections';
 -- Then delete it:
 -- DELETE FROM email_collections WHERE email = 'test@example.com';
 
+

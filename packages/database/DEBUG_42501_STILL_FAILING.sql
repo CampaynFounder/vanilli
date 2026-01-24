@@ -59,3 +59,4 @@ WHERE tablename = 'email_collections'
 -- 4. Wrong schema (policy in wrong schema)
 -- ============================================================================
 
+

@@ -247,3 +247,221 @@ authRoutes.get('/me', async (c) => {
   });
 });
 
+/**
+ * GET /api/auth/profile
+ * Get user profile with referral code and avatar
+ */
+authRoutes.get('/profile', async (c) => {
+  const user = await getAuthUser(c);
+
+  if (!user) {
+    return c.json(
+      {
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        },
+      },
+      401
+    );
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Get full user data including avatar
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('email, tier, credits_remaining, free_generation_redeemed, device_fingerprint, avatar_url, created_at')
+    .eq('id', user.id)
+    .single();
+
+  if (userError || !userData) {
+    return c.json(
+      {
+        error: {
+          code: 'NOT_FOUND',
+          message: 'User not found',
+        },
+      },
+      404
+    );
+  }
+
+  // Get or generate referral code
+  let referralCode = '';
+  const { data: existingReferral } = await supabase
+    .from('referrals')
+    .select('referral_code')
+    .eq('referrer_user_id', user.id)
+    .limit(1)
+    .single();
+
+  if (existingReferral) {
+    referralCode = existingReferral.referral_code;
+  } else {
+    // Generate new referral code: VANNI-{first 8 chars of user ID}
+    referralCode = `VANNI-${user.id.substring(0, 8).toUpperCase()}`;
+  }
+
+  // Get subscription info
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('status, current_period_end, tier')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single();
+
+  return c.json({
+    id: user.id,
+    email: userData.email,
+    tier: userData.tier,
+    creditsRemaining: userData.credits_remaining,
+    freeGenerationRedeemed: userData.free_generation_redeemed,
+    avatarUrl: userData.avatar_url,
+    referralCode,
+    createdAt: userData.created_at,
+    subscription: subscription
+      ? {
+          status: subscription.status,
+          tier: subscription.tier,
+          currentPeriodEnd: subscription.current_period_end,
+        }
+      : null,
+  });
+});
+
+/**
+ * PUT /api/auth/profile
+ * Update user profile (avatar URL)
+ */
+authRoutes.put('/profile', async (c) => {
+  const user = await getAuthUser(c);
+
+  if (!user) {
+    return c.json(
+      {
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        },
+      },
+      401
+    );
+  }
+
+  const { avatarUrl } = await c.req.json();
+
+  const supabase = getSupabaseClient(c.env);
+
+  const { error } = await supabase
+    .from('users')
+    .update({ avatar_url: avatarUrl })
+    .eq('id', user.id);
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'UPDATE_FAILED',
+          message: 'Failed to update profile',
+        },
+      },
+      500
+    );
+  }
+
+  return c.json({ success: true, avatarUrl });
+});
+
+/**
+ * GET /api/auth/referrals
+ * Get referral stats and referred users list
+ */
+authRoutes.get('/referrals', async (c) => {
+  const user = await getAuthUser(c);
+
+  if (!user) {
+    return c.json(
+      {
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        },
+      },
+      401
+    );
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Get all referrals by this user
+  const { data: referrals, error } = await supabase
+    .from('referrals')
+    .select('id, referred_user_id, referral_code, credits_awarded, status, referred_product, created_at, completed_at')
+    .eq('referrer_user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'QUERY_FAILED',
+          message: 'Failed to fetch referrals',
+        },
+      },
+      500
+    );
+  }
+
+  // Calculate stats
+  const totalReferrals = referrals?.length || 0;
+  const completedReferrals = referrals?.filter((r) => r.status === 'completed').length || 0;
+  const totalCreditsEarned = referrals?.reduce((sum, r) => sum + r.credits_awarded, 0) || 0;
+  const pendingReferrals = referrals?.filter((r) => r.status === 'pending').length || 0;
+
+  // Get referred users emails (for display)
+  const referredUserIds = referrals?.map((r) => r.referred_user_id).filter(Boolean) || [];
+  let referredUsers = [];
+
+  if (referredUserIds.length > 0) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, email, tier, created_at')
+      .in('id', referredUserIds);
+
+    referredUsers = users || [];
+  }
+
+  // Combine referral data with user info
+  const referralsList = referrals?.map((referral) => {
+    const referredUser = referredUsers.find((u) => u.id === referral.referred_user_id);
+    return {
+      id: referral.id,
+      referralCode: referral.referral_code,
+      creditsAwarded: referral.credits_awarded,
+      status: referral.status,
+      referredProduct: referral.referred_product,
+      createdAt: referral.created_at,
+      completedAt: referral.completed_at,
+      referredUser: referredUser
+        ? {
+            email: referredUser.email,
+            tier: referredUser.tier,
+            signedUpAt: referredUser.created_at,
+          }
+        : null,
+    };
+  }) || [];
+
+  return c.json({
+    stats: {
+      totalReferrals,
+      completedReferrals,
+      pendingReferrals,
+      totalCreditsEarned,
+    },
+    referrals: referralsList,
+  });
+});
+
+

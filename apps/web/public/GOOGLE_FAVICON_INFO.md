@@ -90,3 +90,4 @@ Favicons in Google Search are **automatic** - you can't force them to appear. Go
 
 Your current setup meets all requirements - just add the actual favicon file and wait for Google to crawl it!
 
+

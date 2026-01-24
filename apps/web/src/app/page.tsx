@@ -49,13 +49,12 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-4">
-              <a
-                href="#"
-                onClick={handlePreLaunchLink}
+              <Link
+                href="/auth/signin"
                 className="text-xs sm:text-sm md:text-base text-slate-400 hover:text-white transition-colors px-2 sm:px-3 py-2 min-h-[44px] flex items-center cursor-pointer whitespace-nowrap"
               >
                 Sign In
-              </a>
+              </Link>
               <a
                 href="#"
                 onClick={handlePreLaunchLink}

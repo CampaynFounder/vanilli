@@ -328,13 +328,12 @@ export function VideoGallery() {
                 <video
                   id={`video-${uniqueId}`}
                   src={video.videoUrl}
-                  className="w-full h-full object-cover pointer-events-none"
+                  className={`w-full h-full object-cover ${isPlaying ? 'pointer-events-auto' : 'pointer-events-none'}`}
                   controls={isPlaying}
                   controlsList="nodownload" // Prevent download, but allow fullscreen
                   playsInline
                   preload="metadata"
                   muted={!isPlaying}
-                  poster={video.thumbnail}
                   onLoadedMetadata={(e) => {
                     // Ensure first frame is visible as thumbnail
                     const videoElement = e.currentTarget;
@@ -346,6 +345,7 @@ export function VideoGallery() {
                       setTimeout(() => {
                         if (!isPlaying && videoElement.readyState >= 2) {
                           videoElement.currentTime = 0.1;
+                          videoElement.pause();
                         }
                       }, 100);
                     }
@@ -354,6 +354,14 @@ export function VideoGallery() {
                     // Additional event to ensure thumbnail loads on mobile
                     const videoElement = e.currentTarget;
                     if (!isPlaying && videoElement.readyState >= 2) {
+                      videoElement.currentTime = 0.1;
+                      videoElement.pause();
+                    }
+                  }}
+                  onCanPlay={(e) => {
+                    // Ensure thumbnail is visible when video can play
+                    const videoElement = e.currentTarget;
+                    if (!isPlaying) {
                       videoElement.currentTime = 0.1;
                       videoElement.pause();
                     }
@@ -450,14 +458,17 @@ export function VideoGallery() {
                             v.currentTime = 0;
                           }
                         });
-                        // Enable pointer events on video when playing
+                        // Unmute and enable pointer events on video when playing
+                        videoElement.muted = false;
                         videoElement.style.pointerEvents = 'auto';
-                        videoElement.play().catch((err) => {
+                        videoElement.play().then(() => {
+                          setPlayingVideoId(uniqueId);
+                          // Track video play
+                          trackVideoPlay(video.id, video.videoUrl);
+                        }).catch((err) => {
+                          // eslint-disable-next-line no-console
                           console.error('Error playing video:', err);
                         });
-                        setPlayingVideoId(uniqueId);
-                        // Track video play
-                        trackVideoPlay(video.id, video.videoUrl);
                       }
                     }}
                     className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer z-20 group"

@@ -131,3 +131,4 @@ If you've tried all of the above:
 3. Share the Supabase API logs for the failed request
 4. Verify you're using the correct Supabase project
 
+

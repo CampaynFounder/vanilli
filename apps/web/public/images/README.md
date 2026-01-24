@@ -36,3 +36,4 @@ If you use a different filename, update `src/app/page.tsx`:
 backgroundImage: 'url(/images/your-image.jpg)',
 ```
 
+

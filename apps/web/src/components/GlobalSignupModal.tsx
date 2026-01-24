@@ -2,12 +2,17 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { SignupForm } from './SignupForm';
 
 export function GlobalSignupModal() {
   const pathname = usePathname();
+  const { session } = useAuth();
 
   useEffect(() => {
+    // Suppress in all logged-in views
+    if (session) return;
+
     // Show modal on any route/page load (once per session)
     const hasSeenModal = sessionStorage.getItem('vannilli_signup_seen');
     
@@ -23,11 +28,14 @@ export function GlobalSignupModal() {
       
       return () => clearTimeout(timer);
     }
-  }, [pathname]);
+  }, [pathname, session]);
 
   // Show on link clicks (for navigation)
   useEffect(() => {
     const handleLinkClick = (e: MouseEvent) => {
+      // Suppress in all logged-in views
+      if (session) return;
+
       const target = e.target as HTMLElement;
       const link = target.closest('a');
       
@@ -50,7 +58,7 @@ export function GlobalSignupModal() {
 
     document.addEventListener('click', handleLinkClick, true);
     return () => document.removeEventListener('click', handleLinkClick, true);
-  }, []);
+  }, [session]);
 
   // Always render SignupForm - it will handle its own visibility
   return <SignupForm />;

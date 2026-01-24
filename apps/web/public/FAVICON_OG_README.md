@@ -70,3 +70,4 @@ The favicon and OG image are already configured in:
 - `/og-image.jpg` is accessible at `https://vannilli.xaino.io/og-image.jpg`
 - No code changes needed after adding files - Next.js will automatically serve them
 
+

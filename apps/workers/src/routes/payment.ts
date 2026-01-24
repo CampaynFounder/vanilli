@@ -349,3 +349,52 @@ paymentRoutes.get('/credits/balance', requireAuth, async (c) => {
   });
 });
 
+/**
+ * GET /api/activity/payments
+ * Get user's payment and subscription history
+ */
+paymentRoutes.get('/activity/payments', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+  const limit = parseInt(c.req.query('limit') || '50', 10);
+  const offset = parseInt(c.req.query('offset') || '0', 10);
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Get subscription history
+  const { data: subscriptions} = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  // Get audit log for credit purchases and additions
+  const { data: auditLog, error, count } = await supabase
+    .from('audit_log')
+    .select('*', { count: 'exact' })
+    .eq('user_id', user.id)
+    .in('action', ['credit_purchase', 'subscription_created', 'subscription_renewed', 'referral_credit_earned'])
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'QUERY_FAILED',
+          message: 'Failed to fetch payment history',
+        },
+      },
+      500
+    );
+  }
+
+  return c.json({
+    subscriptions: subscriptions || [],
+    activity: auditLog || [],
+    total: count || 0,
+    limit,
+    offset,
+  });
+});
+
+

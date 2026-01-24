@@ -24,6 +24,8 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string;
   ADMIN_PASSWORD: string;
   SENTRY_DSN?: string;
+  /** Optional. When set, worker calls this service to merge Kling video + user audio (and optional watermark). */
+  FFMPEG_SERVICE_URL?: string;
 }
 
 /**
@@ -57,6 +59,10 @@ export interface VideoGenerationMessage {
   userId: string;
   driverVideoUrl: string;
   targetImageUrl: string;
+  /** User audio track URL. Replaced via FFmpeg when FFMPEG_SERVICE_URL is set. */
+  audioTrackUrl?: string;
+  /** If true, FFmpeg adds VANNILLI watermark. */
+  isTrial?: boolean;
   prompt?: string;
   mode?: 'standard' | 'pro';
 }

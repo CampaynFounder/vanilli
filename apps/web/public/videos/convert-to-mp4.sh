@@ -53,3 +53,4 @@ echo "1. Verify the .mp4 files play correctly"
 echo "2. Update the codebase to reference .mp4 instead of .MOV"
 echo "3. Optionally delete the original .MOV files to save space"
 
+

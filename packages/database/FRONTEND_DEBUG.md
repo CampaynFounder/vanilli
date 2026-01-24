@@ -77,3 +77,4 @@ If you see warnings or errors in the console, that's the issue.
 3. Verify the anon key matches exactly (no extra spaces, correct format)
 4. Check Supabase API logs: Dashboard → Logs → API Logs
 
+

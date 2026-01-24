@@ -305,3 +305,4 @@ vannilli/
 
 **For questions or updates, refer to the blueprint at** `.cursor/plans/vannilli_multi-agent_blueprint_149bc67e.plan.md`
 
+

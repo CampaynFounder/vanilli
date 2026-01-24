@@ -10,6 +10,75 @@ import type { Env, AuthUser, VideoGenerationMessage } from '../types';
 
 export const videoRoutes = new Hono<{ Bindings: Env }>();
 
+// Duration validation: max allowed difference between audio and video (seconds)
+const DURATION_TOLERANCE_SECONDS = 2;
+const MIN_DURATION_SECONDS = 0.5;
+const MAX_DURATION_SECONDS = 300; // 5 minutes
+
+/**
+ * Validate and compare audio vs video durations for generation.
+ * Returns generationSeconds (validated duration used for credits) or an error.
+ */
+function validateMediaDurations(
+  videoDurationSeconds: number,
+  audioDurationSeconds: number
+): { valid: true; generationSeconds: number } | { valid: false; error: string } {
+  if (typeof videoDurationSeconds !== 'number' || typeof audioDurationSeconds !== 'number') {
+    return { valid: false, error: 'videoDurationSeconds and audioDurationSeconds must be numbers' };
+  }
+  if (videoDurationSeconds < MIN_DURATION_SECONDS || videoDurationSeconds > MAX_DURATION_SECONDS) {
+    return {
+      valid: false,
+      error: `Video duration must be between ${MIN_DURATION_SECONDS} and ${MAX_DURATION_SECONDS} seconds`,
+    };
+  }
+  if (audioDurationSeconds < MIN_DURATION_SECONDS || audioDurationSeconds > MAX_DURATION_SECONDS) {
+    return {
+      valid: false,
+      error: `Audio duration must be between ${MIN_DURATION_SECONDS} and ${MAX_DURATION_SECONDS} seconds`,
+    };
+  }
+  const diff = Math.abs(audioDurationSeconds - videoDurationSeconds);
+  if (diff > DURATION_TOLERANCE_SECONDS) {
+    return {
+      valid: false,
+      error: `Audio (${audioDurationSeconds.toFixed(1)}s) and video (${videoDurationSeconds.toFixed(1)}s) must be within ${DURATION_TOLERANCE_SECONDS}s of each other for lip-sync`,
+    };
+  }
+  // Use the shorter as the billable length to avoid charging for silence
+  const generationSeconds = Math.ceil(Math.min(videoDurationSeconds, audioDurationSeconds));
+  return { valid: true, generationSeconds };
+}
+
+/**
+ * POST /api/validate-media-durations
+ * Compare audio and video durations before starting generation (for UX feedback).
+ * No auth required so the Studio can validate as soon as the user picks files.
+ */
+videoRoutes.post('/validate-media-durations', async (c) => {
+  let body: { videoDurationSeconds?: number; audioDurationSeconds?: number };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json(
+      { error: { code: 'VALIDATION_ERROR', message: 'JSON body with videoDurationSeconds and audioDurationSeconds required' } },
+      400
+    );
+  }
+  const { videoDurationSeconds, audioDurationSeconds } = body;
+  const result = validateMediaDurations(
+    Number(videoDurationSeconds),
+    Number(audioDurationSeconds)
+  );
+  if (result.valid) {
+    return c.json({ valid: true, generationSeconds: result.generationSeconds });
+  }
+  return c.json(
+    { valid: false, error: result.error },
+    400
+  );
+});
+
 /**
  * POST /api/calculate-duration
  * Convert BPM + bars to video duration and cost
@@ -118,6 +187,151 @@ videoRoutes.post('/upload-assets', requireAuth, async (c) => {
   }
 
   return c.json({ uploadUrls });
+});
+
+// Base URL for R2 objects (must be publicly readable for Kling and FFmpeg service)
+const R2_PUBLIC_BASE = 'https://r2.vannilli.io';
+
+/**
+ * POST /api/start-generation-with-audio
+ * Studio flow: tracking video + target image + audio. Validates audio vs video duration, creates project and generation, enqueues.
+ * Body: { driverVideoKey, targetImageKey, audioKey, videoDurationSeconds, audioDurationSeconds, prompt?, mode? }
+ */
+videoRoutes.post('/start-generation-with-audio', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+  const body = await c.req.json();
+  const {
+    driverVideoKey,
+    targetImageKey,
+    audioKey,
+    videoDurationSeconds,
+    audioDurationSeconds,
+    prompt,
+    mode,
+  } = body;
+
+  if (!driverVideoKey || !targetImageKey || !audioKey) {
+    return c.json(
+      {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'driverVideoKey, targetImageKey, and audioKey are required',
+        },
+      },
+      400
+    );
+  }
+
+  const validation = validateMediaDurations(
+    Number(videoDurationSeconds),
+    Number(audioDurationSeconds)
+  );
+  if (!validation.valid) {
+    return c.json(
+      { error: { code: 'DURATION_MISMATCH', message: validation.error } },
+      400
+    );
+  }
+  const generationSeconds = validation.generationSeconds;
+
+  // Credits check
+  if (user.tier !== 'free' && user.creditsRemaining < generationSeconds) {
+    return c.json(
+      {
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: `You need ${generationSeconds} credits but only have ${user.creditsRemaining}`,
+        },
+      },
+      402
+    );
+  }
+  if (user.tier === 'free' && user.freeGenerationRedeemed) {
+    return c.json(
+      {
+        error: {
+          code: 'FREE_TIER_LIMIT',
+          message: 'Free generation already used. Please upgrade to continue.',
+        },
+      },
+      402
+    );
+  }
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Create project (required by generations FK)
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .insert({
+      user_id: user.id,
+      track_name: `Studio ${Date.now()}`,
+      bpm: 120,
+      bars: 8,
+      duration_seconds: generationSeconds,
+      driver_video_r2_path: driverVideoKey,
+      target_image_r2_path: targetImageKey,
+      audio_r2_path: audioKey,
+      prompt: prompt || null,
+      status: 'processing',
+    })
+    .select()
+    .single();
+
+  if (projectError || !project) {
+    return c.json(
+      { error: { code: 'CREATION_FAILED', message: 'Failed to create project' } },
+      500
+    );
+  }
+
+  // Create generation
+  const { data: generation, error: genError } = await supabase
+    .from('generations')
+    .insert({
+      project_id: project.id,
+      cost_credits: generationSeconds,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (genError || !generation) {
+    return c.json(
+      { error: { code: 'CREATION_FAILED', message: 'Failed to create generation' } },
+      500
+    );
+  }
+
+  const driverVideoUrl = `${R2_PUBLIC_BASE}/${driverVideoKey}`;
+  const targetImageUrl = `${R2_PUBLIC_BASE}/${targetImageKey}`;
+  const audioTrackUrl = `${R2_PUBLIC_BASE}/${audioKey}`;
+
+  const message: VideoGenerationMessage = {
+    internalTaskId: generation.internal_task_id,
+    generationId: generation.id,
+    userId: user.id,
+    driverVideoUrl,
+    targetImageUrl,
+    audioTrackUrl,
+    isTrial: user.tier === 'free',
+    prompt,
+    mode: mode || 'standard',
+  };
+
+  await c.env.VIDEO_QUEUE.send(message);
+
+  return c.json(
+    {
+      internalTaskId: generation.internal_task_id,
+      projectId: project.id,
+      status: 'pending',
+      generationSeconds,
+      estimatedCompletionSeconds: 90,
+      message: 'Your video is being generated. Check status at /api/poll-status/' + generation.internal_task_id,
+    },
+    202
+  );
 });
 
 /**

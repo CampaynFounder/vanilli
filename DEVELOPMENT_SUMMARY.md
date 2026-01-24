@@ -401,3 +401,4 @@ The platform combines:
 
 *For questions or clarifications, refer to the comprehensive blueprint at* `.cursor/plans/vannilli_multi-agent_blueprint_149bc67e.plan.md`
 
+

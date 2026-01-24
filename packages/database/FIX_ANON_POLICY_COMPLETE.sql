@@ -61,3 +61,4 @@ WHERE tablename = 'email_collections'
 -- 3. Did you trigger a new deployment after setting env vars?
 -- ============================================================================
 
+

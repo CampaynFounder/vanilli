@@ -14,6 +14,7 @@ interface Env {
   KLING_API_KEY: string;
   KLING_API_URL: string;
   FINAL_RENDERS: R2Bucket;
+  FFMPEG_SERVICE_URL?: string;
 }
 
 export default {
@@ -56,13 +57,34 @@ export default {
           const status = await klingAdapter.checkStatus(result.taskId);
 
           if (status.status === 'completed' && status.videoUrl) {
-            // Download video from Kling
-            const videoResponse = await fetch(status.videoUrl);
-            const videoBlob = await videoResponse.arrayBuffer();
+            let finalVideoBuffer: ArrayBuffer;
+
+            // If we have user audio and an FFmpeg service, merge Kling video + user audio (and optional watermark)
+            if (job.audioTrackUrl && env.FFMPEG_SERVICE_URL) {
+              const mergeUrl = `${env.FFMPEG_SERVICE_URL.replace(/\/$/, '')}/merge`;
+              const mergeRes = await fetch(mergeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  klingVideoUrl: status.videoUrl,
+                  audioTrackUrl: job.audioTrackUrl,
+                  addWatermark: job.isTrial === true,
+                }),
+              });
+              if (!mergeRes.ok) {
+                const errText = await mergeRes.text();
+                throw new Error(`FFmpeg merge failed: ${mergeRes.status} ${errText}`);
+              }
+              finalVideoBuffer = await mergeRes.arrayBuffer();
+            } else {
+              // No FFmpeg service or no audio: use Kling output as-is (Kling's video has its own audio)
+              const videoResponse = await fetch(status.videoUrl);
+              finalVideoBuffer = await videoResponse.arrayBuffer();
+            }
 
             // Upload to R2
             const videoKey = `videos/${job.generationId}/final.mp4`;
-            await env.FINAL_RENDERS.put(videoKey, videoBlob);
+            await env.FINAL_RENDERS.put(videoKey, finalVideoBuffer);
 
             // Update database
             await supabase
@@ -117,4 +139,5 @@ export default {
     }
   },
 };
+
 

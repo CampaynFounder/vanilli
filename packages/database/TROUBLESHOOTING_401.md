@@ -120,3 +120,4 @@ If these headers are missing or wrong, the Supabase client isn't configured corr
 3. Check Supabase logs: Dashboard → Logs → API Logs
 4. Verify the URL matches exactly (no trailing slashes)
 
+

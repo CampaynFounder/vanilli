@@ -79,3 +79,4 @@ When you use the Supabase anon key from the frontend:
    - Make sure you're using the **anon/public** key (starts with `eyJ`)
    - NOT the service_role key
 
+

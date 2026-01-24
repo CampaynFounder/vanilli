@@ -210,3 +210,88 @@ projectRoutes.delete('/:id', requireAuth, async (c) => {
   return c.body(null, 204);
 });
 
+/**
+ * GET /api/projects/history
+ * Get all user's projects with generations for history view
+ */
+projectRoutes.get('/history', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+  const limit = parseInt(c.req.query('limit') || '50', 10);
+  const offset = parseInt(c.req.query('offset') || '0', 10);
+
+  const supabase = getSupabaseClient(c.env);
+
+  const { data: projects, error, count } = await supabase
+    .from('projects')
+    .select('*, generations(*)', { count: 'exact' })
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'QUERY_FAILED',
+          message: 'Failed to fetch project history',
+        },
+      },
+      500
+    );
+  }
+
+  return c.json({
+    projects: projects || [],
+    total: count || 0,
+    limit,
+    offset,
+  });
+});
+
+/**
+ * GET /api/generations/history
+ * Get all user's generations across all projects
+ */
+projectRoutes.get('/generations/history', requireAuth, async (c) => {
+  const user = c.get('user') as AuthUser;
+  const limit = parseInt(c.req.query('limit') || '50', 10);
+  const offset = parseInt(c.req.query('offset') || '0', 10);
+  const status = c.req.query('status'); // Filter by status
+
+  const supabase = getSupabaseClient(c.env);
+
+  // Get all generations for user's projects
+  let query = supabase
+    .from('generations')
+    .select('*, projects!inner(user_id, track_name, bpm, bars)', { count: 'exact' })
+    .eq('projects.user_id', user.id)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const { data: generations, error, count } = await query;
+
+  if (error) {
+    return c.json(
+      {
+        error: {
+          code: 'QUERY_FAILED',
+          message: 'Failed to fetch generation history',
+        },
+      },
+      500
+    );
+  }
+
+  return c.json({
+    generations: generations || [],
+    total: count || 0,
+    limit,
+    offset,
+  });
+});
+
+

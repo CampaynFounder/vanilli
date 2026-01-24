@@ -39,6 +39,7 @@ KLING_API_URL = "https://api.klingai.com/v1"
 # KLING_API_KEY
 # STRIPE_SECRET_KEY
 # STRIPE_WEBHOOK_SECRET
+# FFMPEG_SERVICE_URL  (optional: https://your-ffmpeg-service.com for audio merge + watermark)
 # SENTRY_DSN
 
 # Preview environment

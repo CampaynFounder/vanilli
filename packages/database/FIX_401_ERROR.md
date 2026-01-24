@@ -102,3 +102,4 @@ If these headers are missing or show placeholder values, the env vars weren't em
 
 After redeploying, check the browser console for the "Supabase Config Check" log. If it shows the variables, the client should work. If not, the build didn't pick them up.
 
+
