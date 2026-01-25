@@ -172,6 +172,40 @@ serve(async (req) => {
             });
           }
         }
+
+        // Grant credits for Artist (80) and Label (330) on each paid invoice (first + renewals)
+        const SUBSCRIPTION_CREDITS: Record<string, number> = { artist: 80, label: 330 };
+        const { data: subRow } = await supabase
+          .from("subscriptions")
+          .select("user_id, tier")
+          .eq("stripe_subscription_id", subId)
+          .single();
+        const uid = (subRow as { user_id?: string } | null)?.user_id;
+        const tier = (subRow as { tier?: string } | null)?.tier;
+        const creds = tier ? (SUBSCRIPTION_CREDITS[tier] ?? 0) : 0;
+        if (uid && creds > 0) {
+          const { error: addErr } = await supabase.rpc("add_credits", {
+            p_user_id: uid,
+            p_credits: creds,
+          });
+          if (addErr) {
+            await supabase.from("audit_log").insert({
+              user_id: uid,
+              action: "stripe_webhook_error",
+              resource_type: "invoice",
+              resource_id: null,
+              metadata: { error: addErr.message, event_id: event.id, type: event.type, source: "invoice.paid" },
+            });
+          } else {
+            await supabase.from("audit_log").insert({
+              user_id: uid,
+              action: "credit_purchase",
+              resource_type: "invoice",
+              resource_id: null,
+              metadata: { source: "subscription", tier, credits: creds, stripe_subscription_id: subId, event_id: event.id },
+            });
+          }
+        }
         break;
       }
 
