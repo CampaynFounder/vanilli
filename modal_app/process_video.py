@@ -47,6 +47,7 @@ def process_video(data: Optional[dict] = None):
         tok = jwt.encode({"ak": kling_access, "iat": iat, "exp": iat + 3600}, kling_secret, algorithm="HS256")
         kling_bearer = tok.decode("utf-8") if isinstance(tok, bytes) else tok
         print(f"[vannilli] Kling auth: JWT from KLING_ACCESS_KEY + (KLING_SECRET_KEY or KLING_API_KEY)")
+        print(f"[vannilli] Kling JWT: payload={{ak:<redacted>,iat:{iat},exp:{iat+3600}}} prefix={kling_bearer[:50]}...")
     elif kling_api_key:
         kling_bearer = kling_api_key
         print(f"[vannilli] Kling auth: KLING_API_KEY (single Bearer)")
@@ -249,6 +250,82 @@ def process_video(data: Optional[dict] = None):
                 pass
 
     return {"ok": True, "path": out_key, "kling_units_used": kling_units_used}
+
+
+@app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=30)
+@modal.fastapi_endpoint(method="GET")
+def test_kling_auth():
+    """GET: Build JWT from keys in vannilli-secrets and return it so you can paste into Kling's
+    JWT verification. Also POSTs to the video API with dummy URLs to test. Set
+    NEXT_PUBLIC_MODAL_TEST_VIDEO_API_URL to this endpoint's URL for the /debug 'Generate JWT' button.
+    Returns: {ok, jwt?, payload_redacted?, expires_in?, verify_status?, verify_message?, message?}"""
+    kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
+    kling_access = os.environ.get("KLING_ACCESS_KEY")
+    kling_secret = os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY")
+    kling_api_key = os.environ.get("KLING_API_KEY")
+
+    # Build JWT from access+secret (same as process_video)
+    jwt_token = None
+    payload_redacted = None
+    if kling_access and kling_secret:
+        iat = int(time.time())
+        pl = {"ak": kling_access, "iat": iat, "exp": iat + 3600}
+        tok = jwt.encode(pl, kling_secret, algorithm="HS256")
+        jwt_token = tok.decode("utf-8") if isinstance(tok, bytes) else tok
+        ak = str(kling_access)
+        payload_redacted = {"ak": f"{ak[:8]}...{ak[-4:]}" if len(ak) > 12 else "***", "iat": iat, "exp": iat + 3600}
+    elif not kling_access and not kling_api_key:
+        return {"ok": False, "message": "KLING_ACCESS_KEY and KLING_API_KEY (or KLING_SECRET_KEY) not set in vannilli-secrets."}
+    elif kling_access and not kling_secret:
+        return {"ok": False, "message": "KLING_API_KEY or KLING_SECRET_KEY must be set as the secret when KLING_ACCESS_KEY is set."}
+    elif not kling_access:
+        return {"ok": False, "message": "KLING_ACCESS_KEY not set. Add it to vannilli-secrets to build a JWT (KLING_API_KEY is the secret)."}
+
+    bearer = jwt_token if jwt_token else kling_api_key
+    url = f"{kling_base.rstrip('/')}/videos/motion-control"
+    req_payload = {
+        "model_name": "kling-v2",
+        "driver_video_url": "https://example.com/dummy.mp4",
+        "target_image_url": "https://example.com/dummy.jpg",
+        "mode": "standard",
+        "character_orientation": "image",
+    }
+    verify_status = None
+    verify_message = None
+    try:
+        r = requests.post(url, json=req_payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {bearer}"}, timeout=25)
+        verify_status = r.status_code
+        body = {}
+        try:
+            body = r.json()
+        except Exception:
+            pass
+        code = body.get("code")
+        msg = body.get("message", "")
+        if r.status_code == 401:
+            verify_message = "Auth failed (401). Token rejected by video API."
+            out = {"ok": False, "verify_status": verify_status, "verify_message": verify_message}
+            if jwt_token:
+                out["jwt"] = jwt_token
+                out["payload_redacted"] = payload_redacted
+                out["expires_in"] = 3600
+            out["message"] = verify_message
+            return out
+        if r.status_code >= 400:
+            verify_message = f"Auth OK. Video API returned {r.status_code} (code={code}, message={msg!r}). Dummy URLs are invalid."
+        else:
+            verify_message = "Auth OK. Video API accepted the request."
+    except Exception as e:
+        verify_message = f"Request failed: {e!r}"
+        return {"ok": False, "verify_message": verify_message, "message": verify_message, "jwt": jwt_token, "payload_redacted": payload_redacted, "expires_in": 3600 if jwt_token else None}
+
+    out = {"ok": True, "verify_status": verify_status, "verify_message": verify_message}
+    if jwt_token:
+        out["jwt"] = jwt_token
+        out["payload_redacted"] = payload_redacted
+        out["expires_in"] = 3600
+    out["message"] = verify_message
+    return out
 
 
 def _fail(supabase, generation_id: str, msg: str):

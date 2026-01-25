@@ -104,7 +104,17 @@ curl -s -X POST "$MODAL_URL" \
 # or: modal deploy modal_app/process_video.py
 ```
 
-Use the **deployed** URL (no `-dev`) in `NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL` for production.
+`modal deploy` prints **two** URLs: `process-video` (main) and `test-kling-auth`. Use the **process-video** URL in `NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL`. Optionally set `NEXT_PUBLIC_MODAL_TEST_VIDEO_API_URL` to the **test-kling-auth** URL to enable the "Verify video API" button on `/debug`.
+
+## Generate JWT from Modal secrets (for Kling verification)
+
+The `test_kling_auth` endpoint uses the **keys in vannilli-secrets** (no plaintext on your machine) to build a JWT and return it. You can paste that JWT into Kling’s verification tool to confirm the stored keys work.
+
+1. Deploy Modal. Copy the **test-kling-auth** URL from the deploy output.
+2. Set `NEXT_PUBLIC_MODAL_TEST_VIDEO_API_URL` to that URL.
+3. Open **/debug** and click **Generate JWT**. The JWT appears in a copyable box; click **Copy** and paste it into Kling’s verifier.
+
+The endpoint also POSTs to the video API with dummy URLs; the status below the JWT (Auth OK vs 401) reflects that. The JWT is returned even when the dummy POST gets 401, so you can still verify the token in Kling.
 
 ## Logging and 403 RLS debugging
 
