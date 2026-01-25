@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
+import { AppBackground } from '@/components/AppBackground';
 import { HistoryTabs } from '@/components/history/HistoryTabs';
 import { GenerationsList, type Generation } from '@/components/history/GenerationsList';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -55,7 +56,9 @@ function HistoryPage() {
   }, [session, activeTab]);
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen relative">
+      <AppBackground />
+      <div className="relative z-10">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -158,6 +161,7 @@ function HistoryPage() {
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );

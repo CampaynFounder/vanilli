@@ -12,6 +12,7 @@ import { AvatarUpload } from '@/components/profile/AvatarUpload';
 import { ReferralCode } from '@/components/profile/ReferralCode';
 import { ReferralStats } from '@/components/profile/ReferralStats';
 import { LinkPaymentMethod } from '@/components/LinkPaymentMethod';
+import { AppBackground } from '@/components/AppBackground';
 
 interface ProfileData {
   id: string;
@@ -126,8 +127,11 @@ function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="spinner w-12 h-12"></div>
+      <div className="min-h-screen relative">
+        <AppBackground />
+        <div className="relative z-10 flex items-center justify-center min-h-screen">
+          <div className="spinner w-12 h-12"></div>
+        </div>
       </div>
     );
   }
@@ -146,7 +150,9 @@ function ProfilePage() {
   }));
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen relative">
+      <AppBackground />
+      <div className="relative z-10">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -286,6 +292,7 @@ function ProfilePage() {
             />
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
+import { AppBackground } from '@/components/AppBackground';
 
 const BUCKET = 'vannilli';
 const INPUTS = 'inputs';
@@ -191,7 +192,9 @@ function StudioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen relative">
+      <AppBackground />
+      <div className="relative z-10">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -375,6 +378,7 @@ function StudioPage() {
             />
           </GlassCard>
         )}
+      </div>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { motion, type Transition } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
+import { AppBackground } from '@/components/AppBackground';
 
 type Product = 'open_mic' | 'artist' | 'label';
 
@@ -166,7 +167,9 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen relative">
+      <AppBackground />
+      <div className="relative z-10">
       {/* Header */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -343,6 +346,7 @@ export default function PricingPage() {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }
