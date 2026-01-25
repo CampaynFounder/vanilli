@@ -20,6 +20,7 @@
     "db:reset": "cd packages/database && supabase db reset",
     "supabase:deploy:create-checkout": "supabase functions deploy create-checkout-session",
     "supabase:deploy:functions": "supabase functions deploy",
+    "modal:deploy": "./modal_app/deploy.sh",
     "prepare": "husky install"
   },
   "devDependencies": {

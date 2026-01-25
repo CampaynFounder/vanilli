@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { sanitizeForUser } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
@@ -35,7 +36,7 @@ function StudioPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
 
-  // Optional Kling prompt: context/environment (motion comes from video). Max 100; Kling does not publish a motion-control limit; 100 is a safe UI cap.
+  // Optional scene prompt: context/environment (motion comes from video). Max 100 chars.
   const [prompt, setPrompt] = useState('');
 
   // Generation state
@@ -201,7 +202,7 @@ function StudioPage() {
         }
         if (row?.status === 'failed') {
           setGenerationStatus('failed');
-          setGenerationError(row?.error_message || 'Generation failed');
+          setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
           setIsGenerating(false);
           return;
         }
@@ -211,7 +212,7 @@ function StudioPage() {
       setTimeout(poll, 3000);
     } catch (e) {
       setGenerationStatus('failed');
-      setGenerationError(e instanceof Error ? e.message : 'Generation failed');
+      setGenerationError(sanitizeForUser(e instanceof Error ? e.message : 'Generation failed'));
       setIsGenerating(false);
     }
   };
@@ -313,7 +314,7 @@ function StudioPage() {
               }
             />
 
-            {/* Scene prompt (optional) – passed to Kling motion-control. Describe context/environment, not motion. */}
+            {/* Scene prompt (optional) – passed to video generation. Describe context/environment, not motion. */}
             <GlassCard>
               <label htmlFor="studio-prompt" className="block text-sm font-medium text-slate-300 mb-2">
                 4. Scene prompt <span className="text-slate-500 font-normal">(optional)</span>

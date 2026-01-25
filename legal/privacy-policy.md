@@ -23,7 +23,7 @@ Vannilli ("we," "our," "us") is committed to protecting your privacy. This Priva
 
 ### 2.3 Information from Third Parties
 - **Stripe**: Payment confirmation, subscription status
-- **Kling AI**: Video generation status (we do not share personal information with Kling beyond what's necessary for processing)
+- **AI video generation provider**: Video generation status (we do not share personal information beyond what's necessary for processing)
 
 ## 3. How We Use Your Information
 
@@ -69,7 +69,7 @@ We share data with:
 - **Cloudflare**: Hosting, CDN, storage (R2)
 - **Supabase**: Database, authentication
 - **Stripe**: Payment processing
-- **Kling AI**: Video generation (performance video, target image)
+- **AI video generation provider**: Video generation (performance video, target image)
 - **Sentry**: Error monitoring
 - **Mixpanel**: Analytics (anonymized)
 

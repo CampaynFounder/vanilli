@@ -1,6 +1,7 @@
 'use client';
 
 import { GlassCard } from '../ui/GlassCard';
+import { sanitizeForUser } from '@/lib/utils';
 
 export interface Generation {
   id: string;
@@ -75,7 +76,7 @@ export function GenerationsList({ generations }: GenerationsListProps) {
                 )}
                 {generation.status === 'failed' && generation.error_message && (
                   <p className="text-xs text-red-400 max-w-xs text-right">
-                    {generation.error_message}
+                    {sanitizeForUser(generation.error_message)}
                   </p>
                 )}
               </div>

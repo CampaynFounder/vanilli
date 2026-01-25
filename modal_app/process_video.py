@@ -3,14 +3,16 @@ import os
 import subprocess
 import tempfile
 import time
+from typing import Optional
+
+import jwt
 import requests
 from pathlib import Path
 
 import modal
-from starlette.requests import Request
 
 app = modal.App("vannilli-process-video")
-img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "starlette", "fastapi")
+img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "fastapi", "pyjwt")
 
 BUCKET = "vannilli"
 INPUTS_PREFIX = "inputs"
@@ -18,10 +20,10 @@ OUTPUTS_PREFIX = "outputs"
 
 
 @app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=600)
-@modal.web_endpoint(method="POST")
-async def process_video(request: Request):
+@modal.fastapi_endpoint(method="POST")
+def process_video(data: Optional[dict] = None):
     """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, generation_seconds?, prompt? }"""
-    data = await request.json() or {}
+    data = data or {}
     tracking_url = data.get("tracking_video_url")
     target_url = data.get("target_image_url")
     audio_url = data.get("audio_track_url")
@@ -35,8 +37,23 @@ async def process_video(request: Request):
 
     supabase_url = os.environ["SUPABASE_URL"]
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-    kling_key = os.environ["KLING_API_KEY"]
     kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
+    # Kling: Access Key + Secret (JWT) or single Bearer. Secret can be KLING_SECRET_KEY or KLING_API_KEY.
+    kling_access = os.environ.get("KLING_ACCESS_KEY")
+    kling_secret = os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY")
+    kling_api_key = os.environ.get("KLING_API_KEY")
+    if kling_access and kling_secret:
+        iat = int(time.time())
+        tok = jwt.encode({"ak": kling_access, "iat": iat, "exp": iat + 3600}, kling_secret, algorithm="HS256")
+        kling_bearer = tok.decode("utf-8") if isinstance(tok, bytes) else tok
+        print(f"[vannilli] Kling auth: JWT from KLING_ACCESS_KEY + (KLING_SECRET_KEY or KLING_API_KEY)")
+    elif kling_api_key:
+        kling_bearer = kling_api_key
+        print(f"[vannilli] Kling auth: KLING_API_KEY (single Bearer)")
+    else:
+        return {"ok": False, "error": "Video service is not configured. Please contact VANNILLI support."}
+    # Log that we're using service_role (do not log the key). 403 often means anon key or missing RLS.
+    print(f"[vannilli] SUPABASE_SERVICE_ROLE_KEY present: True, len={len(supabase_key)}")
 
     from supabase import create_client
     supabase = create_client(supabase_url, supabase_key)
@@ -60,8 +77,8 @@ async def process_video(request: Request):
             download(target_url, target_path)
             download(audio_url, audio_path)
         except Exception as e:
-            _fail(supabase, generation_id, str(e))
-            return {"ok": False, "error": f"Download failed: {e}"}
+            _fail(supabase, generation_id, "Download failed. Please check your files and try again.")
+            return {"ok": False, "error": "Download failed. Please check your files and try again."}
 
         tracking_url_for_kling = tracking_url
         audio_for_merge = audio_path
@@ -80,27 +97,39 @@ async def process_video(request: Request):
                 check=True, capture_output=True,
             )
             audio_for_merge = audio_trimmed
-            # Overwrite storage with trimmed tracking and create signed URL for Kling
-            inp_tracking = f"{INPUTS_PREFIX}/{generation_id}/tracking.mp4"
+            # Upload trimmed file to a NEW object (no upsert) to avoid UPDATE RLS; use for Kling and cleanup later.
+            inp_trimmed = f"{INPUTS_PREFIX}/{generation_id}/tracking_trimmed.mp4"
+            print(f"[vannilli] trim/upload: gen_secs={gen_secs}, path={inp_trimmed}")
             try:
-                supabase.storage.from_(BUCKET).upload(inp_tracking, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4", "upsert": True})
-                sig = supabase.storage.from_(BUCKET).create_signed_url(inp_tracking, 3600)
+                supabase.storage.from_(BUCKET).upload(inp_trimmed, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4"})
+                sig = supabase.storage.from_(BUCKET).create_signed_url(inp_trimmed, 3600)
                 if isinstance(sig, tuple):
                     sig = sig[0] if sig else {}
                 tracking_url_for_kling = (sig.get("signedUrl") or sig.get("signed_url")) if isinstance(sig, dict) else (getattr(sig, "signedUrl", None) or getattr(sig, "signed_url", None))
                 if not tracking_url_for_kling:
                     tracking_url_for_kling = tracking_url
-            except Exception:
+                print(f"[vannilli] trim/upload OK: {inp_trimmed}")
+            except Exception as e:
+                # Log full error for 403/RLS debugging (including response body if present).
+                err_type = type(e).__name__
+                err_msg = str(e)
+                body = getattr(e, "body", None) or getattr(e, "message", None)
+                resp = getattr(e, "response", None)
+                if resp is not None:
+                    err_msg += f" | response.status={getattr(resp,'status_code',None)}"
+                    raw = getattr(resp, "text", None) or (getattr(resp, "content", b"")[:500] if hasattr(resp, "content") else None)
+                    if raw is not None:
+                        err_msg += f" body={raw!r}"
+                print(f"[vannilli] trim/upload FAIL: type={err_type} {err_msg} body={body}")
                 tracking_url_for_kling = tracking_url
 
-        # Kling motion-control: driver_video + target_image (mode=std, character_orientation=image). Only VANNILLI watermark for trial.
-        # When Kling supports it, add optional "watermark": False to request no Kling watermark.
-        # prompt: optional; describe context/environment, not motion. Kling does not publish a max; we cap at 100.
+        # Kling motion-control: driver_video + target_image. mode=standard (not "std"). character_orientation=image.
+        # prompt: optional; describe context/environment, not motion. Kling caps; we send max 100 chars.
         payload = {
             "model_name": "kling-v2",
             "driver_video_url": tracking_url_for_kling,
             "target_image_url": target_url,
-            "mode": "std",
+            "mode": "standard",
             "character_orientation": "image",
         }
         if prompt:
@@ -108,18 +137,29 @@ async def process_video(request: Request):
         try:
             r = requests.post(
                 f"{kling_base}/videos/motion-control",
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {kling_key}"},
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {kling_bearer}"},
                 json=payload,
                 timeout=60,
             )
-            r.raise_for_status()
+            if not r.ok:
+                try:
+                    body = r.json()
+                except Exception:
+                    body = (r.text[:1500] if r.text else None) or r.reason
+                err_log = f"Kling motion-control HTTP {r.status_code}: {body!r}"
+                print(f"[vannilli] Kling start FAIL: {err_log}")
+                _fail(supabase, generation_id, "Video generation failed. Please try again. If it persists, contact VANNILLI support.")
+                return {"ok": False, "error": "Video generation failed. Please try again. If it persists, contact VANNILLI support."}
             j = r.json()
             if j.get("code") != 0:
-                raise RuntimeError(j.get("message", "Kling error"))
+                print(f"[vannilli] Kling start code!=0: {j.get('message', '')!r}")
+                _fail(supabase, generation_id, "Video generation failed. Please try again.")
+                return {"ok": False, "error": "Video generation failed. Please try again."}
             task_id = j["data"]["task_id"]
         except Exception as e:
-            _fail(supabase, generation_id, f"Kling start: {e}")
-            return {"ok": False, "error": str(e)}
+            print(f"[vannilli] Kling start exception: {type(e).__name__} {e!r}")
+            _fail(supabase, generation_id, "Video generation failed. Please try again.")
+            return {"ok": False, "error": "Video generation failed. Please try again."}
 
         supabase.table("generations").update({"kling_task_id": task_id, "status": "processing"}).eq("id", generation_id).execute()
 
@@ -131,7 +171,7 @@ async def process_video(request: Request):
             try:
                 r = requests.get(
                     f"{kling_base}/videos/motion-control/{task_id}",
-                    headers={"Authorization": f"Bearer {kling_key}"},
+                    headers={"Authorization": f"Bearer {kling_bearer}"},
                     timeout=30,
                 )
                 r.raise_for_status()
@@ -141,19 +181,20 @@ async def process_video(request: Request):
                 data = j.get("data") or {}
                 st = data.get("task_status")
                 if st == "failed":
-                    _fail(supabase, generation_id, j.get("message", "Kling failed"))
-                    return {"ok": False, "error": "Kling failed"}
+                    print(f"[vannilli] Kling poll task failed: {j.get('message', '')!r}")
+                    _fail(supabase, generation_id, "Video generation failed. Please try again.")
+                    return {"ok": False, "error": "Video generation failed. Please try again."}
                 if st == "succeed":
                     task_result = data.get("task_result") or {}
                     urls = task_result.get("videos") or []
                     if not urls:
-                        _fail(supabase, generation_id, "No video URL in Kling result")
-                        return {"ok": False, "error": "No video URL"}
+                        _fail(supabase, generation_id, "Video generation produced no output. Please try again.")
+                        return {"ok": False, "error": "Video generation produced no output. Please try again."}
                     v0 = urls[0] or {}
                     kling_video_url = v0.get("url")
                     if not kling_video_url:
-                        _fail(supabase, generation_id, "No video URL in Kling result")
-                        return {"ok": False, "error": "No video URL"}
+                        _fail(supabase, generation_id, "Video generation produced no output. Please try again.")
+                        return {"ok": False, "error": "Video generation produced no output. Please try again."}
 
                     # Final unit deduction (Kling may use unit_deduction, credit_used, units_used)
                     kling_units_used = data.get("unit_deduction") or data.get("credit_used") or data.get("units_used") or task_result.get("unit_deduction") or task_result.get("credit_used")
@@ -161,8 +202,8 @@ async def process_video(request: Request):
             except Exception as e:
                 continue
         else:
-            _fail(supabase, generation_id, "Kling timeout")
-            return {"ok": False, "error": "Kling timeout"}
+            _fail(supabase, generation_id, "Video generation timed out. Please try again.")
+            return {"ok": False, "error": "Video generation timed out. Please try again."}
 
         download(kling_video_url, kling_path)
 
@@ -196,9 +237,12 @@ async def process_video(request: Request):
         if gr.data and gr.data.get("project_id"):
             supabase.table("projects").update({"status": "completed"}).eq("id", gr.data["project_id"]).execute()
 
-        # Delete 3 input files from Storage
+        # Delete input files from Storage (include tracking_trimmed.mp4 when we created it)
         inp_prefix = f"{INPUTS_PREFIX}/{generation_id}"
-        for name in ["tracking.mp4", "target.jpg", "audio.mp3"]:
+        to_remove = ["tracking.mp4", "target.jpg", "audio.mp3"]
+        if gen_secs > 0:
+            to_remove.append("tracking_trimmed.mp4")
+        for name in to_remove:
             try:
                 supabase.storage.from_(BUCKET).remove([f"{inp_prefix}/{name}"])
             except Exception:

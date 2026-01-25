@@ -5,7 +5,10 @@ This app runs on [Modal](https://modal.com). It accepts a POST with signed URLs 
 ## Prerequisites
 
 - [Modal CLI](https://modal.com/docs/guide/install) and `modal setup` (or `modal token`)
-- Modal secret `vannilli-secrets` with: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KLING_API_KEY`, and optionally `KLING_API_URL`
+- Modal secret `vannilli-secrets` with: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; and either:
+  - **Kling (Access Key + Secret Key):** `KLING_ACCESS_KEY` and `KLING_SECRET_KEY` — a JWT is built and used as `Authorization: Bearer`
+  - **Kling (single key):** `KLING_API_KEY` — used directly as Bearer (if you have only one token).  
+  Optionally: `KLING_API_URL` (default `https://api.klingai.com/v1`).
 
 ## Run and test before using from the app
 
@@ -96,7 +99,20 @@ curl -s -X POST "$MODAL_URL" \
 ## Deploy (production)
 
 ```bash
-modal deploy modal_app/process_video.py
+./modal_app/deploy.sh
+# or: npm run modal:deploy
+# or: modal deploy modal_app/process_video.py
 ```
 
 Use the **deployed** URL (no `-dev`) in `NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL` for production.
+
+## Logging and 403 RLS debugging
+
+When `generation_seconds` > 0, the function trims the tracking video, uploads it to `inputs/{id}/tracking_trimmed.mp4`, and uses that for Kling. In Modal logs you’ll see:
+
+- `[vannilli] SUPABASE_SERVICE_ROLE_KEY present: True, len=N` – confirms the service role key is set (not the anon key).
+- `[vannilli] trim/upload: gen_secs=… path=…` – before upload.
+- `[vannilli] trim/upload OK: …` – upload and signed URL succeeded.
+- `[vannilli] trim/upload FAIL: type=… … body=…` – on error; includes exception type, message, and response status/body for 403 “new row violates row-level security policy” and similar.
+
+Storage RLS for `service_role` on `vannilli/inputs/` and `vannilli/outputs/` must be in place. Run `packages/database/add-inputs-storage-service-role.sql` in the Supabase SQL Editor, then the verification query at the bottom to confirm all 8 policies exist.
