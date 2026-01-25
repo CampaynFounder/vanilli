@@ -87,11 +87,11 @@ export default function HomePage() {
         {/* Content with proper z-index */}
         <div className="relative z-[10] max-w-4xl mx-auto text-center space-y-6">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] leading-tight">
-            Hyper-Realistic, Music Industry-Grade Lip Sync For AI Music Videos
+            Hyper-Realistic AI Music Videos
           </h1>
           
           <p className="text-xl text-white max-w-2xl mx-auto drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] font-semibold">
-            Transform your music performances into stunning AI-powered videos with perfect lip-sync
+            Bring Your AI Artist To Life with Perfect Lip Sync
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center pt-4 w-full sm:w-auto">
@@ -100,7 +100,7 @@ export default function HomePage() {
               onClick={handlePreLaunchLink}
               className="px-6 py-3.5 sm:py-3 bg-white text-slate-950 text-sm sm:text-base font-semibold rounded-lg hover:bg-slate-100 transition-all shadow-lg min-h-[48px] flex items-center justify-center w-full sm:w-auto cursor-pointer"
             >
-              Start Creating Free
+              Create My AI Video
             </a>
             <Link
               href="#calculator"

@@ -217,7 +217,7 @@ export default function PricingPage() {
       </section>
 
       {/* Pricing cards – horizontal scroll on mobile, grid on desktop */}
-      <section className="px-4 sm:px-6 lg:px-8 pb-10">
+      <section className="px-4 sm:px-6 lg:px-8 pt-8 pb-10">
         {user && user.hasValidCard !== true && (
           <div className="max-w-6xl mx-auto mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
             <p className="text-amber-200 text-sm">
@@ -227,7 +227,7 @@ export default function PricingPage() {
         )}
         <div
           ref={scrollRef}
-          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
+          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto overflow-y-visible pt-6 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
         >
           {PLANS.map((p) => {
             const isFocused = focusedPlan === p.id;
@@ -240,10 +240,10 @@ export default function PricingPage() {
                 onClick={() => setFocusedPlan(p.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFocusedPlan(p.id); } }}
                 animate={{
-                  scale: isFocused ? 1.03 : 1,
-                  y: isFocused ? -8 : 0,
+                  scale: isFocused ? 1.02 : 1,
+                  y: isFocused ? -4 : 0,
                   boxShadow: isFocused
-                    ? '0 25px 50px -12px rgba(168, 85, 247, 0.4), 0 0 0 2px rgba(192, 132, 252, 0.5)'
+                    ? '0 20px 40px -12px rgba(168, 85, 247, 0.35), 0 0 0 2px rgba(192, 132, 252, 0.5)'
                     : '0 0 0 0 rgba(0,0,0,0)',
                 }}
                 transition={cardSpring}

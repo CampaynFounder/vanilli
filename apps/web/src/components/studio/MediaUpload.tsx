@@ -3,6 +3,25 @@
 import { useState, useRef } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
 
+const VIDEO_MAX_SECONDS = 9;
+
+function validateVideoDuration(file: File): Promise<number> {
+  const url = URL.createObjectURL(file);
+  return new Promise((resolve, reject) => {
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(vid.duration);
+    };
+    vid.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not load video'));
+    };
+    vid.src = url;
+  });
+}
+
 interface MediaUploadProps {
   type: 'video' | 'image' | 'audio';
   label: string;
@@ -26,7 +45,34 @@ export function MediaUpload({
   icon,
 }: MediaUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [validatingVideo, setValidatingVideo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const clearFileInput = () => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const processVideo = (file: File) => {
+    setVideoError(null);
+    setValidatingVideo(true);
+    validateVideoDuration(file)
+      .then((d) => {
+        setValidatingVideo(false);
+        if (d > VIDEO_MAX_SECONDS) {
+          setVideoError(`Video must be ${VIDEO_MAX_SECONDS} seconds or less (yours is ${d.toFixed(1)}s).`);
+          clearFileInput();
+          return;
+        }
+        onFileSelect(file);
+        onDuration?.(d);
+      })
+      .catch(() => {
+        setValidatingVideo(false);
+        setVideoError('Could not read video. Try a different file.');
+        clearFileInput();
+      });
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -41,17 +87,24 @@ export function MediaUpload({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      onFileSelect(files[0]);
+      if (type === 'video') {
+        processVideo(files[0]);
+      } else {
+        onFileSelect(files[0]);
+      }
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      onFileSelect(files[0]);
+      if (type === 'video') {
+        processVideo(files[0]);
+      } else {
+        onFileSelect(files[0]);
+      }
     }
   };
 
@@ -155,10 +208,18 @@ export function MediaUpload({
               Click to upload or drag and drop
             </p>
             <p className="text-sm text-slate-400">
-              {type === 'video' && 'MP4, MOV, or WebM (max 500MB)'}
+              {type === 'video' && 'MP4, MOV, or WebM (3–9s, max 500MB)'}
               {type === 'image' && 'JPG, PNG, or WebP (max 10MB)'}
               {type === 'audio' && 'MP3, WAV, or M4A (max 50MB)'}
             </p>
+          </div>
+        )}
+
+        {/* Video duration validation message */}
+        {type === 'video' && (videoError || validatingVideo) && (
+          <div className="mt-3 text-center">
+            {validatingVideo && <p className="text-sm text-slate-400">Checking duration…</p>}
+            {videoError && <p className="text-sm text-red-400">{videoError}</p>}
           </div>
         )}
 
