@@ -16,7 +16,7 @@ function LinkPaymentForm({
   offerFreeCredits,
 }: {
   clientSecret: string;
-  onSuccess: (creditsRemaining?: number) => void;
+  onSuccess: (creditsRemaining?: number, alreadyUsed?: boolean) => void;
   onError: (s: string) => void;
   submitting: boolean;
   setSubmitting: (v: boolean) => void;
@@ -62,13 +62,13 @@ function LinkPaymentForm({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ setup_intent_id: setupIntent.id }),
         });
-        const j = (await res.json().catch(() => ({}))) as { error?: string; credits_remaining?: number };
+        const j = (await res.json().catch(() => ({}))) as { error?: string; credits_remaining?: number; payment_method_already_used?: boolean };
         if (!res.ok) {
           onError(j.error || 'Could not register payment method');
           setSubmitting(false);
           return;
         }
-        onSuccess(j.credits_remaining);
+        onSuccess(j.credits_remaining, j.payment_method_already_used);
       } else {
         onError('Setup did not succeed');
       }
@@ -96,13 +96,14 @@ export function LinkPaymentMethod({
   onSuccess,
   updateOnly,
 }: {
-  onSuccess: (creditsRemaining?: number) => void;
+  onSuccess: (creditsRemaining?: number, alreadyUsed?: boolean) => void;
   updateOnly?: boolean;
 }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [alreadyUsed, setAlreadyUsed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const stripePromise = useMemo(() => (stripePk ? loadStripe(stripePk) : null), []);
@@ -142,16 +143,24 @@ export function LinkPaymentMethod({
     setLoading(false);
   };
 
-  const handleSuccess = (creditsRemaining?: number) => {
+  const handleSuccess = (creditsRemaining?: number, alreadyUsedFlag?: boolean) => {
     setSuccess(true);
-    onSuccess(creditsRemaining);
+    setAlreadyUsed(alreadyUsedFlag === true);
+    onSuccess(creditsRemaining, alreadyUsedFlag);
   };
 
   if (success) {
     return (
-      <p className="text-green-400 text-sm font-medium">
-        Payment method linked.
-      </p>
+      <div className="space-y-1">
+        <p className="text-green-400 text-sm font-medium">
+          Payment method linked.
+        </p>
+        {alreadyUsed && (
+          <p className="text-amber-400/90 text-sm">
+            This payment method was already used for free credits on another account. No additional credits were granted.
+          </p>
+        )}
+      </div>
     );
   }
 

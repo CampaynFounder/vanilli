@@ -69,7 +69,7 @@ function ProfilePage() {
     setShowLinkBanner(new URLSearchParams(window.location.search).get('link_required') === '1');
   }, []);
 
-  const handleLinkSuccess = (creditsRemaining?: number) => {
+  const handleLinkSuccess = (creditsRemaining?: number, _alreadyUsed?: boolean) => {
     if (typeof creditsRemaining === 'number') {
       setProfile((prev) => (prev ? { ...prev, creditsRemaining } : prev));
     }
