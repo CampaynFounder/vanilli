@@ -181,8 +181,8 @@ export default function PricingPage() {
               <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
                 How it works
               </Link>
-              <Link href="/pricing" className="hidden sm:block text-sm text-white font-medium">
-                Pricing
+              <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
+                <img src="/icons/nav/pricing.png" alt="" className="h-10 md:h-11 w-auto object-contain" />
               </Link>
               {user ? (
                 <Link href="/studio" className="text-sm text-slate-400 hover:text-white transition-colors">
