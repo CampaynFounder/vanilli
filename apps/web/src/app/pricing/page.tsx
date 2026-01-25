@@ -18,17 +18,41 @@ const PLANS: Array<{
   description: string;
   cta: string;
   featured: boolean;
+  features: string[];
 }> = [
-  { id: 'open_mic', name: 'Open Mic', price: 15, period: 'one-time', credits: 40, description: 'One-time credits to try pro lip-sync.', cta: 'Get started', featured: false },
-  { id: 'artist', name: 'Artist', price: 20, period: '/mo', credits: 80, description: 'Steady output for growing artists.', cta: 'Get started', featured: false },
-  { id: 'label', name: 'Label', price: 50, period: '/mo', credits: 330, description: 'High volume for labels and serious creators.', cta: 'Get started', featured: true },
-];
-
-const FEATURES = [
-  '3–9 second videos',
-  '1 credit = 1 second',
-  'Watermarked downloads',
-  'Lip-sync + audio',
+  {
+    id: 'open_mic',
+    name: 'Open Mic',
+    price: 15,
+    period: 'one-time',
+    credits: 40,
+    description: 'One-time credits to try pro lip-sync.',
+    cta: 'Get started',
+    featured: false,
+    features: ['3–9 second videos', '1 credit = 1 second', '40 one-time credits', 'Watermarked downloads', 'Lip-sync + audio'],
+  },
+  {
+    id: 'artist',
+    name: 'Artist',
+    price: 20,
+    period: '/mo',
+    credits: 80,
+    description: 'Steady output for growing artists.',
+    cta: 'Get started',
+    featured: false,
+    features: ['3–9 second videos', '1 credit = 1 second', '80 credits per month', 'Watermarked downloads', 'Lip-sync + audio'],
+  },
+  {
+    id: 'label',
+    name: 'Label',
+    price: 50,
+    period: '/mo',
+    credits: 330,
+    description: 'High volume for labels and serious creators.',
+    cta: 'Get started',
+    featured: true,
+    features: ['3–9 second videos', '1 credit = 1 second', '330 credits per month', 'Watermarked downloads', 'Lip-sync + audio', 'High volume for serious creators'],
+  },
 ];
 
 function CheckIcon({ className }: { className?: string }) {
@@ -45,16 +69,17 @@ export default function PricingPage() {
   const router = useRouter();
   const { user, loading: authLoading, session } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const labelCardRef = useRef<HTMLDivElement | null>(null);
+  const planRefs = useRef<Record<Product, HTMLDivElement | null>>({ open_mic: null, artist: null, label: null });
+  const [focusedPlan, setFocusedPlan] = useState<Product>('label');
   const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
-    if (authLoading || !scrollRef.current) return;
+    if (authLoading) return;
     const t = setTimeout(() => {
-      labelCardRef.current?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+      planRefs.current[focusedPlan]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
     }, 100);
     return () => clearTimeout(t);
-  }, [authLoading]);
+  }, [authLoading, focusedPlan]);
 
   const fallbackToCheckout = async (product: Product) => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -143,7 +168,7 @@ export default function PricingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center">
-              <Logo width={120} height={40} className="h-9" />
+              <Logo width={120} height={40} className="h-12 md:h-14" />
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
@@ -197,61 +222,69 @@ export default function PricingPage() {
           ref={scrollRef}
           className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
         >
-          {PLANS.map((p) => (
-            <div
-              key={p.id}
-              ref={p.id === 'label' ? labelCardRef : null}
-              className={`
-                flex-shrink-0 w-[300px] sm:w-auto snap-center rounded-2xl p-6 sm:p-7 flex flex-col
-                ${p.featured
-                  ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0 shadow-lg shadow-purple-500/20'
-                  : 'bg-slate-900/80 border border-slate-700/80'
-                }
-              `}
-            >
-              {p.featured && (
-                <span className="inline-block text-[10px] font-semibold text-purple-200 uppercase tracking-wider mb-3">
-                  Most popular
-                </span>
-              )}
-              <h3 className="text-xl font-bold text-white">{p.name}</h3>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-white">${p.price}</span>
-                <span className={p.featured ? 'text-purple-200 text-sm' : 'text-slate-400 text-sm'}>{p.period}</span>
-              </div>
-              <p className={p.featured ? 'text-purple-100 text-sm mt-2' : 'text-slate-400 text-sm mt-2'}>{p.description}</p>
-              <p className={p.featured ? 'text-purple-200/90 text-xs mt-1' : 'text-slate-500 text-xs mt-1'}>{p.credits} credits</p>
-              <div className="mt-6 flex-1" />
-              <button
-                onClick={() => handleSelect(p.id)}
-                disabled={!!purchasingProduct || (!!user && user.hasValidCard !== true)}
+          {PLANS.map((p) => {
+            const isFocused = focusedPlan === p.id;
+            return (
+              <div
+                key={p.id}
+                ref={(el) => { planRefs.current[p.id] = el; }}
+                role="button"
+                tabIndex={0}
+                onClick={() => setFocusedPlan(p.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFocusedPlan(p.id); } }}
                 className={`
-                  w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed
-                  ${p.featured
-                    ? 'bg-white text-purple-600 hover:bg-white/95'
-                    : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
+                  flex-shrink-0 w-[300px] sm:w-auto snap-center rounded-2xl p-6 sm:p-7 flex flex-col cursor-pointer
+                  transition-all duration-200
+                  ${isFocused
+                    ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0 shadow-lg shadow-purple-500/20 ring-2 ring-purple-400/50'
+                    : 'bg-slate-900/80 border border-slate-700/80 hover:border-slate-600'
                   }
                 `}
               >
-                {purchasingProduct === p.id ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
-              </button>
-            </div>
-          ))}
+                {p.featured && (
+                  <span className="inline-block text-[10px] font-semibold text-purple-200 uppercase tracking-wider mb-3">
+                    Most popular
+                  </span>
+                )}
+                <h3 className="text-xl font-bold text-white">{p.name}</h3>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-white">${p.price}</span>
+                  <span className={isFocused ? 'text-purple-200 text-sm' : 'text-slate-400 text-sm'}>{p.period}</span>
+                </div>
+                <p className={isFocused ? 'text-purple-100 text-sm mt-2' : 'text-slate-400 text-sm mt-2'}>{p.description}</p>
+                <p className={isFocused ? 'text-purple-200/90 text-xs mt-1' : 'text-slate-500 text-xs mt-1'}>{p.credits} credits</p>
+                <div className="mt-6 flex-1" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleSelect(p.id); }}
+                  disabled={!!purchasingProduct || (!!user && user.hasValidCard !== true)}
+                  className={`
+                    w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed
+                    ${isFocused
+                      ? 'bg-white text-purple-600 hover:bg-white/95'
+                      : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
+                    }
+                  `}
+                >
+                  {purchasingProduct === p.id ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
+                </button>
+              </div>
+            );
+          })}
         </div>
         <p className="max-w-6xl mx-auto mt-4 text-center text-xs text-slate-500">
           Subscriptions renew monthly. One-time does not auto-renew.
         </p>
       </section>
 
-      {/* Feature comparison */}
+      {/* Feature comparison – updates with focused plan */}
       <section className="px-4 sm:px-6 lg:px-8 pb-14">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider text-center mb-6">
-            What’s included
+            What’s included with <span className="text-white">{PLANS.find((pl) => pl.id === focusedPlan)?.name ?? focusedPlan}</span>
           </h2>
-          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 sm:p-8">
+          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 sm:p-8 transition-opacity">
             <ul className="space-y-4">
-              {FEATURES.map((label) => (
+              {(PLANS.find((pl) => pl.id === focusedPlan)?.features ?? []).map((label) => (
                 <li key={label} className="flex items-center gap-3 text-slate-300">
                   <CheckIcon />
                   <span>{label}</span>

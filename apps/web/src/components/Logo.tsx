@@ -15,12 +15,7 @@ export function Logo({ width = 768, height = 256, className = '' }: LogoProps) {
         alt="Vannilli"
         width={width}
         height={height}
-        className={`h-16 w-auto ${className}`}
-        style={{
-          width: 'auto',
-          height: '64px',
-          objectFit: 'contain',
-        }}
+        className={`h-16 w-auto object-contain ${className}`}
         priority
       />
     </Link>
