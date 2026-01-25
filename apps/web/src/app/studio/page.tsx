@@ -35,6 +35,9 @@ function StudioPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
 
+  // Optional Kling prompt: context/environment (motion comes from video). Max 100; Kling does not publish a motion-control limit; 100 is a safe UI cap.
+  const [prompt, setPrompt] = useState('');
+
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -176,6 +179,7 @@ function StudioPage() {
           generation_id: gid,
           generation_seconds: genSecs,
           is_trial: user?.tier === 'free',
+          prompt: (prompt || '').slice(0, 100),
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -305,6 +309,26 @@ function StudioPage() {
                 </svg>
               }
             />
+
+            {/* Scene prompt (optional) – passed to Kling motion-control. Describe context/environment, not motion. */}
+            <GlassCard>
+              <label htmlFor="studio-prompt" className="block text-sm font-medium text-slate-300 mb-2">
+                4. Scene prompt <span className="text-slate-500 font-normal">(optional)</span>
+              </label>
+              <input
+                id="studio-prompt"
+                type="text"
+                maxLength={100}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="e.g. On a stage with soft lighting, urban background"
+                className="w-full px-4 py-3 rounded-lg bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-colors"
+                aria-describedby="studio-prompt-hint"
+              />
+              <p id="studio-prompt-hint" className="mt-1.5 text-xs text-slate-500">
+                Context and environment for the scene. Motion comes from your video. {prompt.length}/100
+              </p>
+            </GlassCard>
           </div>
 
           {/* Right Column - Generation Flow */}
@@ -385,6 +409,7 @@ function StudioPage() {
                       }
                       [videoPreview, imagePreview, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
                       setTrackingVideo(null); setTargetImage(null); setAudioTrack(null);
+                      setPrompt('');
                       setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
                       setVideoPreview(null); setImagePreview(null); setAudioPreview(null);
                       setIsGenerating(false); setGenerationProgress(0); setCurrentStep('idle');

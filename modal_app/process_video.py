@@ -20,13 +20,14 @@ OUTPUTS_PREFIX = "outputs"
 @app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=600)
 @modal.web_endpoint(method="POST")
 async def process_video(request: Request):
-    """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial }"""
+    """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, prompt? }"""
     data = await request.json() or {}
     tracking_url = data.get("tracking_video_url")
     target_url = data.get("target_image_url")
     audio_url = data.get("audio_track_url")
     generation_id = data.get("generation_id")
     is_trial = data.get("is_trial", False)
+    prompt = (data.get("prompt") or "").strip()[:100]
 
     if not all([tracking_url, target_url, audio_url, generation_id]):
         return {"ok": False, "error": "Missing required fields"}
@@ -63,6 +64,7 @@ async def process_video(request: Request):
 
         # Kling motion-control: driver_video + target_image (mode=std, character_orientation=image). Only VANNILLI watermark for trial.
         # When Kling supports it, add optional "watermark": False to request no Kling watermark.
+        # prompt: optional; describe context/environment, not motion. Kling does not publish a max; we cap at 100.
         payload = {
             "model_name": "kling-v2",
             "driver_video_url": tracking_url,
@@ -70,6 +72,8 @@ async def process_video(request: Request):
             "mode": "std",
             "character_orientation": "image",
         }
+        if prompt:
+            payload["prompt"] = prompt
         try:
             r = requests.post(
                 f"{kling_base}/videos/motion-control",

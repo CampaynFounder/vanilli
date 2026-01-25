@@ -60,6 +60,7 @@ export function GlobalSignupModal() {
     return () => document.removeEventListener('click', handleLinkClick, true);
   }, [session]);
 
-  // Always render SignupForm - it will handle its own visibility
+  // Do not render the email/signup form for authenticated users on any view
+  if (session) return null;
   return <SignupForm />;
 }

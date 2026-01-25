@@ -329,6 +329,8 @@ export function SignupForm() {
     }
   };
 
+  // Do not show the email form for authenticated users (defense in depth; GlobalSignupModal also skips rendering when session)
+  if (session) return null;
   if (!showBackdrop) return null;
 
   if (!showBackdrop && !isVisible) return null;
