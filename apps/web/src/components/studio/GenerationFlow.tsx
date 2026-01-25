@@ -18,7 +18,7 @@ interface GenerationFlowProps {
   durationValid?: boolean;
   /** Billable seconds when duration valid. */
   generationSeconds?: number | null;
-  /** If false, Generate is disabled (need 9+ credits). Default true. */
+  /** If false, Generate is disabled (need 3+ credits). Default true. */
   hasCredits?: boolean;
   /** When true, show "Link payment below for 3 free credits" instead of Get more. */
   showLinkCard?: boolean;
@@ -150,7 +150,7 @@ export function GenerationFlow({
           href={getCreditsHref}
           className="w-full mt-6 px-6 py-4 rounded-xl font-semibold text-white bg-slate-700 hover:bg-slate-600 transition-all block text-center"
         >
-          Need 9+ credits — Get more
+          Need 3+ credits — Re-up on credits
         </Link>
       ) : (
         <button
@@ -177,7 +177,7 @@ export function GenerationFlow({
           ) : !hasCredits && allFilesReady && durationValid === true && showLinkCard ? (
             'Add a payment method above to get 3 free credits'
           ) : allFilesReady && durationValid === false ? (
-            'Fix duration to generate (3–9s, within 2s)'
+            durationError || 'Fix duration (3–9s, video and audio same length)'
           ) : allFilesReady && hasVideo && hasAudio && durationValid !== true ? (
             'Checking durations...'
           ) : (
@@ -193,7 +193,7 @@ export function GenerationFlow({
       )}
       {allFilesReady && durationValid === true && generationSeconds != null && (
         <p className="text-xs text-slate-400 text-center mt-2">
-          {generationSeconds}s (3–9s, within 2s for lip-sync) · 9+ credits required
+          {generationSeconds}s (3–9s, same length) · 1 credit per second
         </p>
       )}
     </GlassCard>

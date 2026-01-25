@@ -43,10 +43,16 @@ function StudioPage() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Client-side: both 3–9s, within 2s for lip-sync. 1 credit = 1 second.
+  // Client-side: both 3–9s, same length, and length must not exceed credits. 1 credit = 1 second. Min 3 credits to generate.
+  const DURATION_MATCH_TOLERANCE = 0.5;
+  const creditsRemaining = user?.creditsRemaining ?? 0;
   useEffect(() => {
     if (videoDuration == null || audioDuration == null || videoDuration <= 0 || audioDuration <= 0) {
       setDurationValidation(null);
+      return;
+    }
+    if (creditsRemaining < 3) {
+      setDurationValidation({ valid: false, error: 'Re-up on credits to generate (minimum 3 credits for 3–9s videos).' });
       return;
     }
     if (videoDuration < 3 || audioDuration < 3) {
@@ -58,13 +64,24 @@ function StudioPage() {
       return;
     }
     const diff = Math.abs(videoDuration - audioDuration);
-    if (diff <= 2) {
-      const secs = Math.round(Math.min(videoDuration, audioDuration));
-      setDurationValidation({ valid: true, generationSeconds: Math.max(3, Math.min(9, secs)) });
-    } else {
-      setDurationValidation({ valid: false, error: 'Audio and video must be within 2s for lip-sync' });
+    if (diff > DURATION_MATCH_TOLERANCE) {
+      setDurationValidation({
+        valid: false,
+        error: `Video and audio must be the same length (video: ${videoDuration.toFixed(1)}s, audio: ${audioDuration.toFixed(1)}s)`,
+      });
+      return;
     }
-  }, [videoDuration, audioDuration]);
+    const secs = Math.round((videoDuration + audioDuration) / 2);
+    const genSecs = Math.max(3, Math.min(9, secs));
+    if (genSecs > creditsRemaining) {
+      setDurationValidation({
+        valid: false,
+        error: `Video length (${genSecs}s) exceeds your credits (${creditsRemaining}). Re-up on credits or use ${creditsRemaining}s or shorter.`,
+      });
+      return;
+    }
+    setDurationValidation({ valid: true, generationSeconds: genSecs });
+  }, [videoDuration, audioDuration, creditsRemaining]);
 
   // Handle file uploads
   const handleVideoSelect = (file: File) => {
@@ -87,6 +104,8 @@ function StudioPage() {
   const handleGenerate = async () => {
     const uid = user?.id;
     if (!uid || !trackingVideo || !targetImage || !audioTrack) return;
+    if (durationValidation?.valid !== true) return; // gate: video ≤ credits, 3s min, same length
+    const genSecs = durationValidation.generationSeconds;
     const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
     if (!modalUrl) {
       setGenerationError('Processing endpoint not configured. Set NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL.');
@@ -98,7 +117,6 @@ function StudioPage() {
     setCurrentStep('preparing');
 
     try {
-      const genSecs = durationValidation?.valid === true ? durationValidation.generationSeconds : 3;
 
       // 1) Create project (placeholders for r2_paths; real files go to inputs/{genId}/)
       const { data: proj, error: pe } = await supabase
@@ -302,7 +320,7 @@ function StudioPage() {
               durationError={durationValidation?.valid === false ? durationValidation.error : null}
               durationValid={durationValidation?.valid === true ? true : durationValidation?.valid === false ? false : undefined}
               generationSeconds={durationValidation?.valid === true ? durationValidation.generationSeconds : null}
-              hasCredits={(user?.creditsRemaining ?? 0) >= 9}
+              hasCredits={(user?.creditsRemaining ?? 0) >= 3}
               showLinkCard={false}
               getCreditsHref="/pricing"
             />
@@ -361,7 +379,7 @@ function StudioPage() {
                   ? async () => {
                       const { data: rows } = await supabase.from('users').select('credits_remaining').eq('id', user.id);
                       const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-                      if ((row?.credits_remaining ?? 0) < 9) {
+                      if ((row?.credits_remaining ?? 0) < 3) {
                         router.replace('/pricing');
                         return;
                       }
