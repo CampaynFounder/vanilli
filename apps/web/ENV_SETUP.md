@@ -9,12 +9,15 @@ cd apps/web
 touch .env.local
 ```
 
-Then add your Supabase credentials:
+Then add your credentials:
 
 ```bash
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+
+# Stripe (for Link card / 3 free credits and pricing checkout)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx   # or pk_live_xxxx in production
 
 # Optional: API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8787
@@ -49,6 +52,14 @@ NEXT_PUBLIC_API_URL = https://api.vannilli.xaino.io
 4. Copy:
    - **Project URL** → Use for `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → Use for `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Getting Your Stripe Publishable Key
+
+1. Go to [https://dashboard.stripe.com](https://dashboard.stripe.com)
+2. **Developers** → **API keys**
+3. Use **Publishable key** (`pk_test_...` or `pk_live_...`) for `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+
+Used by: **Link card for 3 free credits** (`LinkPaymentForFreeCredits`). Without it, that UI shows “Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable free credits.” The secret key (`sk_...`) is only in Edge Functions / server env, never in the Next.js app.
 
 ## Testing
 

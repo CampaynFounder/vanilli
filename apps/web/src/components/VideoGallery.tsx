@@ -289,28 +289,6 @@ export function VideoGallery() {
             scrollbarColor: '#475569 #0f172a',
             WebkitOverflowScrolling: 'touch',
           }}
-          onWheel={(e) => {
-            // Only intercept horizontal scroll when user is clearly scrolling horizontally
-            // or holding shift (which typically means horizontal scroll intent)
-            const container = e.currentTarget;
-            const deltaX = e.deltaX;
-            const deltaY = e.deltaY;
-            const isScrollingHorizontally = Math.abs(deltaX) > Math.abs(deltaY) * 2;
-            
-            // Only prevent default if user is clearly scrolling horizontally
-            // This allows vertical scroll to work normally
-            if (isScrollingHorizontally && Math.abs(deltaX) > 10) {
-              e.preventDefault();
-              e.stopPropagation();
-              container.scrollLeft += deltaX;
-            } else if (e.shiftKey && Math.abs(deltaY) > 10) {
-              // Shift + vertical scroll = horizontal scroll
-              e.preventDefault();
-              e.stopPropagation();
-              container.scrollLeft += deltaY;
-            }
-            // Otherwise, let the event bubble for normal vertical scrolling
-          }}
         >
           <div className="flex gap-6" style={{ width: 'max-content' }}>
             {infiniteVideos.map((video, index) => {
@@ -330,115 +308,27 @@ export function VideoGallery() {
                   src={video.videoUrl}
                   className={`w-full h-full object-cover ${isPlaying ? 'pointer-events-auto' : 'pointer-events-none'}`}
                   controls={isPlaying}
-                  controlsList="nodownload" // Prevent download, but allow fullscreen
+                  controlsList="nodownload"
                   playsInline
-                  preload="metadata"
+                  preload="none"
                   muted={!isPlaying}
-                  onLoadedMetadata={(e) => {
-                    // Ensure first frame is visible as thumbnail
-                    const videoElement = e.currentTarget;
-                    if (!isPlaying) {
-                      // Set to first frame and ensure it's visible
-                      videoElement.currentTime = 0.1;
-                      videoElement.pause();
-                      // Force a seek to ensure thumbnail is visible on mobile
-                      setTimeout(() => {
-                        if (!isPlaying && videoElement.readyState >= 2) {
-                          videoElement.currentTime = 0.1;
-                          videoElement.pause();
-                        }
-                      }, 100);
-                    }
-                  }}
-                  onLoadedData={(e) => {
-                    // Additional event to ensure thumbnail loads on mobile
-                    const videoElement = e.currentTarget;
-                    if (!isPlaying && videoElement.readyState >= 2) {
-                      videoElement.currentTime = 0.1;
-                      videoElement.pause();
-                    }
-                  }}
-                  onCanPlay={(e) => {
-                    // Ensure thumbnail is visible when video can play
-                    const videoElement = e.currentTarget;
-                    if (!isPlaying) {
-                      videoElement.currentTime = 0.1;
-                      videoElement.pause();
-                    }
-                  }}
-                  onPlay={() => {
+                  onPlay={(e) => {
                     setPlayingVideoId(uniqueId);
-                    // Track video play
                     trackVideoPlay(video.id, video.videoUrl);
-                    // Ensure video can receive pointer events when playing
-                    const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
+                    const videoEl = e.currentTarget;
                     const container = document.getElementById(`video-container-${uniqueId}`);
-                    
-                    if (videoElement) {
-                      videoElement.style.pointerEvents = 'auto';
-                      
-                      // Intercept fullscreen requests to use container fullscreen (keeps logo visible)
-                      if (container) {
-                        // Override video's requestFullscreen method
-                        if (videoElement.requestFullscreen) {
-                          videoElement.requestFullscreen = function() {
-                        const fullscreenContainer = container as FullscreenElement;
-                        if (container.requestFullscreen) {
-                          return container.requestFullscreen() as Promise<void>;
-                        } else if (fullscreenContainer.webkitRequestFullscreen) {
-                          return fullscreenContainer.webkitRequestFullscreen();
-                        } else if (fullscreenContainer.mozRequestFullScreen) {
-                          return fullscreenContainer.mozRequestFullScreen();
-                        } else if (fullscreenContainer.msRequestFullscreen) {
-                          return fullscreenContainer.msRequestFullscreen();
-                        }
-                            return Promise.reject(new Error('Fullscreen not supported'));
-                          };
-                        }
-                        
-                        // Listen for fullscreen changes and redirect to container
-                        const handleFullscreenChange = () => {
-                          if (document.fullscreenElement === videoElement) {
-                            // Video went fullscreen - exit and make container fullscreen instead
-                            document.exitFullscreen();
-                            setTimeout(() => {
-                              const fullscreenContainer = container as FullscreenElement;
-                              if (container.requestFullscreen) {
-                                container.requestFullscreen();
-                              } else if (fullscreenContainer.webkitRequestFullscreen) {
-                                fullscreenContainer.webkitRequestFullscreen();
-                              } else if (fullscreenContainer.mozRequestFullScreen) {
-                                fullscreenContainer.mozRequestFullScreen();
-                              } else if (fullscreenContainer.msRequestFullscreen) {
-                                fullscreenContainer.msRequestFullscreen();
-                              }
-                            }, 100);
-                          }
-                        };
-                        
-                        document.addEventListener('fullscreenchange', handleFullscreenChange);
-                        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-                        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-                        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-                        
-                        // Cleanup on pause
-                        videoElement.addEventListener('pause', () => {
-                          document.removeEventListener('fullscreenchange', handleFullscreenChange);
-                          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-                          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-                          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-                        }, { once: true });
-                      }
+                    if (videoEl) videoEl.style.pointerEvents = 'auto';
+                    if (container && videoEl?.requestFullscreen) {
+                      const c = container as FullscreenElement;
+                      videoEl.requestFullscreen = () =>
+                        (c.requestFullscreen || c.webkitRequestFullscreen || c.mozRequestFullScreen || c.msRequestFullscreen)?.call(c) ?? Promise.reject(new Error('Fullscreen not supported'));
                     }
                   }}
                   onPause={() => {
                     if (playingVideoId === uniqueId) {
                       setPlayingVideoId(null);
-                      // Disable pointer events when paused so play button works
-                      const videoElement = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement;
-                      if (videoElement) {
-                        videoElement.style.pointerEvents = 'none';
-                      }
+                      const v = document.getElementById(`video-${uniqueId}`) as HTMLVideoElement | null;
+                      if (v) v.style.pointerEvents = 'none';
                     }
                   }}
                 />

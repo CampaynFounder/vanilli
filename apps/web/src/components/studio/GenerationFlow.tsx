@@ -175,7 +175,7 @@ export function GenerationFlow({
           ) : canGenerate ? (
             generationSeconds != null ? `🚀 Generate Music Video (${generationSeconds}s)` : '🚀 Generate Music Video'
           ) : !hasCredits && allFilesReady && durationValid === true && showLinkCard ? (
-            'Link payment below for 3 free credits'
+            'Add a payment method above to get 3 free credits'
           ) : allFilesReady && durationValid === false ? (
             'Fix duration to generate (3–9s, within 2s)'
           ) : allFilesReady && hasVideo && hasAudio && durationValid !== true ? (

@@ -62,15 +62,15 @@ function HistoryPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-8">
               <Logo width={120} height={40} className="h-10" />
-              <div className="hidden md:flex gap-6">
-                <Link href="/profile" className="text-slate-400 hover:text-white transition-colors">
-                  Profile
+              <div className="flex items-center gap-4 md:gap-6">
+                <Link href="/profile" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Profile">
+                  <img src="/images/headerimages/profile.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
-                <Link href="/studio" className="text-slate-400 hover:text-white transition-colors">
-                  Studio
+                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
+                  <img src="/images/headerimages/studio.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
-                <Link href="/history" className="text-white font-semibold">
-                  History
+                <Link href="/history" className="opacity-100 transition-opacity" aria-label="History">
+                  <img src="/images/headerimages/history.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
               </div>
             </div>

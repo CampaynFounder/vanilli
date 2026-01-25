@@ -33,7 +33,7 @@ supabase functions deploy claim-free-credits-setup
 
 ## Flow
 
-1. User must be logged in (`public.users` row must exist; `free_generation_redeemed` must be false).
+1. User must be logged in. If `public.users` has no row for `auth.uid()`, the function **creates one** (id, email from `auth.users`; `password_hash = ''`). Then `free_generation_redeemed` must be false.
 2. If `users.stripe_customer_id` is null, creates a Stripe Customer and updates `users`.
 3. Creates a SetupIntent with `metadata: { user_id, free_credits: "1" }`, `usage: off_session`, `payment_method_types: [card]`.
 4. Frontend confirms with Stripe.js; on `setup_intent.succeeded`, the **stripe-webhook** Edge Function grants credits (and enforces unique payment method via `card.fingerprint`).

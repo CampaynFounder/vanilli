@@ -10,7 +10,6 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
-import { LinkPaymentForFreeCredits } from '@/components/LinkPaymentForFreeCredits';
 
 const BUCKET = 'vannilli';
 const INPUTS = 'inputs';
@@ -199,17 +198,17 @@ function StudioPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-8">
               <Logo width={120} height={40} className="h-10" />
-              <div className="hidden md:flex gap-6">
-                <Link href="/profile" className="text-slate-400 hover:text-white transition-colors">
-                  Profile
+              <div className="flex items-center gap-4 md:gap-6">
+                <Link href="/profile" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Profile">
+                  <img src="/images/headerimages/profile.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
-                <Link href="/studio" className="text-white font-semibold">
-                  Studio
+                <Link href="/studio" className="opacity-100 transition-opacity" aria-label="Studio">
+                  <img src="/images/headerimages/studio.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
-                <Link href="/history" className="text-slate-400 hover:text-white transition-colors">
-                  History
+                <Link href="/history" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="History">
+                  <img src="/images/headerimages/history.png" alt="" className="h-8 w-auto object-contain" />
                 </Link>
-                <Link href="/pricing" className="text-slate-400 hover:text-white transition-colors">
+                <Link href="/pricing" className="text-slate-400 hover:text-white transition-colors text-sm">
                   Pricing
                 </Link>
               </div>
@@ -289,13 +288,6 @@ function StudioPage() {
 
           {/* Right Column - Generation Flow */}
           <div className="space-y-6">
-            {user && user.creditsRemaining === 0 && !user.freeGenerationRedeemed && (
-              <GlassCard>
-                <h3 className="text-sm font-semibold text-slate-300 mb-2">Get 3 free credits</h3>
-                <p className="text-xs text-slate-400 mb-4">Link a payment method to unlock 3 free credits. No charge. One grant per card. You need 9+ credits to create.</p>
-                <LinkPaymentForFreeCredits onSuccess={refreshUser} />
-              </GlassCard>
-            )}
             <GenerationFlow
               hasVideo={!!trackingVideo}
               hasImage={!!targetImage}
@@ -308,7 +300,7 @@ function StudioPage() {
               durationValid={durationValidation?.valid === true ? true : durationValidation?.valid === false ? false : undefined}
               generationSeconds={durationValidation?.valid === true ? durationValidation.generationSeconds : null}
               hasCredits={(user?.creditsRemaining ?? 0) >= 9}
-              showLinkCard={user?.creditsRemaining === 0 && !user?.freeGenerationRedeemed}
+              showLinkCard={false}
               getCreditsHref="/pricing"
             />
 
@@ -364,7 +356,8 @@ function StudioPage() {
               onCreateAnother={
                 user?.id
                   ? async () => {
-                      const { data: row } = await supabase.from('users').select('credits_remaining').eq('id', user.id).single();
+                      const { data: rows } = await supabase.from('users').select('credits_remaining').eq('id', user.id);
+                      const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
                       if ((row?.credits_remaining ?? 0) < 9) {
                         router.replace('/pricing');
                         return;

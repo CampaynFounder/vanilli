@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,8 +32,9 @@ export default function SignInPage() {
 
       if (data.user) {
         setMessage('Sign in successful! Redirecting...');
+        const redirect = searchParams.get('redirect') || '/profile';
         setTimeout(() => {
-          router.push('/profile');
+          router.push(redirect.startsWith('/') ? redirect : `/${redirect}`);
         }, 1000);
       }
     } catch (err) {
@@ -40,34 +42,6 @@ export default function SignInPage() {
         setError(err.message);
       } else {
         setError('An error occurred during sign in');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/profile`,
-        },
-      });
-
-      if (error) throw error;
-
-      setMessage('Check your email for the magic link!');
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An error occurred');
       }
     } finally {
       setLoading(false);
@@ -140,26 +114,6 @@ export default function SignInPage() {
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </button>
-
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-slate-950 text-slate-400">Or</span>
-              </div>
-            </div>
-
-            {/* Magic Link Button */}
-            <button
-              type="button"
-              onClick={handleMagicLink}
-              disabled={loading || !email}
-              className="w-full px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-lg transition-all tap-effect disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Sending...' : 'Send Magic Link'}
-            </button>
           </form>
 
           {/* Links */}
@@ -187,5 +141,24 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SignInFallback() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+      <div className="w-full max-w-md flex flex-col items-center">
+        <Logo width={200} height={67} className="h-16 mb-4" />
+        <div className="h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInFallback />}>
+      <SignInForm />
+    </Suspense>
   );
 }

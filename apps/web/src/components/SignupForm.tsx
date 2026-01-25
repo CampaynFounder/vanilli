@@ -127,26 +127,19 @@ export function SignupForm() {
     }
   }, [hasShown, showBackdrop, session]);
 
-  // Also check periodically for the flag (in case component mounts after flag is set)
+  // Single delayed check for the flag (in case this component mounts after it is set)
   useEffect(() => {
-    // Suppress in all logged-in views
     if (session) return;
-
-    const checkFlag = setInterval(() => {
-      if (!hasShown && !showBackdrop) {
-        const shouldAutoShow = sessionStorage.getItem('vannilli_signup_auto_show') === 'true';
-        if (shouldAutoShow) {
-          sessionStorage.removeItem('vannilli_signup_auto_show');
-          setHasShown(true);
-          setShowBackdrop(true);
-          setTimeout(() => {
-            setIsVisible(true);
-          }, 200);
-        }
+    const t = setTimeout(() => {
+      if (hasShown || showBackdrop) return;
+      if (sessionStorage.getItem('vannilli_signup_auto_show') === 'true') {
+        sessionStorage.removeItem('vannilli_signup_auto_show');
+        setHasShown(true);
+        setShowBackdrop(true);
+        setTimeout(() => setIsVisible(true), 200);
       }
-    }, 500);
-
-    return () => clearInterval(checkFlag);
+    }, 600);
+    return () => clearTimeout(t);
   }, [hasShown, showBackdrop, session]);
 
   // Scroll trigger - show when scrolling past video gallery

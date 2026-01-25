@@ -1,25 +1,53 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
-import { GlassCard } from '@/components/ui/GlassCard';
 
 type Product = 'open_mic' | 'artist' | 'label';
 
-const PLANS = [
-  { id: 'open_mic' as Product, name: 'Open Mic', price: 15, period: 'one-time', credits: 40, cta: 'Get Open Mic', featured: false },
-  { id: 'artist' as Product, name: 'Artist', price: 20, period: '/mo', credits: 80, cta: 'Get Artist', featured: false },
-  { id: 'label' as Product, name: 'Label', price: 50, period: '/mo', credits: 330, cta: 'Get Label', featured: true },
+const PLANS: Array<{
+  id: Product;
+  name: string;
+  price: number;
+  period: string;
+  credits: number;
+  description: string;
+  cta: string;
+  featured: boolean;
+}> = [
+  { id: 'open_mic', name: 'Open Mic', price: 15, period: 'one-time', credits: 40, description: 'One-time credits to try pro lip-sync.', cta: 'Get started', featured: false },
+  { id: 'artist', name: 'Artist', price: 20, period: '/mo', credits: 80, description: 'Steady output for growing artists.', cta: 'Get started', featured: false },
+  { id: 'label', name: 'Label', price: 50, period: '/mo', credits: 330, description: 'High volume for labels and serious creators.', cta: 'Get started', featured: true },
 ];
 
+const FEATURES = [
+  '3–9 second videos',
+  '1 credit = 1 second',
+  'Watermarked downloads',
+  'Lip-sync + audio',
+];
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5 text-purple-400'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+const successUrl = '/studio?checkout=success';
+
 export default function PricingPage() {
+  const router = useRouter();
   const { user, loading: authLoading, session } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const labelCardRef = useRef<HTMLDivElement | null>(null);
+  const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
 
-  // Default scroll to Label ($50) on mount
   useEffect(() => {
     if (authLoading || !scrollRef.current) return;
     const t = setTimeout(() => {
@@ -28,115 +56,228 @@ export default function PricingPage() {
     return () => clearTimeout(t);
   }, [authLoading]);
 
+  const fallbackToCheckout = async (product: Product) => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!url || !session?.access_token) return;
+    const res = await fetch(`${url}/functions/v1/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ product }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok && j.url) {
+      window.location.href = j.url;
+    } else {
+      setPurchasingProduct(null);
+      alert(j.error || 'Could not start checkout. Try again.');
+    }
+  };
+
   const handleSelect = async (product: Product) => {
     if (!user || !session?.access_token) {
-      window.location.href = `/auth/signin?redirect=${encodeURIComponent('/pricing')}`;
+      router.push('/auth/signin?redirect=' + encodeURIComponent('/pricing'));
       return;
     }
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url) {
+    if (user.hasValidCard !== true) {
+      router.push('/profile?link_required=1');
+      return;
+    }
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!baseUrl) {
       console.error('NEXT_PUBLIC_SUPABASE_URL not set');
       return;
     }
+    setPurchasingProduct(product);
     try {
-      const res = await fetch(`${url}/functions/v1/create-checkout-session`, {
+      const res = await fetch(`${baseUrl}/functions/v1/one-tap-purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ product }),
       });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok && j.url) {
-        window.location.href = j.url;
-      } else {
-        console.error(j.error || 'Checkout failed');
-        alert(j.error || 'Could not start checkout. Try again.');
+      const j = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        requires_action?: boolean;
+        client_secret?: string;
+        error?: string;
+        fallback?: boolean;
+      };
+
+      if (j.success) {
+        window.location.href = successUrl;
+        return;
       }
+
+      if (j.requires_action && j.client_secret) {
+        const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        if (!pk) {
+          await fallbackToCheckout(product);
+          return;
+        }
+        const stripe = await loadStripe(pk);
+        if (!stripe) {
+          await fallbackToCheckout(product);
+          return;
+        }
+        const { error } = await stripe.confirmCardPayment(j.client_secret);
+        if (error) {
+          setPurchasingProduct(null);
+          alert(error.message || 'Payment could not be confirmed. Try again.');
+          return;
+        }
+        window.location.href = successUrl;
+        return;
+      }
+
+      await fallbackToCheckout(product);
     } catch (e) {
       console.error(e);
+      setPurchasingProduct(null);
       alert('Could not start checkout. Try again.');
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between">
+      {/* Header */}
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center">
-              <Logo width={110} height={36} className="h-9" />
+              <Logo width={120} height={40} className="h-9" />
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
+                How it works
+              </Link>
+              <Link href="/pricing" className="hidden sm:block text-sm text-white font-medium">
+                Pricing
+              </Link>
               {user ? (
-                <Link href="/studio" className="px-3 py-1.5 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                <Link href="/studio" className="text-sm text-slate-400 hover:text-white transition-colors">
                   Studio
                 </Link>
               ) : (
-                <Link href="/auth/signin" className="px-3 py-1.5 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                <Link href="/auth/signin" className="text-sm text-slate-400 hover:text-white transition-colors">
                   Sign in
                 </Link>
               )}
+              <Link
+                href={user ? '/studio' : '/auth/signup'}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white transition-all"
+              >
+                Get started
+              </Link>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Plans & credits</h1>
-          <p className="text-slate-400 text-sm sm:text-base">1 credit = 1 second of video. You need at least 9 credits to create (3–9s clips).</p>
+      {/* Hero */}
+      <section className="pt-12 sm:pt-16 pb-10 sm:pb-14 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
+            Ship more videos. Spend less.
+          </h1>
+          <p className="mt-4 text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto">
+            Rise above with pro lip-sync for AI music videos. 1 credit = 1 second. You need 9+ credits to create (3–9s clips).
+          </p>
         </div>
+      </section>
 
-        {/* Horizontal scroll - mobile first */}
+      {/* Pricing cards – horizontal scroll on mobile, grid on desktop */}
+      <section className="px-4 sm:px-6 lg:px-8 pb-10">
+        {user && user.hasValidCard !== true && (
+          <div className="max-w-6xl mx-auto mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
+            <p className="text-amber-200 text-sm">
+              Link a payment method in your <Link href="/profile?link_required=1" className="underline font-medium">Profile</Link> to purchase credits.
+            </p>
+          </div>
+        )}
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory scroll-smooth video-gallery-scroll"
-          style={{ scrollbarGutter: 'stable' }}
+          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
         >
           {PLANS.map((p) => (
             <div
               key={p.id}
               ref={p.id === 'label' ? labelCardRef : null}
-              className="flex-shrink-0 w-[280px] sm:w-[300px] snap-center"
+              className={`
+                flex-shrink-0 w-[300px] sm:w-auto snap-center rounded-2xl p-6 sm:p-7 flex flex-col
+                ${p.featured
+                  ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0 shadow-lg shadow-purple-500/20'
+                  : 'bg-slate-900/80 border border-slate-700/80'
+                }
+              `}
             >
-              <GlassCard elevated className={`h-full flex flex-col ${p.featured ? 'ring-2 ring-purple-500/60' : ''}`}>
-                {p.featured && (
-                  <div className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-2">Most popular</div>
-                )}
-                <h3 className="text-lg font-semibold text-white">{p.name}</h3>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-white">${p.price}</span>
-                  <span className="text-slate-400 text-sm">{p.period}</span>
-                </div>
-                <p className="text-slate-400 text-sm mt-2">{p.credits} credits</p>
-                <div className="mt-4 flex-1" />
-                <button
-                  onClick={() => handleSelect(p.id)}
-                  className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                    p.featured
-                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                      : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200'
-                  }`}
-                >
-                  {user ? p.cta : 'Sign in to buy'}
-                </button>
-              </GlassCard>
+              {p.featured && (
+                <span className="inline-block text-[10px] font-semibold text-purple-200 uppercase tracking-wider mb-3">
+                  Most popular
+                </span>
+              )}
+              <h3 className="text-xl font-bold text-white">{p.name}</h3>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-white">${p.price}</span>
+                <span className={p.featured ? 'text-purple-200 text-sm' : 'text-slate-400 text-sm'}>{p.period}</span>
+              </div>
+              <p className={p.featured ? 'text-purple-100 text-sm mt-2' : 'text-slate-400 text-sm mt-2'}>{p.description}</p>
+              <p className={p.featured ? 'text-purple-200/90 text-xs mt-1' : 'text-slate-500 text-xs mt-1'}>{p.credits} credits</p>
+              <div className="mt-6 flex-1" />
+              <button
+                onClick={() => handleSelect(p.id)}
+                disabled={!!purchasingProduct || (!!user && user.hasValidCard !== true)}
+                className={`
+                  w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed
+                  ${p.featured
+                    ? 'bg-white text-purple-600 hover:bg-white/95'
+                    : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
+                  }
+                `}
+              >
+                {purchasingProduct === p.id ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
+              </button>
             </div>
           ))}
         </div>
+        <p className="max-w-6xl mx-auto mt-4 text-center text-xs text-slate-500">
+          Subscriptions renew monthly. One-time does not auto-renew.
+        </p>
+      </section>
 
-        <p className="text-xs text-slate-500 mt-4 text-center">Scroll to see all options. Subscriptions renew monthly. One-time purchases do not auto-renew.</p>
-
-        {!user && (
-          <div className="mt-8">
-            <GlassCard className="text-center py-6">
-              <p className="text-slate-300 text-sm">Create an account to buy credits or subscribe. New users can link a card for 3 free credits.</p>
-              <Link href="/auth/signup" className="inline-block mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg text-sm">
-                Sign up
-              </Link>
-            </GlassCard>
+      {/* Feature comparison */}
+      <section className="px-4 sm:px-6 lg:px-8 pb-14">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider text-center mb-6">
+            What’s included
+          </h2>
+          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 sm:p-8">
+            <ul className="space-y-4">
+              {FEATURES.map((label) => (
+                <li key={label} className="flex items-center gap-3 text-slate-300">
+                  <CheckIcon />
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
+
+      {/* CTA for signed-out */}
+      {!user && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-16">
+          <div className="max-w-2xl mx-auto text-center rounded-2xl bg-slate-900/60 border border-slate-800 py-10 px-6">
+            <p className="text-slate-300 text-base mb-4">
+              Create an account to buy credits or subscribe. New users can link a payment method for <strong className="text-white">1 free credit</strong>.
+            </p>
+            <Link
+              href="/auth/signup"
+              className="inline-block px-6 py-3 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white transition-all"
+            >
+              Sign up
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -146,11 +146,26 @@ serve(async (req) => {
             .select("id")
             .eq("stripe_customer_id", inv.customer)
             .single();
+          let tier = "open_mic";
+          const sk = Deno.env.get("STRIPE_SECRET_KEY");
+          if (sk) {
+            try {
+              const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subId}`, {
+                headers: { Authorization: `Bearer ${sk}` },
+              });
+              if (subRes.ok) {
+                const subJson = (await subRes.json()) as { metadata?: { tier?: string } };
+                if (subJson.metadata?.tier) tier = subJson.metadata.tier;
+              }
+            } catch (e) {
+              console.error("stripe-webhook invoice.paid: fetch subscription for tier", e);
+            }
+          }
           if (u?.id) {
             await supabase.from("subscriptions").insert({
               user_id: u.id,
               stripe_subscription_id: subId,
-              tier: "open_mic",
+              tier,
               status: "active",
               current_period_start: start,
               current_period_end: end,
@@ -168,6 +183,7 @@ serve(async (req) => {
           current_period_start?: number;
           current_period_end?: number;
           cancel_at_period_end?: boolean;
+          metadata?: { tier?: string };
         };
         const statusMap: Record<string, string> = {
           active: "active",
@@ -209,11 +225,12 @@ serve(async (req) => {
             .select("id")
             .eq("stripe_customer_id", sub.customer)
             .single();
+          const tier = sub.metadata?.tier || "open_mic";
           if (u?.id) {
             await supabase.from("subscriptions").insert({
               user_id: u.id,
               stripe_subscription_id: sub.id,
-              tier: "open_mic",
+              tier,
               status,
               current_period_start: start,
               current_period_end: end,
@@ -245,7 +262,7 @@ serve(async (req) => {
       }
 
       case "setup_intent.succeeded": {
-        const si = obj as { payment_method?: string; metadata?: Record<string, string> };
+        const si = obj as { payment_method?: string; customer?: string | { id?: string }; metadata?: Record<string, string> };
         const uid = si.metadata?.user_id;
         const freeCredits = si.metadata?.free_credits;
         const pmId = typeof si.payment_method === "string" ? si.payment_method : null;
@@ -263,9 +280,24 @@ serve(async (req) => {
           console.error("stripe-webhook setup_intent.succeeded: failed to fetch PaymentMethod", pmRes.status);
           break;
         }
-        const pm = (await pmRes.json()) as { card?: { fingerprint?: string }; id?: string };
+        const pm = (await pmRes.json()) as { card?: { fingerprint?: string; last4?: string; brand?: string }; id?: string; object?: string };
         const fingerprint = pm?.card?.fingerprint;
+
+        // Require card fingerprint for free-credit grants. Same physical card => same fingerprint
+        // across users in our Stripe account, so we can block same-card reuse. If we fell back to
+        // pmId, each new SetupIntent would create a new pm_xxx and we could not detect reuse.
+        if (pm?.card && !fingerprint) {
+          await supabase.from("audit_log").insert({
+            user_id: uid,
+            action: "free_credits_rejected_no_fingerprint",
+            resource_type: "setup_intent",
+            resource_id: null,
+            metadata: { stripe_pm_id: pmId, last4: pm?.card?.last4, event_id: event.id },
+          });
+          break;
+        }
         const identifier = fingerprint ?? pmId;
+        const last4 = pm?.card?.last4;
 
         const credits = parseInt(freeCredits, 10) || 1;
         const { data: result, error: rpcErr } = await supabase.rpc("grant_free_credits_for_payment_method", {
@@ -290,7 +322,7 @@ serve(async (req) => {
             action: "free_credits_rejected_duplicate_pm",
             resource_type: "setup_intent",
             resource_id: null,
-            metadata: { payment_method_identifier: identifier, event_id: event.id },
+            metadata: { payment_method_identifier: identifier, last4, event_id: event.id },
           });
         } else {
           await supabase.from("audit_log").insert({
@@ -298,9 +330,162 @@ serve(async (req) => {
             action: "free_credits_granted",
             resource_type: "setup_intent",
             resource_id: null,
-            metadata: { credits, payment_method_identifier: identifier, event_id: event.id },
+            metadata: { credits, payment_method_identifier: identifier, last4, event_id: event.id },
           });
         }
+        // Set the newly attached PM as default so one-tap uses it.
+        const custId = typeof si.customer === "string" ? si.customer : (si.customer as { id?: string })?.id;
+        if (sk && custId && pmId) {
+          await fetch(`https://api.stripe.com/v1/customers/${custId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/x-www-form-urlencoded" },
+            body: `invoice_settings[default_payment_method]=${encodeURIComponent(pmId)}`,
+          });
+        }
+        const up: Record<string, string> = {};
+        if (pm?.card?.last4) up.payment_method_last4 = pm.card.last4;
+        if (pm?.card?.brand) up.payment_method_brand = pm.card.brand;
+        if (Object.keys(up).length) await supabase.from("users").update(up).eq("id", uid);
+        break;
+      }
+
+      case "checkout.session.completed": {
+        const sess = obj as {
+          mode?: string;
+          customer?: string;
+          client_reference_id?: string;
+          metadata?: Record<string, string>;
+          setup_intent?: string;
+          payment_intent?: string;
+        };
+        const sk = Deno.env.get("STRIPE_SECRET_KEY");
+        const updatePmDisplay = async (uid: string, pmId: string) => {
+          if (!sk || !pmId) return;
+          const res = await fetch(`https://api.stripe.com/v1/payment_methods/${pmId}`, { headers: { Authorization: `Bearer ${sk}` } });
+          if (!res.ok) return;
+          const pm = (await res.json()) as { card?: { last4?: string; brand?: string } };
+          const last4 = pm?.card?.last4;
+          const brand = pm?.card?.brand;
+          if (last4 || brand) {
+            await supabase.from("users").update({
+              ...(last4 && { payment_method_last4: last4 }),
+              ...(brand && { payment_method_brand: brand }),
+            }).eq("id", uid);
+          }
+        };
+        // ---- Payment or subscription: persist stripe_customer_id when Checkout created a new customer ----
+        if ((sess.mode === "payment" || sess.mode === "subscription") && sess.customer && sess.client_reference_id) {
+          await supabase
+            .from("users")
+            .update({ stripe_customer_id: sess.customer })
+            .eq("id", sess.client_reference_id)
+            .is("stripe_customer_id", null);
+          if (sess.mode === "payment" && sess.payment_intent && sk) {
+            const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${sess.payment_intent}`, { headers: { Authorization: `Bearer ${sk}` } });
+            if (piRes.ok) {
+              const pi = (await piRes.json()) as { payment_method?: string };
+              const pmId = typeof pi.payment_method === "string" ? pi.payment_method : null;
+              if (pmId) await updatePmDisplay(sess.client_reference_id!, pmId);
+            }
+          }
+          break;
+        }
+        // ---- Setup mode: update PM only, or free-credits + set default PM ----
+        if (sess.mode !== "setup" || !sess.metadata?.user_id) break;
+        const uid = sess.metadata.user_id;
+        const setupIntentId = typeof sess.setup_intent === "string" ? sess.setup_intent : null;
+        if (!setupIntentId) break;
+
+        if (!sk) {
+          console.error("stripe-webhook checkout.session.completed: STRIPE_SECRET_KEY not set");
+          break;
+        }
+        const siRes = await fetch(`https://api.stripe.com/v1/setup_intents/${setupIntentId}`, {
+          headers: { Authorization: `Bearer ${sk}` },
+        });
+        if (!siRes.ok) {
+          console.error("stripe-webhook checkout.session.completed: failed to fetch SetupIntent", siRes.status);
+          break;
+        }
+        const si = (await siRes.json()) as { payment_method?: string };
+        const pmId = typeof si.payment_method === "string" ? si.payment_method : null;
+        if (!pmId) break;
+
+        const custId = typeof sess.customer === "string" ? sess.customer : null;
+        const setDefaultPm = async () => {
+          if (!sk || !custId || !pmId) return;
+          await fetch(`https://api.stripe.com/v1/customers/${custId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/x-www-form-urlencoded" },
+            body: `invoice_settings[default_payment_method]=${encodeURIComponent(pmId)}`,
+          });
+        };
+
+        if (sess.metadata.update_payment_method === "true") {
+          await setDefaultPm();
+          await updatePmDisplay(uid, pmId);
+          break;
+        }
+
+        if (!sess.metadata.free_credits) break;
+
+        const pmRes = await fetch(`https://api.stripe.com/v1/payment_methods/${pmId}`, {
+          headers: { Authorization: `Bearer ${sk}` },
+        });
+        if (!pmRes.ok) {
+          console.error("stripe-webhook checkout.session.completed: failed to fetch PaymentMethod", pmRes.status);
+          break;
+        }
+        const pm = (await pmRes.json()) as { card?: { fingerprint?: string; last4?: string } };
+        const fingerprint = pm?.card?.fingerprint;
+        if (pm?.card && !fingerprint) {
+          await supabase.from("audit_log").insert({
+            user_id: uid,
+            action: "free_credits_rejected_no_fingerprint",
+            resource_type: "checkout_session",
+            resource_id: null,
+            metadata: { stripe_pm_id: pmId, last4: pm?.card?.last4, event_id: event.id },
+          });
+          break;
+        }
+        const identifier = fingerprint ?? pmId;
+        const last4 = pm?.card?.last4;
+        const credits = parseInt(sess.metadata.free_credits, 10) || 1;
+        const { data: result, error: rpcErr } = await supabase.rpc("grant_free_credits_for_payment_method", {
+          p_user_id: uid,
+          p_credits: credits,
+          p_payment_method_identifier: identifier,
+          p_stripe_pm_id: pmId,
+        });
+        if (rpcErr) {
+          await supabase.from("audit_log").insert({
+            user_id: uid,
+            action: "stripe_webhook_error",
+            resource_type: "checkout_session",
+            resource_id: null,
+            metadata: { error: rpcErr.message, event_id: event.id, type: event.type },
+          });
+          break;
+        }
+        if (result === "already_used") {
+          await supabase.from("audit_log").insert({
+            user_id: uid,
+            action: "free_credits_rejected_duplicate_pm",
+            resource_type: "checkout_session",
+            resource_id: null,
+            metadata: { payment_method_identifier: identifier, last4, event_id: event.id },
+          });
+        } else {
+          await supabase.from("audit_log").insert({
+            user_id: uid,
+            action: "free_credits_granted",
+            resource_type: "checkout_session",
+            resource_id: null,
+            metadata: { credits, payment_method_identifier: identifier, last4, event_id: event.id },
+          });
+        }
+        await setDefaultPm();
+        await updatePmDisplay(uid, pmId);
         break;
       }
 

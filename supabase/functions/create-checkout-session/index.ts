@@ -101,6 +101,7 @@ serve(async (req) => {
   form.set("mode", conf.mode);
   form.set("success_url", successUrl);
   form.set("cancel_url", cancelUrl);
+  form.set("client_reference_id", user.id);
   form.set("line_items[0][price]", priceId);
   form.set("line_items[0][quantity]", "1");
 
@@ -117,6 +118,7 @@ serve(async (req) => {
 
   if (conf.mode === "subscription") {
     form.set("subscription_data[metadata][user_id]", user.id);
+    form.set("subscription_data[metadata][tier]", product);
   }
 
   const r = await fetch("https://api.stripe.com/v1/checkout/sessions", {

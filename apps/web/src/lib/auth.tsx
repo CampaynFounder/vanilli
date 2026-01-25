@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, getSession, signOut as supabaseSignOut } from './supabase';
 
@@ -11,6 +12,8 @@ export interface User {
   creditsRemaining: number;
   freeGenerationRedeemed: boolean;
   avatarUrl?: string;
+  /** Must be true to use Studio, History, or purchase credits. Set when a payment method is linked. */
+  hasValidCard?: boolean;
 }
 
 export interface AuthState {
@@ -47,13 +50,15 @@ export function useAuth(): AuthState & {
       const uid = currentSession.user?.id;
       const fallback = () => {
         const u = currentSession.user;
-        if (u) setUser({ id: u.id, email: u.email || '', tier: 'free', creditsRemaining: 0, freeGenerationRedeemed: false, avatarUrl: u.user_metadata?.avatar_url });
+        if (u) setUser({ id: u.id, email: u.email || '', tier: 'free', creditsRemaining: 0, freeGenerationRedeemed: false, avatarUrl: u.user_metadata?.avatar_url, hasValidCard: false });
         else { setUser(null); setSession(null); }
       };
       if (!uid) { fallback(); setLoading(false); return; }
-      const { data, error } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url').eq('id', uid).single();
-      if (!error && data) {
-        setUser({ id: data.id, email: data.email, tier: data.tier, creditsRemaining: data.credits_remaining ?? 0, freeGenerationRedeemed: data.free_generation_redeemed ?? false, avatarUrl: data.avatar_url });
+      const { data, error } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url,has_valid_card').eq('id', uid);
+      const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      if (!error && row) {
+        const email = (row.email && row.email.endsWith('@auth.local') && currentSession?.user?.email) ? currentSession.user.email : row.email;
+        setUser({ id: row.id, email: email || '', tier: row.tier, creditsRemaining: row.credits_remaining ?? 0, freeGenerationRedeemed: row.free_generation_redeemed ?? false, avatarUrl: row.avatar_url, hasValidCard: row.has_valid_card === true });
       } else {
         fallback();
       }
@@ -144,6 +149,8 @@ export function withAuth<P extends object>(
   return function AuthenticatedComponent(props: P) {
     const { user, loading } = useAuth();
     const [shouldRedirect, setShouldRedirect] = useState(false);
+    const pathname = usePathname();
+    const router = useRouter();
 
     useEffect(() => {
       if (!loading && !user) {
@@ -157,6 +164,13 @@ export function withAuth<P extends object>(
       }
     }, [shouldRedirect]);
 
+    // Must link a payment method before using Studio, History, etc. Profile is the only place to link.
+    useEffect(() => {
+      if (loading || !user || user.hasValidCard === true) return;
+      if (pathname === '/profile' || !pathname) return;
+      router.replace('/profile?link_required=1');
+    }, [loading, user, pathname, router]);
+
     if (loading) {
       return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -167,6 +181,15 @@ export function withAuth<P extends object>(
 
     if (!user) {
       return null;
+    }
+
+    // Avoid flashing gated content while redirecting to /profile to link payment method
+    if (user.hasValidCard !== true && pathname !== '/profile') {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="spinner w-12 h-12"></div>
+        </div>
+      );
     }
 
     return <Component {...props} />;

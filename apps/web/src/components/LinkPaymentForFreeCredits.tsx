@@ -1,21 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { supabase } from '@/lib/supabase';
 
-const pk = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '') : '';
-const stripePromise = pk ? loadStripe(pk) : null;
-
-function LinkPaymentForm({ onSuccess }: { onSuccess: () => void }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+function LinkPaymentForFreeCreditsInner({ onSuccess: _onSuccess, updateOnly, offerFreeCredits }: { onSuccess: () => void; updateOnly?: boolean; offerFreeCredits?: boolean }) {
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'already_claimed' | 'form' | 'success' | 'duplicate'>('idle');
+  const [status, setStatus] = useState<'idle' | 'already_claimed' | 'ready' | 'success' | 'duplicate'>('idle');
 
   useEffect(() => {
     let mounted = true;
@@ -31,59 +23,31 @@ function LinkPaymentForm({ onSuccess }: { onSuccess: () => void }) {
       }
       const res = await fetch(`${url}/functions/v1/claim-free-credits-setup`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          ...(updateOnly ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(updateOnly ? { body: JSON.stringify({ updateOnly: true }) } : {}),
       });
       const j = await res.json().catch(() => ({}));
       if (!mounted) return;
       setLoading(false);
-      if (res.status === 400 && (j.error === 'Free credits already claimed' || j.error === 'Already claimed')) {
+      if (!updateOnly && res.status === 400 && (j.error === 'Free credits already claimed' || j.error === 'Already claimed')) {
         setStatus('already_claimed');
         return;
       }
-      if (res.ok && j.clientSecret) {
-        setClientSecret(j.clientSecret);
-        setStatus('form');
+      if (res.ok && j.url) {
+        setCheckoutUrl(j.url);
+        setStatus('ready');
         return;
       }
-      setError(j.error || 'Could not start. Please try again.');
+      setError([j.error, j.details].filter(Boolean).join(' — ') || 'Could not start. Please try again.');
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [updateOnly]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements || !clientSecret) return;
-    const cardEl = elements.getElement(CardElement);
-    if (!cardEl) {
-      setError('Card field not ready.');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    const { error: confirmErr } = await stripe.confirmCardSetup(clientSecret, {
-      payment_method: { card: cardEl },
-    });
-    if (confirmErr) {
-      setError(confirmErr.message || 'Payment failed.');
-      setSubmitting(false);
-      return;
-    }
-    // Webhook grants credits async. Poll user for a short time.
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
-      onSuccess();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) continue;
-      const { data: row } = await supabase.from('users').select('free_generation_redeemed, credits_remaining').eq('id', user.id).single();
-      if (row?.free_generation_redeemed || (row?.credits_remaining ?? 0) > 0) {
-        setStatus('success');
-        setSubmitting(false);
-        return;
-      }
-    }
-    // Might be duplicate card (webhook rejected)
-    setStatus('duplicate');
-    setSubmitting(false);
+  const goToCheckout = () => {
+    if (checkoutUrl) window.location.href = checkoutUrl;
   };
 
   if (loading) {
@@ -94,7 +58,7 @@ function LinkPaymentForm({ onSuccess }: { onSuccess: () => void }) {
     );
   }
 
-  if (status === 'already_claimed') {
+  if (!updateOnly && status === 'already_claimed') {
     return (
       <p className="text-slate-400 text-sm">
         You&apos;ve already claimed your free credits.
@@ -102,7 +66,7 @@ function LinkPaymentForm({ onSuccess }: { onSuccess: () => void }) {
     );
   }
 
-  if (status === 'success') {
+  if (!updateOnly && status === 'success') {
     return (
       <p className="text-green-400 text-sm font-medium">
         Your 3 free credits have been applied.
@@ -110,55 +74,36 @@ function LinkPaymentForm({ onSuccess }: { onSuccess: () => void }) {
     );
   }
 
-  if (status === 'duplicate') {
+  if (!updateOnly && status === 'duplicate') {
     return (
       <p className="text-amber-400 text-sm">
-        This payment method was already used for free credits. Use a different card or buy credits.
+        This payment method was already used for free credits. Use a different payment method or buy credits.
       </p>
     );
   }
 
-  if (status !== 'form' || !clientSecret) {
-    return <p className="text-slate-400 text-sm">{error || 'Unable to load form.'}</p>;
+  if (status !== 'ready' || !checkoutUrl) {
+    return <p className="text-slate-400 text-sm">{error || 'Unable to load.'}</p>;
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-        <CardElement
-          options={{
-            style: {
-              base: { fontSize: '16px', color: '#e2e8f0', '::placeholder': { color: '#94a3b8' } },
-              invalid: { color: '#f87171' },
-            },
-          }}
-        />
-      </div>
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+    <div className="space-y-4">
       <button
-        type="submit"
-        disabled={!stripe || submitting}
-        className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+        type="button"
+        onClick={goToCheckout}
+        className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
       >
-        {submitting ? 'Processing…' : 'Link card & get 3 free credits'}
+        {updateOnly ? 'Update payment method' : 'Link payment method to claim free credits'}
       </button>
-      <p className="text-xs text-slate-500">No charge. Your card is only used to verify identity. One free-credit grant per payment method.</p>
-    </form>
+      {!updateOnly && (
+        <p className="text-xs text-slate-500">
+          {offerFreeCredits ? 'No charge.' : 'No charge. Stripe Checkout will validate your payment method (card, Apple Pay, Google Pay, Cash App, etc.).'}
+        </p>
+      )}
+    </div>
   );
 }
 
-export function LinkPaymentForFreeCredits({ onSuccess }: { onSuccess: () => void }) {
-  if (!pk) {
-    return (
-      <p className="text-slate-500 text-sm">Add <code className="bg-slate-800 px-1 rounded">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> to enable free credits.</p>
-    );
-  }
-  if (!stripePromise) {
-    return <p className="text-slate-500 text-sm">Loading…</p>;
-  }
-  return (
-    <Elements stripe={stripePromise}>
-      <LinkPaymentForm onSuccess={onSuccess} />
-    </Elements>
-  );
+export function LinkPaymentForFreeCredits({ onSuccess, updateOnly, offerFreeCredits }: { onSuccess: () => void; updateOnly?: boolean; offerFreeCredits?: boolean }) {
+  return <LinkPaymentForFreeCreditsInner onSuccess={onSuccess} updateOnly={updateOnly} offerFreeCredits={offerFreeCredits} />;
 }
