@@ -267,7 +267,7 @@ export default function PricingPage() {
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <div className="max-w-2xl mx-auto text-center rounded-2xl bg-slate-900/60 border border-slate-800 py-10 px-6">
             <p className="text-slate-300 text-base mb-4">
-              Create an account to buy credits or subscribe. New users can link a payment method for <strong className="text-white">1 free credit</strong>.
+              Create an account to buy credits or subscribe. New users can link a payment method for <strong className="text-white">3 free credits</strong>.
             </p>
             <Link
               href="/auth/signup"

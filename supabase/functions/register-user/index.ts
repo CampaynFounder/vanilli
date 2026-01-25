@@ -191,7 +191,7 @@ serve(async (req) => {
   if (isFirstLink) {
     const { data: grantResult, error: rpcErr } = await supabase.rpc("grant_free_credits_for_payment_method", {
       p_user_id: uid,
-      p_credits: 1,
+      p_credits: 3,
       p_payment_method_identifier: identifier,
       p_stripe_pm_id: pmId,
     });

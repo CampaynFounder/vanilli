@@ -217,7 +217,7 @@ function ProfilePage() {
               )}
               {!displayProfile.hasValidCard || displayProfile.paymentMethodLast4 == null ? (
                 <div id="link-payment-required">
-                  <p className="text-sm text-amber-400/90 mb-3">Link a payment method to use Studio, History, and purchase credits.</p>
+                  <p className="text-sm text-amber-400/90 mb-3">Link a Payment Method to receive Free Credits.</p>
                   <LinkPaymentMethod onSuccess={refreshUser} />
                 </div>
               ) : (

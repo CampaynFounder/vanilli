@@ -13,12 +13,14 @@ function LinkPaymentForm({
   onError,
   submitting,
   setSubmitting,
+  offerFreeCredits,
 }: {
   clientSecret: string;
   onSuccess: () => void;
   onError: (s: string) => void;
   submitting: boolean;
   setSubmitting: (v: boolean) => void;
+  offerFreeCredits?: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -29,6 +31,12 @@ function LinkPaymentForm({
     setSubmitting(true);
     onError('');
     try {
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        onError(submitError.message || 'Please complete the form');
+        setSubmitting(false);
+        return;
+      }
       const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/profile` : '/profile';
       const { error, setupIntent } = await stripe.confirmSetup({
         elements,
@@ -72,13 +80,13 @@ function LinkPaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement options={{ layout: 'tabs' }} />
+      <PaymentElement options={{ layout: 'tabs', paymentMethodOrder: ['card', 'link'] }} />
       <button
         type="submit"
         disabled={!stripe || submitting}
         className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
       >
-        {submitting ? 'Saving…' : 'Save payment method'}
+        {submitting ? 'Saving…' : offerFreeCredits ? 'Claim 3 Free Credits' : 'Save payment method'}
       </button>
     </form>
   );
@@ -167,6 +175,7 @@ export function LinkPaymentMethod({
             onError={setError}
             submitting={submitting}
             setSubmitting={setSubmitting}
+            offerFreeCredits={!updateOnly}
           />
         </Elements>
       </div>
@@ -182,11 +191,11 @@ export function LinkPaymentMethod({
         disabled={loading}
         className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-70 text-white font-semibold rounded-lg transition-colors"
       >
-        {loading ? 'Loading…' : updateOnly ? 'Update payment method' : 'Link payment method to use the site'}
+        {loading ? 'Loading…' : updateOnly ? 'Update payment method' : 'Claim 3 Free Credits'}
       </button>
       {!updateOnly && (
         <p className="text-xs text-slate-500">
-          No charge. Card, Cash App, and other wallets supported. You&apos;ll receive 1 free credit when you link.
+          No charge. Card, Cash App, Link, and other wallets supported.
         </p>
       )}
     </div>

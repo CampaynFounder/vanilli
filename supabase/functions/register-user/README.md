@@ -32,4 +32,4 @@ Registers a linked payment method after the frontend confirms a SetupIntent with
 3. Upserts `billing_profiles` with `stripe_payment_method_id`, `card_fingerprint`, `card_last4`, `card_brand`, `has_valid_card: true`. Dedupes by `(user_id, stripe_payment_method_id)`.
 4. Updates `users`: `has_valid_card: true`, `payment_method_last4`, `payment_method_brand`.
 5. Sets Stripe customer `invoice_settings[default_payment_method]` to the new PM.
-6. On **first link** (user had 0 `billing_profiles`), calls `grant_free_credits_for_payment_method` with 1 credit. Duplicate `card.fingerprint` across users returns `already_used` (no credit), but `has_valid_card` is still set so the user can use the site.
+6. On **first link** (user had 0 `billing_profiles`), calls `grant_free_credits_for_payment_method` with 3 credits. Duplicate `card.fingerprint` across users returns `already_used` (no credit), but `has_valid_card` is still set so the user can use the site.
