@@ -187,7 +187,7 @@ serve(async (req) => {
     });
   }
 
-  // 7) Grant 1 credit on first link (via grant_free_credits_for_payment_method; dedupes by fingerprint)
+  // 7) Grant 3 credits on first link (via grant_free_credits_for_payment_method; dedupes by fingerprint)
   if (isFirstLink) {
     const { data: grantResult, error: rpcErr } = await supabase.rpc("grant_free_credits_for_payment_method", {
       p_user_id: uid,
@@ -197,12 +197,15 @@ serve(async (req) => {
     });
     if (rpcErr) {
       console.error("register-user: grant_free_credits_for_payment_method error", rpcErr);
-      // Don't fail the request; has_valid_card is set, user can use the site. They just don't get the 1 credit.
+      // Don't fail the request; has_valid_card is set, user can use the site. They just don't get the credits.
     }
-    // grantResult === 'already_used' means this card was used by another account for free credits; no credit, but has_valid_card is already set.
+    // grantResult === 'already_used' means this payment method was used by another account for free credits; no credit, but has_valid_card is already set.
   }
 
-  return new Response(JSON.stringify({ ok: true, has_valid_card: true }), {
+  const { data: u } = await supabase.from("users").select("credits_remaining").eq("id", uid).single();
+  const creditsRemaining = (u as { credits_remaining?: number } | null)?.credits_remaining ?? 0;
+
+  return new Response(JSON.stringify({ ok: true, has_valid_card: true, credits_remaining: creditsRemaining }), {
     status: 200,
     headers: { ...cors, "Content-Type": "application/json" },
   });

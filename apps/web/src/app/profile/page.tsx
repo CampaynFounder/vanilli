@@ -69,34 +69,43 @@ function ProfilePage() {
     setShowLinkBanner(new URLSearchParams(window.location.search).get('link_required') === '1');
   }, []);
 
+  const handleLinkSuccess = (creditsRemaining?: number) => {
+    if (typeof creditsRemaining === 'number') {
+      setProfile((prev) => (prev ? { ...prev, creditsRemaining } : prev));
+    }
+    refreshUser();
+    fetchProfileAndReferrals();
+  };
+
+  const fetchProfileAndReferrals = async () => {
+    if (!session?.user?.id) return;
+    const uid = session.user.id;
+    try {
+      const { data: uData } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url,created_at,stripe_customer_id,payment_method_last4,payment_method_brand,has_valid_card').eq('id', uid);
+      const u = Array.isArray(uData) && uData.length > 0 ? uData[0] : null;
+      if (u) {
+        let refCode = '';
+        const { data: rData } = await supabase.from('referrals').select('referral_code').eq('referrer_user_id', uid).limit(1);
+        const r = Array.isArray(rData) && rData.length > 0 ? rData[0] : null;
+        if (r?.referral_code) refCode = r.referral_code;
+        else refCode = `VANNI-${uid.slice(0, 8).toUpperCase()}`;
+        const { data: subData, error: subErr } = await supabase.from('subscriptions').select('status,tier,current_period_end').eq('user_id', uid).eq('status', 'active').limit(1);
+        const sub = !subErr && Array.isArray(subData) && subData.length > 0 ? subData[0] : null;
+        setProfile({ id: u.id, email: u.email, tier: u.tier, creditsRemaining: u.credits_remaining ?? 0, freeGenerationRedeemed: u.free_generation_redeemed ?? false, avatarUrl: u.avatar_url, referralCode: refCode, createdAt: u.created_at, stripeCustomerId: u.stripe_customer_id ?? null, paymentMethodLast4: u.payment_method_last4 ?? null, paymentMethodBrand: u.payment_method_brand ?? null, hasValidCard: u.has_valid_card === true, subscription: sub ? { status: sub.status, tier: sub.tier, currentPeriodEnd: sub.current_period_end } : undefined });
+      }
+      const { data: refs } = await supabase.from('referrals').select('id,referral_code,credits_awarded,status,referred_product,created_at,completed_at,referred_user_id').eq('referrer_user_id', uid).order('created_at', { ascending: false });
+      if (refs?.length) {
+        const ids = refs.map((r) => r.referred_user_id).filter(Boolean);
+        const { data: us } = await supabase.from('users').select('id,email,tier,created_at').in('id', ids);
+        const usersMap = new Map((us || []).map((x) => [x.id, x]));
+        setReferralData({ stats: { totalReferrals: refs.length, completedReferrals: refs.filter((r) => r.status === 'completed').length, pendingReferrals: refs.filter((r) => r.status === 'pending').length, totalCreditsEarned: refs.reduce((s, r) => s + (r.credits_awarded || 0), 0) }, referrals: refs.map((r) => ({ id: r.id, referralCode: r.referral_code, creditsAwarded: r.credits_awarded || 0, status: r.status, referredProduct: r.referred_product || '', createdAt: r.created_at, completedAt: r.completed_at, referredUser: usersMap.get(r.referred_user_id) ? { email: usersMap.get(r.referred_user_id)!.email, tier: usersMap.get(r.referred_user_id)!.tier, signedUpAt: usersMap.get(r.referred_user_id)!.created_at } : null })) });
+      } else setReferralData({ stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] });
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!session?.user?.id) return;
-      const uid = session.user.id;
-      try {
-        const { data: uData } = await supabase.from('users').select('id,email,tier,credits_remaining,free_generation_redeemed,avatar_url,created_at,stripe_customer_id,payment_method_last4,payment_method_brand,has_valid_card').eq('id', uid);
-        const u = Array.isArray(uData) && uData.length > 0 ? uData[0] : null;
-        if (u) {
-          let refCode = '';
-          const { data: rData } = await supabase.from('referrals').select('referral_code').eq('referrer_user_id', uid).limit(1);
-          const r = Array.isArray(rData) && rData.length > 0 ? rData[0] : null;
-          if (r?.referral_code) refCode = r.referral_code;
-          else refCode = `VANNI-${uid.slice(0, 8).toUpperCase()}`;
-          const { data: subData, error: subErr } = await supabase.from('subscriptions').select('status,tier,current_period_end').eq('user_id', uid).eq('status', 'active').limit(1);
-          const sub = !subErr && Array.isArray(subData) && subData.length > 0 ? subData[0] : null;
-          setProfile({ id: u.id, email: u.email, tier: u.tier, creditsRemaining: u.credits_remaining ?? 0, freeGenerationRedeemed: u.free_generation_redeemed ?? false, avatarUrl: u.avatar_url, referralCode: refCode, createdAt: u.created_at, stripeCustomerId: u.stripe_customer_id ?? null, paymentMethodLast4: u.payment_method_last4 ?? null, paymentMethodBrand: u.payment_method_brand ?? null, hasValidCard: u.has_valid_card === true, subscription: sub ? { status: sub.status, tier: sub.tier, currentPeriodEnd: sub.current_period_end } : undefined });
-        }
-        const { data: refs } = await supabase.from('referrals').select('id,referral_code,credits_awarded,status,referred_product,created_at,completed_at,referred_user_id').eq('referrer_user_id', uid).order('created_at', { ascending: false });
-        if (refs?.length) {
-          const ids = refs.map((r) => r.referred_user_id).filter(Boolean);
-          const { data: us } = await supabase.from('users').select('id,email,tier,created_at').in('id', ids);
-          const usersMap = new Map((us || []).map((x) => [x.id, x]));
-          setReferralData({ stats: { totalReferrals: refs.length, completedReferrals: refs.filter((r) => r.status === 'completed').length, pendingReferrals: refs.filter((r) => r.status === 'pending').length, totalCreditsEarned: refs.reduce((s, r) => s + (r.credits_awarded || 0), 0) }, referrals: refs.map((r) => ({ id: r.id, referralCode: r.referral_code, creditsAwarded: r.credits_awarded || 0, status: r.status, referredProduct: r.referred_product || '', createdAt: r.created_at, completedAt: r.completed_at, referredUser: usersMap.get(r.referred_user_id) ? { email: usersMap.get(r.referred_user_id)!.email, tier: usersMap.get(r.referred_user_id)!.tier, signedUpAt: usersMap.get(r.referred_user_id)!.created_at } : null })) });
-        } else setReferralData({ stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] });
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    };
-    fetchData();
+    fetchProfileAndReferrals();
   }, [session]);
 
   useEffect(() => {
@@ -210,15 +219,15 @@ function ProfilePage() {
               <div className="text-4xl font-bold gradient-text-premium mb-4">
                 {displayProfile.creditsRemaining}
               </div>
-              {displayProfile.hasValidCard && displayProfile.paymentMethodLast4 && (
+              {displayProfile.hasValidCard && (displayProfile.paymentMethodLast4 || displayProfile.paymentMethodBrand) && (
                 <p className="text-sm text-slate-300 mb-3">
-                  Payment method on file: {[displayProfile.paymentMethodBrand ? displayProfile.paymentMethodBrand.charAt(0).toUpperCase() + displayProfile.paymentMethodBrand.slice(1).toLowerCase() : null, `•••• ${displayProfile.paymentMethodLast4}`].filter(Boolean).join(' ')}
+                  Payment method on file: {[displayProfile.paymentMethodBrand ? displayProfile.paymentMethodBrand.charAt(0).toUpperCase() + displayProfile.paymentMethodBrand.slice(1).toLowerCase() : null, displayProfile.paymentMethodLast4 ? `•••• ${displayProfile.paymentMethodLast4}` : null].filter(Boolean).join(' ')}
                 </p>
               )}
               {!displayProfile.hasValidCard || displayProfile.paymentMethodLast4 == null ? (
                 <div id="link-payment-required">
                   <p className="text-sm text-amber-400/90 mb-3">Link a Payment Method to receive Free Credits.</p>
-                  <LinkPaymentMethod onSuccess={refreshUser} />
+                  <LinkPaymentMethod onSuccess={handleLinkSuccess} />
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -229,7 +238,8 @@ function ProfilePage() {
                     Buy More Credits
                   </Link>
                   <div id="update-payment-method">
-                    <LinkPaymentMethod onSuccess={refreshUser} updateOnly />
+                    <p className="text-xs text-slate-500 mb-2">You&apos;ve already claimed your 3 free credits. Updating won&apos;t add more.</p>
+                    <LinkPaymentMethod onSuccess={handleLinkSuccess} updateOnly />
                   </div>
                 </div>
               )}

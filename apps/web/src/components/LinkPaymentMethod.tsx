@@ -16,7 +16,7 @@ function LinkPaymentForm({
   offerFreeCredits,
 }: {
   clientSecret: string;
-  onSuccess: () => void;
+  onSuccess: (creditsRemaining?: number) => void;
   onError: (s: string) => void;
   submitting: boolean;
   setSubmitting: (v: boolean) => void;
@@ -62,13 +62,13 @@ function LinkPaymentForm({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ setup_intent_id: setupIntent.id }),
         });
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        const j = (await res.json().catch(() => ({}))) as { error?: string; credits_remaining?: number };
         if (!res.ok) {
           onError(j.error || 'Could not register payment method');
           setSubmitting(false);
           return;
         }
-        onSuccess();
+        onSuccess(j.credits_remaining);
       } else {
         onError('Setup did not succeed');
       }
@@ -96,7 +96,7 @@ export function LinkPaymentMethod({
   onSuccess,
   updateOnly,
 }: {
-  onSuccess: () => void;
+  onSuccess: (creditsRemaining?: number) => void;
   updateOnly?: boolean;
 }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -142,9 +142,9 @@ export function LinkPaymentMethod({
     setLoading(false);
   };
 
-  const handleSuccess = () => {
+  const handleSuccess = (creditsRemaining?: number) => {
     setSuccess(true);
-    onSuccess();
+    onSuccess(creditsRemaining);
   };
 
   if (success) {
