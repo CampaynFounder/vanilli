@@ -72,7 +72,7 @@ const successUrl = '/studio?checkout=success';
 
 export default function PricingPage() {
   const router = useRouter();
-  const { user, loading: authLoading, session } = useAuth();
+  const { user, loading: authLoading, session, signOut } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const planRefs = useRef<Record<Product, HTMLDivElement | null>>({ open_mic: null, artist: null, label: null });
   const [focusedPlan, setFocusedPlan] = useState<Product>('label');
@@ -174,31 +174,47 @@ export default function PricingPage() {
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center">
+            <Link href={user ? '/profile' : '/'} className="flex items-center">
               <Logo width={120} height={40} className="h-12 md:h-14" />
             </Link>
             <div className="flex items-center gap-4">
-              <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
-                How it works
-              </Link>
+              {!user && (
+                <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
+                  How it works
+                </Link>
+              )}
               <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
                 <img src="/icons/nav/pricing.png" alt="" className="h-10 md:h-11 w-auto object-contain" />
               </Link>
               {user ? (
-                <Link href="/studio" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Studio
-                </Link>
+                <>
+                  <Link href="/studio" className="flex items-center opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
+                    <img src="/icons/nav/studio.png" alt="" className="h-10 md:h-11 w-auto object-contain" />
+                  </Link>
+                  <button
+                    onClick={async () => { await signOut(); router.push('/'); }}
+                    className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-sm"
+                    aria-label="Sign out"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign out
+                  </button>
+                </>
               ) : (
-                <Link href="/auth/signin" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Sign in
-                </Link>
+                <>
+                  <Link href="/auth/signin" className="text-sm text-slate-400 hover:text-white transition-colors">
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/auth/signup"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white transition-all"
+                  >
+                    Get started
+                  </Link>
+                </>
               )}
-              <Link
-                href={user ? '/studio' : '/auth/signup'}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white transition-all"
-              >
-                Get started
-              </Link>
             </div>
           </div>
         </div>
