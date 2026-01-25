@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion, type Transition } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
@@ -27,7 +28,7 @@ const PLANS: Array<{
     period: 'one-time',
     credits: 40,
     description: 'One-time credits to try pro lip-sync.',
-    cta: 'Get started',
+    cta: 'Re-Up Credits',
     featured: false,
     features: ['3–9 second videos', '1 credit = 1 second', '40 one-time credits', 'Watermarked downloads', 'Lip-sync + audio'],
   },
@@ -38,7 +39,7 @@ const PLANS: Array<{
     period: '/mo',
     credits: 80,
     description: 'Steady output for growing artists.',
-    cta: 'Get started',
+    cta: 'Re-Up Credits',
     featured: false,
     features: ['3–9 second videos', '1 credit = 1 second', '80 credits per month', 'Watermarked downloads', 'Lip-sync + audio'],
   },
@@ -49,11 +50,14 @@ const PLANS: Array<{
     period: '/mo',
     credits: 330,
     description: 'High volume for labels and serious creators.',
-    cta: 'Get started',
+    cta: 'Re-Up Credits',
     featured: true,
     features: ['3–9 second videos', '1 credit = 1 second', '330 credits per month', 'Watermarked downloads', 'Lip-sync + audio', 'High volume for serious creators'],
   },
 ];
+
+const cardSpring: Transition = { type: 'spring', stiffness: 380, damping: 28 };
+const tapSpring: Transition = { type: 'spring', stiffness: 500, damping: 35 };
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -225,18 +229,27 @@ export default function PricingPage() {
           {PLANS.map((p) => {
             const isFocused = focusedPlan === p.id;
             return (
-              <div
+              <motion.div
                 key={p.id}
                 ref={(el) => { planRefs.current[p.id] = el; }}
                 role="button"
                 tabIndex={0}
                 onClick={() => setFocusedPlan(p.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFocusedPlan(p.id); } }}
+                animate={{
+                  scale: isFocused ? 1.03 : 1,
+                  y: isFocused ? -8 : 0,
+                  boxShadow: isFocused
+                    ? '0 25px 50px -12px rgba(168, 85, 247, 0.4), 0 0 0 2px rgba(192, 132, 252, 0.5)'
+                    : '0 0 0 0 rgba(0,0,0,0)',
+                }}
+                transition={cardSpring}
+                whileHover={!isFocused ? { scale: 1.02, y: -2 } : undefined}
+                whileTap={{ scale: 0.98, transition: tapSpring }}
                 className={`
                   flex-shrink-0 w-[300px] sm:w-auto snap-center rounded-2xl p-6 sm:p-7 flex flex-col cursor-pointer
-                  transition-all duration-200
                   ${isFocused
-                    ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0 shadow-lg shadow-purple-500/20 ring-2 ring-purple-400/50'
+                    ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0'
                     : 'bg-slate-900/80 border border-slate-700/80 hover:border-slate-600'
                   }
                 `}
@@ -267,7 +280,7 @@ export default function PricingPage() {
                 >
                   {purchasingProduct === p.id ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
                 </button>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -282,16 +295,35 @@ export default function PricingPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider text-center mb-6">
             What’s included with <span className="text-white">{PLANS.find((pl) => pl.id === focusedPlan)?.name ?? focusedPlan}</span>
           </h2>
-          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 sm:p-8 transition-opacity">
-            <ul className="space-y-4">
+          <motion.div
+            key={focusedPlan}
+            initial={{ opacity: 0.7, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 sm:p-8"
+          >
+            <motion.ul
+              className="space-y-4"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } },
+                hidden: {},
+              }}
+            >
               {(PLANS.find((pl) => pl.id === focusedPlan)?.features ?? []).map((label) => (
-                <li key={label} className="flex items-center gap-3 text-slate-300">
+                <motion.li
+                  key={label}
+                  variants={{ hidden: { opacity: 0, x: -6 }, visible: { opacity: 1, x: 0 } }}
+                  transition={{ duration: 0.25 }}
+                  className="flex items-center gap-3 text-slate-300"
+                >
                   <CheckIcon />
                   <span>{label}</span>
-                </li>
+                </motion.li>
               ))}
-            </ul>
-          </div>
+            </motion.ul>
+          </motion.div>
         </div>
       </section>
 
