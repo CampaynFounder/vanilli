@@ -46,7 +46,7 @@ function StudioPage() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Client-side: both 3–9s, same length, and length must not exceed credits. 1 credit = 1 second. Min 3 credits to generate.
+  // Client-side: 3–9s, same length, length must not exceed credits. 1 credit = 1 second. Use whole seconds only (floor).
   const DURATION_MATCH_TOLERANCE = 0.5;
   const creditsRemaining = user?.creditsRemaining ?? 0;
   useEffect(() => {
@@ -58,11 +58,13 @@ function StudioPage() {
       setDurationValidation({ valid: false, error: 'Re-up on credits to generate (minimum 3 credits for 3–9s videos).' });
       return;
     }
-    if (videoDuration < 3 || audioDuration < 3) {
+    const videoWhole = Math.floor(videoDuration);
+    const audioWhole = Math.floor(audioDuration);
+    if (videoWhole < 3 || audioWhole < 3) {
       setDurationValidation({ valid: false, error: 'Video and audio must be at least 3 seconds' });
       return;
     }
-    if (videoDuration > 9 || audioDuration > 9) {
+    if (videoWhole > 9 || audioWhole > 9) {
       setDurationValidation({ valid: false, error: 'Video and audio must be at most 9 seconds' });
       return;
     }
@@ -74,8 +76,9 @@ function StudioPage() {
       });
       return;
     }
-    const secs = Math.round((videoDuration + audioDuration) / 2);
-    const genSecs = Math.max(3, Math.min(9, secs));
+    // Billable seconds: whole seconds only (floor). 3.0–3.99 → 3, 4.0–4.99 → 4.
+    const secs = (videoDuration + audioDuration) / 2;
+    const genSecs = Math.max(3, Math.min(9, Math.floor(secs)));
     if (genSecs > creditsRemaining) {
       setDurationValidation({
         valid: false,
@@ -299,7 +302,7 @@ function StudioPage() {
               type="audio"
               label="3. Vannilli Track"
               description="Your music track (final audio for the video)"
-              accept="audio/mpeg,audio/wav,audio/mp4"
+              accept="audio/wav,audio/wave"
               onFileSelect={handleAudioSelect}
               onDuration={setAudioDuration}
               preview={audioPreview}

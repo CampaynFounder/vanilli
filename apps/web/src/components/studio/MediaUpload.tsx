@@ -210,7 +210,7 @@ export function MediaUpload({
             <p className="text-sm text-slate-400">
               {type === 'video' && 'MP4, MOV, or WebM (3–9s, max 500MB)'}
               {type === 'image' && 'JPG, PNG, or WebP (max 10MB)'}
-              {type === 'audio' && 'MP3, WAV, or M4A (max 50MB)'}
+              {type === 'audio' && 'WAV only (max 50MB)'}
             </p>
           </div>
         )}

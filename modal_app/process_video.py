@@ -20,7 +20,7 @@ OUTPUTS_PREFIX = "outputs"
 @app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=600)
 @modal.web_endpoint(method="POST")
 async def process_video(request: Request):
-    """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, prompt? }"""
+    """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, generation_seconds?, prompt? }"""
     data = await request.json() or {}
     tracking_url = data.get("tracking_video_url")
     target_url = data.get("target_image_url")
@@ -28,6 +28,7 @@ async def process_video(request: Request):
     generation_id = data.get("generation_id")
     is_trial = data.get("is_trial", False)
     prompt = (data.get("prompt") or "").strip()[:100]
+    gen_secs = float(data.get("generation_seconds") or 0)
 
     if not all([tracking_url, target_url, audio_url, generation_id]):
         return {"ok": False, "error": "Missing required fields"}
@@ -62,12 +63,42 @@ async def process_video(request: Request):
             _fail(supabase, generation_id, str(e))
             return {"ok": False, "error": f"Download failed: {e}"}
 
+        tracking_url_for_kling = tracking_url
+        audio_for_merge = audio_path
+
+        # Trim tracking and audio to exactly generation_seconds so we only send gen_secs to Kling and merge.
+        if gen_secs > 0:
+            tracking_trimmed = base / "tracking_trimmed.mp4"
+            audio_trimmed = base / "audio_trimmed.wav"
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(tracking_path), "-t", str(gen_secs), "-c", "copy", str(tracking_trimmed)],
+                check=True, capture_output=True,
+            )
+            # -t trim; -c copy keeps codec (WAV stays WAV). FFmpeg accepts this in the merge.
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(audio_path), "-t", str(gen_secs), "-c", "copy", str(audio_trimmed)],
+                check=True, capture_output=True,
+            )
+            audio_for_merge = audio_trimmed
+            # Overwrite storage with trimmed tracking and create signed URL for Kling
+            inp_tracking = f"{INPUTS_PREFIX}/{generation_id}/tracking.mp4"
+            try:
+                supabase.storage.from_(BUCKET).upload(inp_tracking, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4", "upsert": True})
+                sig = supabase.storage.from_(BUCKET).create_signed_url(inp_tracking, 3600)
+                if isinstance(sig, tuple):
+                    sig = sig[0] if sig else {}
+                tracking_url_for_kling = (sig.get("signedUrl") or sig.get("signed_url")) if isinstance(sig, dict) else (getattr(sig, "signedUrl", None) or getattr(sig, "signed_url", None))
+                if not tracking_url_for_kling:
+                    tracking_url_for_kling = tracking_url
+            except Exception:
+                tracking_url_for_kling = tracking_url
+
         # Kling motion-control: driver_video + target_image (mode=std, character_orientation=image). Only VANNILLI watermark for trial.
         # When Kling supports it, add optional "watermark": False to request no Kling watermark.
         # prompt: optional; describe context/environment, not motion. Kling does not publish a max; we cap at 100.
         payload = {
             "model_name": "kling-v2",
-            "driver_video_url": tracking_url,
+            "driver_video_url": tracking_url_for_kling,
             "target_image_url": target_url,
             "mode": "std",
             "character_orientation": "image",
@@ -135,9 +166,9 @@ async def process_video(request: Request):
 
         download(kling_video_url, kling_path)
 
-        # FFmpeg: -i kling -i audio -map 0:v -map 1:a -c:v copy -c:a aac synced.mp4
+        # FFmpeg: -i kling -i audio -map 0:v -map 1:a -c:v copy -c:a aac synced.mp4 (audio_for_merge is trimmed to gen_secs when gen_secs>0)
         subprocess.run(
-            ["ffmpeg", "-y", "-i", str(kling_path), "-i", str(audio_path), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", str(synced_path)],
+            ["ffmpeg", "-y", "-i", str(kling_path), "-i", str(audio_for_merge), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", str(synced_path)],
             check=True,
             capture_output=True,
         )
