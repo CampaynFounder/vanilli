@@ -46,17 +46,35 @@ serve(async (req) => {
   }
 
   const supabase = createClient(supabaseUrl, supabaseService);
-  const { data: row, error: rowErr } = await supabase
+  let { data: row, error: rowErr } = await supabase
     .from("users")
     .select("id, email, free_generation_redeemed, stripe_customer_id")
     .eq("id", user.id)
     .single();
 
+  // If no public.users row exists, create one (Supabase Auth user exists but public.users wasn't synced)
   if (rowErr || !row) {
-    return new Response(JSON.stringify({ error: "User record not found" }), {
-      status: 404,
-      headers: { ...cors, "Content-Type": "application/json" },
+    const email = (user.email && String(user.email).trim()) || `${user.id}@auth.local`;
+    const { error: insErr } = await supabase.from("users").insert({
+      id: user.id,
+      email,
+      password_hash: "",
     });
+    if (insErr) {
+      console.error("claim-free-credits-setup: insert public.users failed", insErr);
+      // Race: another request (or trigger) may have created it. Re-fetch.
+      const res = await supabase.from("users").select("id, email, free_generation_redeemed, stripe_customer_id").eq("id", user.id).single();
+      if (res.error || !res.data) {
+        return new Response(JSON.stringify({ error: "User record not found" }), {
+          status: 404,
+          headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      row = res.data;
+    } else {
+      const { data: r } = await supabase.from("users").select("id, email, free_generation_redeemed, stripe_customer_id").eq("id", user.id).single();
+      row = r ?? { id: user.id, email, free_generation_redeemed: false, stripe_customer_id: null };
+    }
   }
 
   if (row.free_generation_redeemed) {
