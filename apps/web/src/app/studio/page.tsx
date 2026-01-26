@@ -313,10 +313,7 @@ function StudioPage() {
         const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
         if (!modalUrl) throw new Error('Processing endpoint not configured');
 
-          // 5) Call Modal (legacy flow)
-        const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
-        if (!modalUrl) throw new Error('Processing endpoint not configured');
-        
+        // 5) Call Modal (legacy flow)
         const res = await fetch(modalUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
