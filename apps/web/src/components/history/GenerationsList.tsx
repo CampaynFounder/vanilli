@@ -208,7 +208,7 @@ export function GenerationsList({ generations }: GenerationsListProps) {
                 
                 {expandedGenerations.has(generation.id) && (
                   <div className="mt-3 space-y-2">
-                    {chunksByGeneration[generation.id].map((chunk, idx) => (
+                    {chunksByGeneration[generation.id].map((chunk) => (
                       <div key={chunk.id} className="flex items-center justify-between p-2 bg-slate-800/30 rounded-lg">
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-slate-400">Chunk {chunk.chunk_index + 1}</span>

@@ -23,10 +23,6 @@ export function MultiImageUpload({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const clearFileInput = () => {
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     
@@ -71,10 +67,6 @@ export function MultiImageUpload({
   };
 
   const removeImage = (index: number) => {
-    const newFiles = Array.from({ length: previews.length - 1 }, (_, i) => {
-      if (i < index) return previews[i];
-      return previews[i + 1];
-    });
     // Note: This only removes from previews. Parent component should handle file removal.
     // For now, we'll trigger a re-upload flow.
     onImagesSelect([]);
