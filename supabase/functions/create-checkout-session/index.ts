@@ -99,7 +99,7 @@ serve(async (req) => {
   const customerId = (row as { stripe_customer_id?: string } | null)?.stripe_customer_id ?? null;
   const email = (row as { email?: string } | null)?.email ?? user.email ?? "";
 
-  const successUrl = `${siteUrl}/studio?checkout=success`;
+  const successUrl = `${siteUrl}/checkout-success?product=${product}`;
   const cancelUrl = `${siteUrl}/pricing?checkout=cancel`;
 
   const form = new URLSearchParams();

@@ -233,18 +233,38 @@ serve(async (req) => {
   console.log(`[one-tap-purchase] Subscription created: id=${sub.id}, status=${sub.status}, product=${product}`);
   
   if (sub.status === "active" || sub.status === "trialing") {
-    // For DEMO tier, also update user tier immediately (credits will be granted via webhook)
+    // For DEMO tier, grant credits immediately (synchronous like 3 credits flow)
     if (product === "demo") {
-      console.log(`[one-tap-purchase] DEMO tier subscription active, updating user tier`);
+      console.log(`[one-tap-purchase] DEMO tier subscription active, granting 20 credits immediately`);
+      
+      // Update tier and grant 20 credits immediately (synchronous)
       const { error: tierErr } = await supabase
         .from("users")
-        .update({ tier: "demo" })
+        .update({ tier: "demo", credits_remaining: 20 })
         .eq("id", user.id);
+      
       if (tierErr) {
-        console.error(`[one-tap-purchase] Failed to update user tier to demo:`, tierErr);
+        console.error(`[one-tap-purchase] Failed to update DEMO tier:`, tierErr);
       } else {
-        console.log(`[one-tap-purchase] Updated user ${user.id} tier to demo`);
+        console.log(`[one-tap-purchase] Updated user ${user.id} to DEMO tier with 20 credits`);
+        // Log the credit grant
+        await supabase.from("audit_log").insert({
+          user_id: user.id,
+          action: "credit_purchase",
+          resource_type: "subscription",
+          resource_id: null,
+          metadata: { source: "one_tap_purchase", tier: "demo", credits: 20, stripe_subscription_id: sub.id },
+        });
       }
+      
+      // Fetch updated credits to return in response
+      const { data: u } = await supabase.from("users").select("credits_remaining").eq("id", user.id).single();
+      const creditsRemaining = (u as { credits_remaining?: number } | null)?.credits_remaining ?? 0;
+      
+      return new Response(JSON.stringify({ success: true, credits_remaining: creditsRemaining }), {
+        status: 200,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

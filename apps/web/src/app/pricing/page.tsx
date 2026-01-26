@@ -90,7 +90,7 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
-const successUrl = '/studio?checkout=success';
+const getSuccessUrl = (product: Product) => `/checkout-success?product=${product}`;
 
 export default function PricingPage() {
   const router = useRouter();
@@ -155,7 +155,7 @@ export default function PricingPage() {
       };
 
       if (j.success) {
-        window.location.href = successUrl;
+        window.location.href = getSuccessUrl(product);
         return;
       }
 
@@ -176,7 +176,7 @@ export default function PricingPage() {
           alert(error.message || 'Payment could not be confirmed. Try again.');
           return;
         }
-        window.location.href = successUrl;
+        window.location.href = getSuccessUrl(product);
         return;
       }
 
