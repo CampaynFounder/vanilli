@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
@@ -22,17 +22,16 @@ function CheckoutSuccessContent() {
     // Wait for auth to finish loading before checking
     if (loading) return;
     
-    if (!user || !session?.access_token) {
-      router.push('/auth/signin?redirect=' + encodeURIComponent('/checkout-success?product=' + product));
+    // Only redirect if we're sure the user is not authenticated (not just loading)
+    if (!user || !session) {
+      const redirectUrl = '/checkout-success?product=' + product;
+      router.push('/auth/signin?redirect=' + encodeURIComponent(redirectUrl));
       return;
     }
 
     const checkCredits = async (): Promise<boolean> => {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) return false;
-      
       await refreshUser();
-      const supabase = createClient(supabaseUrl, session.access_token);
+      // Use the supabase client from lib which already has the session configured
       const { data, error } = await supabase
         .from('users')
         .select('credits_remaining, tier')
