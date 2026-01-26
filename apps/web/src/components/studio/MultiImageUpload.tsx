@@ -66,7 +66,7 @@ export function MultiImageUpload({
     fileInputRef.current?.click();
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = (_index: number) => {
     // Note: This only removes from previews. Parent component should handle file removal.
     // For now, we'll trigger a re-upload flow.
     onImagesSelect([]);
