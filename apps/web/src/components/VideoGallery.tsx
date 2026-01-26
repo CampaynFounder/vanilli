@@ -24,8 +24,16 @@ interface Video {
   playCount?: number; // Display count for network effect
 }
 
+// Default poster when video.thumbnail is not set — avoids empty black boxes before load
+const DEFAULT_POSTER =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="280" height="498" viewBox="0 0 280 498"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0f172a"/><stop offset="100%" stop-color="#1e293b"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>'
+  );
+
 // Placeholder data - replace with your actual videos
-// 
+// Optional: add thumbnail: '/videos/video2-thumb.jpg' when you have thumbnail images (9:16).
+//
 // ⚠️ REMINDER: When adding a new video here, you MUST also:
 // 1. Convert video to .mp4 format using convert-to-mp4.sh script
 // 2. Run SQL in Supabase to add the video to video_plays table
@@ -226,18 +234,19 @@ export function VideoGallery() {
           {Array.from({ length: 8 }).map((_, index) => (
             <div
               key={index}
-              className="group relative aspect-[9/16] bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden hover:border-slate-700 transition-all cursor-pointer"
+              className="group relative aspect-[9/16] rounded-xl border border-slate-800 overflow-hidden hover:border-slate-700 transition-all cursor-pointer"
             >
-              {/* Placeholder thumbnail container - 9:16 portrait for TikTok */}
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
+              {/* Thumbnail-style gradient (matches video card poster); no empty black box */}
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950" />
+              <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="text-4xl mb-2 opacity-30">🎬</div>
-                  <div className="text-sm text-slate-600">Video {index + 1}</div>
+                  <div className="text-4xl mb-2 opacity-40">🎬</div>
+                  <div className="text-sm text-slate-500">Video {index + 1}</div>
                 </div>
               </div>
               
               {/* Play overlay on hover */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
                   <svg
                     className="w-8 h-8 text-white ml-1"
@@ -306,6 +315,7 @@ export function VideoGallery() {
                 <video
                   id={`video-${uniqueId}`}
                   src={video.videoUrl}
+                  poster={video.thumbnail || DEFAULT_POSTER}
                   className={`w-full h-full object-cover ${isPlaying ? 'pointer-events-auto' : 'pointer-events-none'}`}
                   controls={isPlaying}
                   controlsList="nodownload"

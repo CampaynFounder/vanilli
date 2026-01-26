@@ -39,15 +39,19 @@ def process_video(data: Optional[dict] = None):
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
     # Kling: Access Key + Secret (JWT) or single Bearer. Secret can be KLING_SECRET_KEY or KLING_API_KEY.
-    kling_access = os.environ.get("KLING_ACCESS_KEY")
-    kling_secret = os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY")
-    kling_api_key = os.environ.get("KLING_API_KEY")
+    # Strip to avoid "access key is empty" from hidden newlines/spaces; treat empty-after-strip as unset.
+    def _k(v): return (v or "").strip() or None
+    kling_access = _k(os.environ.get("KLING_ACCESS_KEY"))
+    kling_secret = _k(os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY"))
+    kling_api_key = _k(os.environ.get("KLING_API_KEY"))
     if kling_access and kling_secret:
-        iat = int(time.time())
-        tok = jwt.encode({"ak": kling_access, "iat": iat, "exp": iat + 3600}, kling_secret, algorithm="HS256")
+        now = int(time.time())
+        payload = {"iss": kling_access, "exp": now + 1800, "nbf": now - 5}
+        headers = {"alg": "HS256", "typ": "JWT"}
+        tok = jwt.encode(payload, kling_secret, algorithm="HS256", headers=headers)
         kling_bearer = tok.decode("utf-8") if isinstance(tok, bytes) else tok
         print(f"[vannilli] Kling auth: JWT from KLING_ACCESS_KEY + (KLING_SECRET_KEY or KLING_API_KEY)")
-        print(f"[vannilli] Kling JWT: payload={{ak:<redacted>,iat:{iat},exp:{iat+3600}}} prefix={kling_bearer[:50]}...")
+        print(f"[vannilli] Kling JWT: payload={{iss:<redacted>,nbf:{now-5},exp:{now+1800}}} prefix={kling_bearer[:50]}...")
     elif kling_api_key:
         kling_bearer = kling_api_key
         print(f"[vannilli] Kling auth: KLING_API_KEY (single Bearer)")
@@ -124,13 +128,13 @@ def process_video(data: Optional[dict] = None):
                 print(f"[vannilli] trim/upload FAIL: type={err_type} {err_msg} body={body}")
                 tracking_url_for_kling = tracking_url
 
-        # Kling motion-control: driver_video + target_image. mode=standard (not "std"). character_orientation=image.
+        # Kling motion-control: driver_video + target_image. mode=std (API rejects "standard"). character_orientation=image.
         # prompt: optional; describe context/environment, not motion. Kling caps; we send max 100 chars.
         payload = {
             "model_name": "kling-v2",
             "driver_video_url": tracking_url_for_kling,
             "target_image_url": target_url,
-            "mode": "standard",
+            "mode": "std",
             "character_orientation": "image",
         }
         if prompt:
@@ -260,34 +264,39 @@ def test_kling_auth():
     NEXT_PUBLIC_MODAL_TEST_VIDEO_API_URL to this endpoint's URL for the /debug 'Generate JWT' button.
     Returns: {ok, jwt?, payload_redacted?, expires_in?, verify_status?, verify_message?, message?}"""
     kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
-    kling_access = os.environ.get("KLING_ACCESS_KEY")
-    kling_secret = os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY")
-    kling_api_key = os.environ.get("KLING_API_KEY")
+    def _v(x): return (x or "").strip() or None
+    kling_access = _v(os.environ.get("KLING_ACCESS_KEY"))
+    kling_secret = _v(os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY"))
+    kling_api_key = _v(os.environ.get("KLING_API_KEY"))
 
-    # Build JWT from access+secret (same as process_video)
+    # Build JWT from access+secret (same as process_video), or use single Bearer.
     jwt_token = None
     payload_redacted = None
     if kling_access and kling_secret:
-        iat = int(time.time())
-        pl = {"ak": kling_access, "iat": iat, "exp": iat + 3600}
-        tok = jwt.encode(pl, kling_secret, algorithm="HS256")
+        now = int(time.time())
+        pl = {"iss": kling_access, "exp": now + 1800, "nbf": now - 5}
+        headers = {"alg": "HS256", "typ": "JWT"}
+        tok = jwt.encode(pl, kling_secret, algorithm="HS256", headers=headers)
         jwt_token = tok.decode("utf-8") if isinstance(tok, bytes) else tok
-        ak = str(kling_access)
-        payload_redacted = {"ak": f"{ak[:8]}...{ak[-4:]}" if len(ak) > 12 else "***", "iat": iat, "exp": iat + 3600}
-    elif not kling_access and not kling_api_key:
-        return {"ok": False, "message": "KLING_ACCESS_KEY and KLING_API_KEY (or KLING_SECRET_KEY) not set in vannilli-secrets."}
+        iss = str(kling_access)
+        payload_redacted = {"iss": f"{iss[:8]}...{iss[-4:]}" if len(iss) > 12 else "***", "nbf": now - 5, "exp": now + 1800}
+        bearer = jwt_token
+    elif kling_api_key:
+        bearer = kling_api_key
     elif kling_access and not kling_secret:
         return {"ok": False, "message": "KLING_API_KEY or KLING_SECRET_KEY must be set as the secret when KLING_ACCESS_KEY is set."}
-    elif not kling_access:
+    elif not kling_access and not kling_api_key:
+        return {"ok": False, "message": "KLING_ACCESS_KEY and KLING_API_KEY (or KLING_SECRET_KEY) not set in vannilli-secrets."}
+    else:
         return {"ok": False, "message": "KLING_ACCESS_KEY not set. Add it to vannilli-secrets to build a JWT (KLING_API_KEY is the secret)."}
 
-    bearer = jwt_token if jwt_token else kling_api_key
+    # bearer is set from JWT or single-key branch above
     url = f"{kling_base.rstrip('/')}/videos/motion-control"
     req_payload = {
         "model_name": "kling-v2",
         "driver_video_url": "https://example.com/dummy.mp4",
         "target_image_url": "https://example.com/dummy.jpg",
-        "mode": "standard",
+        "mode": "std",
         "character_orientation": "image",
     }
     verify_status = None
@@ -301,29 +310,44 @@ def test_kling_auth():
         except Exception:
             pass
         code = body.get("code")
-        msg = body.get("message", "")
+        msg = (body.get("message") or "")
         if r.status_code == 401:
             verify_message = "Auth failed (401). Token rejected by video API."
             out = {"ok": False, "verify_status": verify_status, "verify_message": verify_message}
             if jwt_token:
                 out["jwt"] = jwt_token
                 out["payload_redacted"] = payload_redacted
-                out["expires_in"] = 3600
+                out["expires_in"] = 1800
             out["message"] = verify_message
             return out
         if r.status_code >= 400:
+            # If the provider says "access key is empty", keys may be swapped, empty, or wrong env.
+            m = (msg or "").lower()
+            if "access" in m and "empty" in m:
+                verify_message = (
+                    "The video service reported the access key is missing or invalid. "
+                    "In Modal vannilli-secrets: set KLING_ACCESS_KEY to your Access Key (often ak_…) and "
+                    "KLING_API_KEY or KLING_SECRET_KEY to your Secret Key. Ensure there are no extra spaces. "
+                    "See modal_app/README.md."
+                )
+                out = {"ok": False, "verify_status": verify_status, "verify_message": verify_message, "message": verify_message}
+                if jwt_token:
+                    out["jwt"] = jwt_token
+                    out["payload_redacted"] = payload_redacted
+                    out["expires_in"] = 1800
+                return out
             verify_message = f"Auth OK. Video API returned {r.status_code} (code={code}, message={msg!r}). Dummy URLs are invalid."
         else:
             verify_message = "Auth OK. Video API accepted the request."
     except Exception as e:
         verify_message = f"Request failed: {e!r}"
-        return {"ok": False, "verify_message": verify_message, "message": verify_message, "jwt": jwt_token, "payload_redacted": payload_redacted, "expires_in": 3600 if jwt_token else None}
+        return {"ok": False, "verify_message": verify_message, "message": verify_message, "jwt": jwt_token, "payload_redacted": payload_redacted, "expires_in": 1800 if jwt_token else None}
 
     out = {"ok": True, "verify_status": verify_status, "verify_message": verify_message}
     if jwt_token:
         out["jwt"] = jwt_token
         out["payload_redacted"] = payload_redacted
-        out["expires_in"] = 3600
+        out["expires_in"] = 1800
     out["message"] = verify_message
     return out
 

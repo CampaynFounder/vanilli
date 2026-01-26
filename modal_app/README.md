@@ -6,9 +6,10 @@ This app runs on [Modal](https://modal.com). It accepts a POST with signed URLs 
 
 - [Modal CLI](https://modal.com/docs/guide/install) and `modal setup` (or `modal token`)
 - Modal secret `vannilli-secrets` with: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; and either:
-  - **Kling (Access Key + Secret Key):** `KLING_ACCESS_KEY` and `KLING_SECRET_KEY` — a JWT is built and used as `Authorization: Bearer`
+  - **Kling (Access Key + Secret Key):** `KLING_ACCESS_KEY` = your **Access Key** (often `ak_…`) and `KLING_SECRET_KEY` or `KLING_API_KEY` = your **Secret Key** — a JWT is built (payload: `iss`=access key, `exp`=now+30min, `nbf`=now-5s; headers: `alg` HS256, `typ` JWT) and used as `Authorization: Bearer`
   - **Kling (single key):** `KLING_API_KEY` — used directly as Bearer (if you have only one token).  
-  Optionally: `KLING_API_URL` (default `https://api.klingai.com/v1`).
+  Optionally: `KLING_API_URL` (default `https://api.klingai.com/v1`).  
+  **“Access key is empty”:** Use Access Key in `KLING_ACCESS_KEY` and Secret in `KLING_API_KEY`/`KLING_SECRET_KEY`; do not swap them. Avoid leading/trailing spaces when pasting.
 
 ## Run and test before using from the app
 
@@ -126,3 +127,23 @@ When `generation_seconds` > 0, the function trims the tracking video, uploads it
 - `[vannilli] trim/upload FAIL: type=… … body=…` – on error; includes exception type, message, and response status/body for 403 “new row violates row-level security policy” and similar.
 
 Storage RLS for `service_role` on `vannilli/inputs/` and `vannilli/outputs/` must be in place. Run `packages/database/add-inputs-storage-service-role.sql` in the Supabase SQL Editor, then the verification query at the bottom to confirm all 8 policies exist.
+
+## Troubleshooting: "Access key is empty"
+
+If the video API (or the **Generate JWT** / **Verify** flow on `/debug`) returns that the access key is empty or invalid:
+
+1. **Key mapping**  
+   - **Access Key** (often `ak_…`) → `KLING_ACCESS_KEY` in `vannilli-secrets`  
+   - **Secret Key** (the other, longer key) → `KLING_API_KEY` or `KLING_SECRET_KEY`
+
+2. **Do not swap them**  
+   Putting the Secret in `KLING_ACCESS_KEY` and the Access Key in `KLING_API_KEY` will produce an invalid JWT and can trigger “access key is empty”.
+
+3. **No extra spaces**  
+   When pasting into Modal secrets, avoid leading/trailing spaces or newlines.
+
+4. **Single-key setups**  
+   If your provider gives only one “API Key”, set it as `KLING_API_KEY` and leave `KLING_ACCESS_KEY` unset. The app will use it as a Bearer token. If you still see “access key is empty”, your provider may require Access Key + Secret in separate vars.
+
+5. **Redeploy**  
+   After changing `vannilli-secrets`, run `./modal_app/deploy.sh` again so the new values are used.

@@ -11,7 +11,7 @@ export default function DebugPage() {
     ok: boolean;
     message: string;
     jwt?: string;
-    payload_redacted?: { ak: string; iat: number; exp: number };
+    payload_redacted?: { iss: string; nbf?: number; exp: number };
     expires_in?: number;
     verify_status?: number;
     verify_message?: string;
@@ -122,7 +122,7 @@ export default function DebugPage() {
                     </div>
                     {videoApiResult.payload_redacted && (
                       <p className="text-xs text-slate-500 mt-1">
-                        Payload (redacted): ak={videoApiResult.payload_redacted.ak}, iat={videoApiResult.payload_redacted.iat}, exp={videoApiResult.payload_redacted.exp}
+                        Payload (redacted): iss={videoApiResult.payload_redacted.iss}, nbf={videoApiResult.payload_redacted.nbf}, exp={videoApiResult.payload_redacted.exp}
                         {videoApiResult.expires_in != null && ` · expires in ${videoApiResult.expires_in}s`}
                       </p>
                     )}

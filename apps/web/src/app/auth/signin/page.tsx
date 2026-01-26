@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
 function SignInForm() {
+  const bgUrl = getAuthBackgroundUrl();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -49,8 +51,20 @@ function SignInForm() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4 relative">
+      {/* Background image + overlay for legibility */}
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-slate-950"
+          style={{
+            backgroundImage: `url(${bgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+      </div>
+      <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <Logo width={200} height={67} className="h-16 mb-2" />
@@ -145,9 +159,21 @@ function SignInForm() {
 }
 
 function SignInFallback() {
+  const bgUrl = getAuthBackgroundUrl();
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md flex flex-col items-center">
+    <div className="min-h-screen flex items-center justify-center px-4 relative">
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-slate-950"
+          style={{
+            backgroundImage: `url(${bgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+      </div>
+      <div className="relative z-10 w-full max-w-md flex flex-col items-center">
         <Logo width={200} height={67} className="h-16 mb-4" />
         <div className="h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
       </div>

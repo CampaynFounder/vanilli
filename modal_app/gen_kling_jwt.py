@@ -30,9 +30,11 @@ except ImportError:
     requests = None
 
 def build_jwt(access, secret):
-    iat = int(time.time())
-    payload = {"ak": access, "iat": iat, "exp": iat + 3600}
-    tok = jwt.encode(payload, secret, algorithm="HS256")
+    """Kling JWT: iss=access key, exp=now+30min, nbf=now-5s, headers alg+typ. Signed with secret."""
+    now = int(time.time())
+    payload = {"iss": access, "exp": now + 1800, "nbf": now - 5}
+    headers = {"alg": "HS256", "typ": "JWT"}
+    tok = jwt.encode(payload, secret, algorithm="HS256", headers=headers)
     return tok.decode("utf-8") if isinstance(tok, bytes) else tok
 
 def main():
@@ -57,7 +59,7 @@ def main():
             "model_name": "kling-v2",
             "driver_video_url": "https://example.com/dummy.mp4",
             "target_image_url": "https://example.com/dummy.jpg",
-            "mode": "standard",
+            "mode": "std",
             "character_orientation": "image",
         }
         try:
@@ -81,17 +83,17 @@ def main():
             print("Request failed:", e, file=sys.stderr)
             sys.exit(1)
 
-    # Decode without verify to show payload (we don't print the raw 'ak' value)
+    # Decode without verify to show payload (we don't print the raw 'iss' value)
     decoded = jwt.decode(token, options={"verify_signature": False})
-    ak = decoded.get("ak", "")
-    ak_display = f"{str(ak)[:8]}...{str(ak)[-4:]}" if len(str(ak)) > 12 else "***"
-    decoded_redacted = {"ak": ak_display, "iat": decoded["iat"], "exp": decoded["exp"]}
+    iss = decoded.get("iss", "")
+    iss_display = f"{str(iss)[:8]}...{str(iss)[-4:]}" if len(str(iss)) > 12 else "***"
+    decoded_redacted = {"iss": iss_display, "nbf": decoded.get("nbf"), "exp": decoded["exp"]}
 
     print("JWT (use as Authorization: Bearer <token>):")
     print(token)
     print()
-    print("Payload (ak redacted):", json.dumps(decoded_redacted))
-    print("Expires in: 3600s (~1h)")
+    print("Payload (iss redacted):", json.dumps(decoded_redacted))
+    print("Expires in: 1800s (30min)")
     print()
     print("Verify auth:  python3 modal_app/gen_kling_jwt.py --verify")
     print()
@@ -99,7 +101,7 @@ def main():
     print('  curl -s -X POST "https://api.klingai.com/v1/videos/motion-control" \\')
     print('    -H "Content-Type: application/json" \\')
     print('    -H "Authorization: Bearer <JWT>" \\')
-    print('    -d \'{"model_name":"kling-v2","driver_video_url":"<DRIVER_VIDEO_URL>","target_image_url":"<TARGET_IMAGE_URL>","mode":"standard","character_orientation":"image"}\'')
+    print('    -d \'{"model_name":"kling-v2","driver_video_url":"<DRIVER_VIDEO_URL>","target_image_url":"<TARGET_IMAGE_URL>","mode":"std","character_orientation":"image"}\'')
 
 if __name__ == "__main__":
     main()

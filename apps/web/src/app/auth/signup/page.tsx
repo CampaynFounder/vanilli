@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
 export default function SignUpPage() {
+  const bgUrl = getAuthBackgroundUrl();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -63,8 +65,20 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4 relative">
+      {/* Background image + overlay for legibility */}
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-slate-950"
+          style={{
+            backgroundImage: `url(${bgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+      </div>
+      <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <Logo width={200} height={67} className="h-16 mb-2" />

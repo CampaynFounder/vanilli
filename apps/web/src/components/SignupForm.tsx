@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { CountdownTimer } from './CountdownTimer';
 import { shouldShowCountdown } from '@/config/launch';
@@ -342,13 +342,13 @@ export function SignupForm() {
       }`}
       onClick={handleBackdropClick}
     >
-      {/* Backdrop with hero background image */}
+      {/* Backdrop with auth background image (same as /auth/signin, /auth/signup) */}
       <div 
         className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-500 ease-out ${
           showBackdrop ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-            backgroundImage: 'url(/images/hero-background.png)',
+          backgroundImage: `url(${bgUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
