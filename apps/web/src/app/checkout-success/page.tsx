@@ -13,7 +13,6 @@ function CheckoutSuccessContent() {
   const { user, refreshUser, session } = useAuth();
   const [creditsConfirmed, setCreditsConfirmed] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
-  const [pollingAttempts, setPollingAttempts] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const product = searchParams?.get('product') || 'demo';
@@ -67,7 +66,6 @@ function CheckoutSuccessContent() {
       let attempts = 0;
       intervalId = setInterval(async () => {
         attempts++;
-        setPollingAttempts(attempts);
         
         if (attempts >= maxPollingAttempts) {
           if (intervalId) clearInterval(intervalId);
@@ -85,7 +83,7 @@ function CheckoutSuccessContent() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [user?.id, session?.access_token, product, refreshUser, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, session?.access_token, product, refreshUser, router]);
 
   // Auto-redirect to studio after 3 seconds if confirmed
   useEffect(() => {
