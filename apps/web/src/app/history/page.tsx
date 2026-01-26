@@ -65,7 +65,7 @@ function HistoryPage() {
           <div className="flex items-center justify-between h-full gap-0 sm:gap-0.5 md:gap-1 min-w-0">
             <div className="flex items-center gap-0.5 sm:gap-1 md:gap-1.5 lg:gap-2 h-full flex-shrink-0 min-w-0">
               <div className="flex items-center flex-shrink-0">
-                <Logo width={120} height={40} className="h-6 sm:h-8 md:h-11 lg:h-14 w-auto object-contain" />
+                <Logo width={120} height={40} className="h-6 sm:h-8 md:h-11 lg:h-14 w-auto object-contain" href="/profile" />
               </div>
               <div className="flex items-center gap-0 sm:gap-0.5 md:gap-1 lg:gap-1.5 flex-shrink-0">
                 <Link href="/profile" className="opacity-60 hover:opacity-100 transition-opacity flex items-center flex-shrink-0" aria-label="Profile">

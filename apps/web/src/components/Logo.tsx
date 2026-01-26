@@ -5,11 +5,12 @@ interface LogoProps {
   width?: number;
   height?: number;
   className?: string;
+  href?: string;
 }
 
-export function Logo({ width = 768, height = 256, className = '' }: LogoProps) {
+export function Logo({ width = 768, height = 256, className = '', href }: LogoProps) {
   return (
-    <Link href="/" className="flex items-center">
+    <Link href={href || "/"} className="flex items-center">
       <Image
         src="/logo/logo.png"
         alt="Vannilli"

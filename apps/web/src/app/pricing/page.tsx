@@ -196,9 +196,7 @@ export default function PricingPage() {
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50 h-12 sm:h-14 md:h-16 overflow-x-hidden">
         <div className="w-full mx-auto px-1 sm:px-2 md:px-4 lg:px-6 h-full overflow-x-hidden">
           <div className="flex items-center justify-between h-full gap-0 sm:gap-0.5 md:gap-1 min-w-0">
-            <Link href={user ? '/profile' : '/'} className="flex items-center flex-shrink-0">
-              <Logo width={120} height={40} className="h-6 sm:h-8 md:h-11 lg:h-14 w-auto object-contain" />
-            </Link>
+            <Logo width={120} height={40} className="h-6 sm:h-8 md:h-11 lg:h-14 w-auto object-contain" href={user ? '/profile' : '/'} />
             <div className="flex items-center gap-0 sm:gap-0.5 md:gap-1 lg:gap-1.5 flex-shrink-0 min-w-0">
               {!user && (
                 <Link href="/#features" className="hidden sm:block text-[9px] md:text-xs lg:text-sm text-slate-400 hover:text-white transition-colors">

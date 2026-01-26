@@ -10,7 +10,7 @@ import { Suspense } from 'react';
 function CheckoutSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, refreshUser, session } = useAuth();
+  const { user, refreshUser, session, loading } = useAuth();
   const [creditsConfirmed, setCreditsConfirmed] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +19,9 @@ function CheckoutSuccessContent() {
   const maxPollingAttempts = 10; // 10 attempts = ~15 seconds
 
   useEffect(() => {
+    // Wait for auth to finish loading before checking
+    if (loading) return;
+    
     if (!user || !session?.access_token) {
       router.push('/auth/signin?redirect=' + encodeURIComponent('/checkout-success?product=' + product));
       return;
@@ -83,17 +86,7 @@ function CheckoutSuccessContent() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [user?.id, session?.access_token, product, refreshUser, router]);
-
-  // Auto-redirect to studio after 3 seconds if confirmed
-  useEffect(() => {
-    if (creditsConfirmed) {
-      const timer = setTimeout(() => {
-        router.push('/studio');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [creditsConfirmed, router]);
+  }, [user?.id, session?.access_token, product, refreshUser, router, loading]);
 
   const productNames: Record<string, string> = {
     demo: 'DEMO',
@@ -104,6 +97,15 @@ function CheckoutSuccessContent() {
   };
 
   const productName = productNames[product] || 'Tier';
+
+  // Show loading state while auth is loading
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-slate-950">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-slate-950">
@@ -135,14 +137,11 @@ function CheckoutSuccessContent() {
                 You now have {creditsRemaining} credits
               </p>
             )}
-            <p className="text-slate-400 mb-8">
-              Redirecting you to the Studio in 3 seconds...
-            </p>
             <Link
               href="/studio"
               className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
             >
-              Go to Studio Now
+              Go to Studio
             </Link>
           </>
         ) : error ? (
