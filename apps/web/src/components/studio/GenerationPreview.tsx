@@ -73,10 +73,10 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
           />
         )}
 
-        {/* Progress overlay */}
+        {/* Progress overlay - centered */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="text-center">
-            <ProgressRing progress={progress} size={120} />
+          <div className="text-center flex flex-col items-center justify-center w-full h-full">
+            <ProgressRing progress={Math.max(10, progress)} size={120} />
             <p className="mt-4 text-white font-semibold">Syncing your performance...</p>
             <p className="text-xs text-slate-400 mt-1">This usually takes 60-90 seconds</p>
           </div>

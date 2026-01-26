@@ -12,29 +12,47 @@ from pathlib import Path
 import modal
 
 app = modal.App("vannilli-process-video")
-img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "fastapi", "pyjwt")
+img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("requests", "supabase", "fastapi", "pyjwt", "audalign")
 
 BUCKET = "vannilli"
 INPUTS_PREFIX = "inputs"
 OUTPUTS_PREFIX = "outputs"
 
+def _cors_origins() -> list:
+    # Comma-separated list; default includes production + local dev.
+    raw = (os.environ.get("VANNILLI_CORS_ORIGINS") or "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return ["https://vannilli.xaino.io", "http://localhost:3000", "http://127.0.0.1:3000"]
 
-@app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=600)
-@modal.fastapi_endpoint(method="POST")
-def process_video(data: Optional[dict] = None):
-    """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, generation_seconds?, prompt? }"""
+def _run_ffmpeg(args: list, label: str):
+    try:
+        subprocess.run(args, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or b"").decode("utf-8", errors="replace")[:4000]
+        stdout = (e.stdout or b"").decode("utf-8", errors="replace")[:4000]
+        print(f"[vannilli] ffmpeg FAIL ({label}): rc={e.returncode} args={e.args!r}")
+        if stdout:
+            print(f"[vannilli] ffmpeg stdout ({label}): {stdout}")
+        if stderr:
+            print(f"[vannilli] ffmpeg stderr ({label}): {stderr}")
+        raise
+
+
+def process_video_impl(data: Optional[dict] = None):
+    """POST JSON: { tracking_video_url, target_image_url, audio_track_url (optional), generation_id, is_trial, generation_seconds?, prompt? }"""
     data = data or {}
     def _str(v): return (v or "").strip() or None
     tracking_url = _str(data.get("tracking_video_url"))
     target_url = _str(data.get("target_image_url"))
-    audio_url = _str(data.get("audio_track_url"))
+    audio_url = _str(data.get("audio_track_url"))  # Optional
     generation_id = (data.get("generation_id") or "").strip() or None
     is_trial = data.get("is_trial", False)
     prompt = (data.get("prompt") or "").strip()[:100]
     gen_secs = float(data.get("generation_seconds") or 0)
 
-    if not all([tracking_url, target_url, audio_url, generation_id]):
-        return {"ok": False, "error": "Missing required fields"}
+    if not all([tracking_url, target_url, generation_id]):
+        return {"ok": False, "error": "Missing required fields: tracking_video_url, target_image_url, generation_id"}
 
     _base = (os.environ.get("SUPABASE_URL") or "").strip()
     supabase_url = (_base.rstrip("/") + "/") if _base else _base
@@ -82,52 +100,98 @@ def process_video(data: Optional[dict] = None):
         try:
             download(tracking_url, tracking_path)
             download(target_url, target_path)
-            download(audio_url, audio_path)
+            if audio_url:
+                download(audio_url, audio_path)
         except Exception as e:
             _fail(supabase, generation_id, "Download failed. Please check your files and try again.")
             return {"ok": False, "error": "Download failed. Please check your files and try again."}
 
         tracking_url_for_kling = tracking_url
-        audio_for_merge = audio_path
+        audio_for_merge = None
 
-        # Trim tracking and audio to exactly generation_seconds so we only send gen_secs to Kling and merge.
-        if gen_secs > 0:
-            tracking_trimmed = base / "tracking_trimmed.mp4"
-            audio_trimmed = base / "audio_trimmed.wav"
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(tracking_path), "-t", str(gen_secs), "-c", "copy", str(tracking_trimmed)],
-                check=True, capture_output=True,
-            )
-            # -t trim; -c copy keeps codec (WAV stays WAV). FFmpeg accepts this in the merge.
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(audio_path), "-t", str(gen_secs), "-c", "copy", str(audio_trimmed)],
-                check=True, capture_output=True,
-            )
-            audio_for_merge = audio_trimmed
-            # Upload trimmed file to a NEW object (no upsert) to avoid UPDATE RLS; use for Kling and cleanup later.
-            inp_trimmed = f"{INPUTS_PREFIX}/{generation_id}/tracking_trimmed.mp4"
-            print(f"[vannilli] trim/upload: gen_secs={gen_secs}, path={inp_trimmed}")
+        # If audio is provided, do audio alignment logic
+        if audio_url:
+            print("[vannilli] Audio provided - performing alignment...")
             try:
-                supabase.storage.from_(BUCKET).upload(inp_trimmed, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4"})
-                sig = supabase.storage.from_(BUCKET).create_signed_url(inp_trimmed, 3600)
-                if isinstance(sig, tuple):
-                    sig = sig[0] if sig else {}
-                tracking_url_for_kling = (sig.get("signedUrl") or sig.get("signed_url")) if isinstance(sig, dict) else (getattr(sig, "signedUrl", None) or getattr(sig, "signed_url", None))
-                if not tracking_url_for_kling:
+                import audalign
+            except ImportError:
+                _fail(supabase, generation_id, "Audio alignment service unavailable. Please try again.")
+                return {"ok": False, "error": "Audio alignment service unavailable. Please try again."}
+            
+            # Extract audio from tracking video for alignment
+            tracking_audio_path = base / "tracking_audio.wav"
+            _run_ffmpeg(
+                ["ffmpeg", "-y", "-i", str(tracking_path), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tracking_audio_path)],
+                "extract-tracking-audio",
+            )
+            
+            # Find global offset using audalign
+            alignment = audalign.target_align(
+                str(audio_path),  # master audio (target)
+                str(tracking_audio_path),  # video audio (to align)
+                technique="correlation",
+            )
+            global_offset = alignment.get("offset", 0.0)
+            if not isinstance(global_offset, (int, float)):
+                global_offset = float(global_offset)
+            print(f"[vannilli] Global audio offset: {global_offset}s (master is {'ahead' if global_offset > 0 else 'behind'} video)")
+            
+            # Trim tracking video if needed
+            if gen_secs > 0:
+                tracking_trimmed = base / "tracking_trimmed.mp4"
+                _run_ffmpeg(
+                    ["ffmpeg", "-y", "-i", str(tracking_path), "-t", str(gen_secs), "-c", "copy", str(tracking_trimmed)],
+                    "trim-video",
+                )
+                # Upload trimmed file for Kling
+                inp_trimmed = f"{INPUTS_PREFIX}/{generation_id}/tracking_trimmed.mp4"
+                print(f"[vannilli] Uploading trimmed video: {inp_trimmed}")
+                try:
+                    supabase.storage.from_(BUCKET).upload(inp_trimmed, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4"})
+                    sig = supabase.storage.from_(BUCKET).create_signed_url(inp_trimmed, 3600)
+                    if isinstance(sig, tuple):
+                        sig = sig[0] if sig else {}
+                    tracking_url_for_kling = (sig.get("signedUrl") or sig.get("signed_url")) if isinstance(sig, dict) else (getattr(sig, "signedUrl", None) or getattr(sig, "signed_url", None))
+                    if not tracking_url_for_kling:
+                        tracking_url_for_kling = tracking_url
+                    print(f"[vannilli] Trimmed video uploaded OK")
+                except Exception as e:
+                    print(f"[vannilli] Trimmed video upload failed, using original: {e}")
                     tracking_url_for_kling = tracking_url
-                print(f"[vannilli] trim/upload OK: {inp_trimmed}")
-            except Exception as e:
-                # Log full error for 403/RLS debugging (including response body if present).
-                err_type = type(e).__name__
-                err_msg = str(e)
-                body = getattr(e, "body", None) or getattr(e, "message", None)
-                resp = getattr(e, "response", None)
-                if resp is not None:
-                    err_msg += f" | response.status={getattr(resp,'status_code',None)}"
-                    raw = getattr(resp, "text", None) or (getattr(resp, "content", b"")[:500] if hasattr(resp, "content") else None)
-                    if raw is not None:
-                        err_msg += f" body={raw!r}"
-                print(f"[vannilli] trim/upload FAIL: type={err_type} {err_msg} body={body}")
+            else:
+                tracking_url_for_kling = tracking_url
+            
+            # Prepare aligned audio for merging (will extract after Kling completes)
+            # Store offset and audio path for later use
+            audio_for_merge = {
+                "path": audio_path,
+                "offset": global_offset,
+                "duration": gen_secs if gen_secs > 0 else None,
+            }
+        else:
+            # No audio: just use tracking video as-is (may trim if gen_secs > 0)
+            print("[vannilli] No audio provided - using Kling output as-is")
+            if gen_secs > 0:
+                tracking_trimmed = base / "tracking_trimmed.mp4"
+                _run_ffmpeg(
+                    ["ffmpeg", "-y", "-i", str(tracking_path), "-t", str(gen_secs), "-c", "copy", str(tracking_trimmed)],
+                    "trim-video",
+                )
+                inp_trimmed = f"{INPUTS_PREFIX}/{generation_id}/tracking_trimmed.mp4"
+                print(f"[vannilli] Uploading trimmed video: {inp_trimmed}")
+                try:
+                    supabase.storage.from_(BUCKET).upload(inp_trimmed, tracking_trimmed.read_bytes(), file_options={"content-type": "video/mp4"})
+                    sig = supabase.storage.from_(BUCKET).create_signed_url(inp_trimmed, 3600)
+                    if isinstance(sig, tuple):
+                        sig = sig[0] if sig else {}
+                    tracking_url_for_kling = (sig.get("signedUrl") or sig.get("signed_url")) if isinstance(sig, dict) else (getattr(sig, "signedUrl", None) or getattr(sig, "signed_url", None))
+                    if not tracking_url_for_kling:
+                        tracking_url_for_kling = tracking_url
+                    print(f"[vannilli] Trimmed video uploaded OK")
+                except Exception as e:
+                    print(f"[vannilli] Trimmed video upload failed, using original: {e}")
+                    tracking_url_for_kling = tracking_url
+            else:
                 tracking_url_for_kling = tracking_url
 
         # Kling motion-control: driver/reference video + image. mode=std. character_orientation=image.
@@ -220,12 +284,69 @@ def process_video(data: Optional[dict] = None):
 
         download(kling_video_url, kling_path)
 
-        # FFmpeg: -i kling -i audio -map 0:v -map 1:a -c:v copy -c:a aac synced.mp4 (audio_for_merge is trimmed to gen_secs when gen_secs>0)
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(kling_path), "-i", str(audio_for_merge), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", str(synced_path)],
-            check=True,
-            capture_output=True,
-        )
+        # If audio provided, extract aligned slice and merge with Kling video
+        if audio_for_merge and isinstance(audio_for_merge, dict):
+            print("[vannilli] Extracting aligned audio slice and merging...")
+            try:
+                # Extract audio slice using global offset
+                # Start time in master audio = 0 + offset (if offset is positive, master is ahead)
+                # For gen_secs > 0, extract exactly gen_secs starting from offset
+                audio_slice_path = base / "audio_aligned.wav"
+                start_time = max(0.0, audio_for_merge["offset"])
+                duration = audio_for_merge["duration"] if audio_for_merge["duration"] else None
+                
+                if duration:
+                    # Extract exactly gen_secs starting from offset
+                    _run_ffmpeg(
+                        [
+                            "ffmpeg", "-y", "-i", str(audio_for_merge["path"]),
+                            "-ss", str(start_time),
+                            "-t", str(duration),
+                            "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+                            str(audio_slice_path)
+                        ],
+                        "extract-aligned-audio",
+                    )
+                else:
+                    # Extract from offset to end
+                    _run_ffmpeg(
+                        [
+                            "ffmpeg", "-y", "-i", str(audio_for_merge["path"]),
+                            "-ss", str(start_time),
+                            "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+                            str(audio_slice_path)
+                        ],
+                        "extract-aligned-audio",
+                    )
+                
+                # Merge aligned audio with Kling video
+                _run_ffmpeg(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", str(kling_path),
+                        "-i", str(audio_slice_path),
+                        "-map", "0:v:0",
+                        "-map", "1:a:0",
+                        "-c:v", "libx264",
+                        "-preset", "veryfast",
+                        "-pix_fmt", "yuv420p",
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        "-movflags", "+faststart",
+                        "-shortest",
+                        str(synced_path),
+                    ],
+                    "merge-audio",
+                )
+            except Exception as e:
+                print(f"[vannilli] Audio alignment/merge failed: {e}")
+                _fail(supabase, generation_id, "Audio/video merge failed. Please try again. If it persists, contact VANNILLI support.")
+                return {"ok": False, "error": "Audio/video merge failed. Please try again. If it persists, contact VANNILLI support."}
+        else:
+            # No audio provided - copy Kling video as-is (it may have audio from the tracking video)
+            print("[vannilli] No audio - using Kling output as-is")
+            import shutil
+            shutil.copy2(kling_path, synced_path)
 
         # Only watermark: VANNILLI logo, for trial users only
         if is_trial:
@@ -252,7 +373,9 @@ def process_video(data: Optional[dict] = None):
 
         # Delete input files from Storage (include tracking_trimmed.mp4 when we created it)
         inp_prefix = f"{INPUTS_PREFIX}/{generation_id}"
-        to_remove = ["tracking.mp4", "target.jpg", "audio.mp3"]
+        to_remove = ["tracking.mp4", "target.jpg"]
+        if audio_url:
+            to_remove.append("audio.mp3")
         if gen_secs > 0:
             to_remove.append("tracking_trimmed.mp4")
         for name in to_remove:
@@ -264,9 +387,7 @@ def process_video(data: Optional[dict] = None):
     return {"ok": True, "path": out_key, "kling_units_used": kling_units_used}
 
 
-@app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=30)
-@modal.fastapi_endpoint(method="GET")
-def test_kling_auth():
+def test_kling_auth_impl():
     """GET: Build JWT from keys in vannilli-secrets and return it so you can paste into Kling's
     JWT verification. Also POSTs to the video API with dummy URLs to test. Set
     NEXT_PUBLIC_MODAL_TEST_VIDEO_API_URL to this endpoint's URL for the /debug 'Generate JWT' button.
@@ -362,3 +483,50 @@ def test_kling_auth():
 
 def _fail(supabase, generation_id: str, msg: str):
     supabase.table("generations").update({"status": "failed", "error_message": msg}).eq("id", generation_id).execute()
+
+
+# ---- ASGI app with CORS for browser calls ----
+@app.function(image=img, secrets=[modal.Secret.from_name("vannilli-secrets")], timeout=600)
+@modal.asgi_app()
+def api():
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
+    from starlette.middleware.cors import CORSMiddleware
+
+    web = FastAPI()
+    web.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins(),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @web.post("/")
+    async def post_root(req: Request):
+        try:
+            data = await req.json()
+        except Exception:
+            data = {}
+        # Return JSON (200) even on failure to avoid browser surfacing only "CORS" for 500s.
+        try:
+            out = process_video_impl(data)
+        except Exception as e:
+            print(f"[vannilli] process_video exception: {type(e).__name__} {e!r}")
+            out = {"ok": False, "error": "Video generation failed. Please try again. If it persists, contact VANNILLI support."}
+        return JSONResponse(out, status_code=200)
+
+    @web.get("/test_kling_auth")
+    async def get_test_kling_auth():
+        try:
+            out = test_kling_auth_impl()
+        except Exception as e:
+            print(f"[vannilli] test_kling_auth exception: {type(e).__name__} {e!r}")
+            out = {"ok": False, "message": "Video service is not configured. Please contact VANNILLI support."}
+        return JSONResponse(out, status_code=200)
+
+    @web.get("/")
+    async def get_root():
+        return {"ok": True, "service": "vannilli-process-video"}
+
+    return web

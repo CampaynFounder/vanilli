@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type" };
 
-type Product = "open_mic" | "artist" | "label";
+type Product = "open_mic" | "artist" | "label" | "industry" | "demo";
 
 const PRODUCTS: Record<
   Product,
@@ -12,6 +12,8 @@ const PRODUCTS: Record<
   open_mic: { priceIdEnv: "STRIPE_PRICE_OPEN_MIC", mode: "payment", credits: 40 },
   artist: { priceIdEnv: "STRIPE_PRICE_ARTIST", mode: "subscription", credits: 80 },
   label: { priceIdEnv: "STRIPE_PRICE_LABEL", mode: "subscription", credits: 330 },
+  industry: { priceIdEnv: "STRIPE_PRICE_INDUSTRY", mode: "subscription", credits: 1000 },
+  demo: { priceIdEnv: "STRIPE_PRICE_DEMO", mode: "subscription", credits: 20 },
 };
 
 serve(async (req) => {

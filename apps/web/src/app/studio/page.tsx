@@ -9,6 +9,7 @@ import { sanitizeForUser } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MediaUpload } from '@/components/studio/MediaUpload';
+import { MultiImageUpload } from '@/components/studio/MultiImageUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
 import { AppBackground } from '@/components/AppBackground';
@@ -23,7 +24,7 @@ function StudioPage() {
 
   // Upload states
   const [trackingVideo, setTrackingVideo] = useState<File | null>(null);
-  const [targetImage, setTargetImage] = useState<File | null>(null);
+  const [targetImages, setTargetImages] = useState<File[]>([]);
   const [audioTrack, setAudioTrack] = useState<File | null>(null);
 
   // Durations (seconds) from video/audio elements
@@ -33,8 +34,12 @@ function StudioPage() {
 
   // Preview URLs
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
+  
+  // Get max images based on tier
+  const maxImages = user?.tier === 'demo' || user?.tier === 'industry' ? 9 : 1;
+  const hasImage = targetImages.length > 0;
 
   // Optional scene prompt: context/environment (motion comes from video). Max 100 chars.
   const [prompt, setPrompt] = useState('');
@@ -48,39 +53,61 @@ function StudioPage() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
-  // Client-side: 3–9s, same length, length must not exceed credits. 1 credit = 1 second. Use whole seconds only (floor).
+  // Client-side: Tier-based duration limits. Audio optional. If audio provided, must match video length. 1 credit = 1 second.
   const DURATION_MATCH_TOLERANCE = 0.5;
   const creditsRemaining = user?.creditsRemaining ?? 0;
+  const userTier = user?.tier || 'free';
+  
+  // Get max duration based on tier
+  const getMaxDuration = () => {
+    if (userTier === 'demo') return 20;
+    if (userTier === 'industry') return 90;
+    return 9; // open_mic, artist, label
+  };
+  
   useEffect(() => {
-    if (videoDuration == null || audioDuration == null || videoDuration <= 0 || audioDuration <= 0) {
+    if (videoDuration == null || videoDuration <= 0) {
       setDurationValidation(null);
       return;
     }
-    if (creditsRemaining < 3) {
-      setDurationValidation({ valid: false, error: 'Re-up on credits to generate (minimum 3 credits for 3–9s videos).' });
+    const maxDuration = getMaxDuration();
+    const minDuration = 3;
+    
+    if (creditsRemaining < minDuration) {
+      setDurationValidation({ valid: false, error: `Re-up on credits to generate (minimum ${minDuration} credits).` });
       return;
     }
     const videoWhole = Math.floor(videoDuration);
-    const audioWhole = Math.floor(audioDuration);
-    if (videoWhole < 3 || audioWhole < 3) {
-      setDurationValidation({ valid: false, error: 'Video and audio must be at least 3 seconds' });
+    if (videoWhole < minDuration) {
+      setDurationValidation({ valid: false, error: `Video must be at least ${minDuration} seconds` });
       return;
     }
-    if (videoWhole > 9 || audioWhole > 9) {
-      setDurationValidation({ valid: false, error: 'Video and audio must be at most 9 seconds' });
+    if (videoWhole > maxDuration) {
+      setDurationValidation({ valid: false, error: `Video must be at most ${maxDuration} seconds for ${userTier} tier` });
       return;
     }
-    const diff = Math.abs(videoDuration - audioDuration);
-    if (diff > DURATION_MATCH_TOLERANCE) {
-      setDurationValidation({
-        valid: false,
-        error: `Video and audio must be the same length (video: ${videoDuration.toFixed(1)}s, audio: ${audioDuration.toFixed(1)}s)`,
-      });
-      return;
+    // If audio is provided, validate it matches video length
+    if (audioTrack && audioDuration != null && audioDuration > 0) {
+      const audioWhole = Math.floor(audioDuration);
+      if (audioWhole < minDuration) {
+        setDurationValidation({ valid: false, error: `Audio must be at least ${minDuration} seconds` });
+        return;
+      }
+      if (audioWhole > maxDuration) {
+        setDurationValidation({ valid: false, error: `Audio must be at most ${maxDuration} seconds` });
+        return;
+      }
+      const diff = Math.abs(videoDuration - audioDuration);
+      if (diff > DURATION_MATCH_TOLERANCE) {
+        setDurationValidation({
+          valid: false,
+          error: `Video and audio must be the same length (video: ${videoDuration.toFixed(1)}s, audio: ${audioDuration.toFixed(1)}s)`,
+        });
+        return;
+      }
     }
     // Billable seconds: whole seconds only (floor). 3.0–3.99 → 3, 4.0–4.99 → 4.
-    const secs = (videoDuration + audioDuration) / 2;
-    const genSecs = Math.max(3, Math.min(9, Math.floor(secs)));
+    const genSecs = Math.max(minDuration, Math.min(maxDuration, videoWhole));
     if (genSecs > creditsRemaining) {
       setDurationValidation({
         valid: false,
@@ -89,7 +116,7 @@ function StudioPage() {
       return;
     }
     setDurationValidation({ valid: true, generationSeconds: genSecs });
-  }, [videoDuration, audioDuration, creditsRemaining]);
+  }, [videoDuration, audioDuration, audioTrack, creditsRemaining, userTier]);
 
   // Handle file uploads
   const handleVideoSelect = (file: File) => {
@@ -98,9 +125,9 @@ function StudioPage() {
     setVideoDuration(null);
   };
 
-  const handleImageSelect = (file: File) => {
-    setTargetImage(file);
-    setImagePreview(URL.createObjectURL(file));
+  const handleImagesSelect = (files: File[]) => {
+    setTargetImages(files);
+    setImagePreviews(files.map(f => URL.createObjectURL(f)));
   };
 
   const handleAudioSelect = (file: File) => {
@@ -111,117 +138,229 @@ function StudioPage() {
 
   const handleGenerate = async () => {
     const uid = user?.id;
-    if (!uid || !trackingVideo || !targetImage || !audioTrack) return;
-    if (durationValidation?.valid !== true) return; // gate: video ≤ credits, 3s min, same length
+    if (!uid || !trackingVideo || targetImages.length === 0) return;
+    if (durationValidation?.valid !== true) return; // gate: video ≤ credits, 3s min, audio matches if provided
     const genSecs = durationValidation.generationSeconds;
-    const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
-    if (!modalUrl) {
-      setGenerationError('Processing endpoint not configured. Set NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL.');
-      return;
-    }
+    const userTier = user?.tier || 'free';
+    
+    // For DEMO/Industry tiers, use video_jobs queue. For others, use legacy flow.
+    const useQueueSystem = userTier === 'demo' || userTier === 'industry';
 
     setGenerationError(null);
     setIsGenerating(true);
     setCurrentStep('preparing');
+    setGenerationProgress(5);
 
     try {
-
-      // 1) Create project (placeholders for r2_paths; real files go to inputs/{genId}/)
-      const { data: proj, error: pe } = await supabase
-        .from('projects')
-        .insert({
-          user_id: uid,
-          track_name: 'Studio',
-          bpm: 120,
-          bars: 4,
-          duration_seconds: genSecs,
-          target_image_r2_path: 'inputs/pl/target.jpg',
-          driver_video_r2_path: 'inputs/pl/tracking.mp4',
-          status: 'processing',
-        })
-        .select('id')
-        .single();
-      if (pe || !proj?.id) throw new Error(pe?.message || 'Failed to create project');
-
-      // 2) Create generation (cost_credits = seconds; trigger deducts on completion)
-      const { data: gen, error: ge } = await supabase
-        .from('generations')
-        .insert({ project_id: proj.id, cost_credits: genSecs, status: 'pending' })
-        .select('id')
-        .single();
-      if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
-      const gid = gen.id;
-
-      // 3) Upload to Storage: inputs/{gid}/tracking.mp4, target.jpg, audio.mp3
-      const base = `${INPUTS}/${gid}`;
+      const base = `${INPUTS}/${uid}`;
       const up = async (path: string, file: File) => {
         const { error: ue } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
         if (ue) throw new Error(`Upload ${path} failed: ${ue.message}`);
       };
+
+      // Upload files
       await up(`${base}/tracking.mp4`, trackingVideo);
-      await up(`${base}/target.jpg`, targetImage);
-      await up(`${base}/audio.mp3`, audioTrack);
+      const imageUrls: string[] = [];
+      for (let i = 0; i < targetImages.length; i++) {
+        const ext = targetImages[i].name.split('.').pop() || 'jpg';
+        const path = `${base}/target_${i}.${ext}`;
+        await up(path, targetImages[i]);
+        const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+        if (signed?.signedUrl) imageUrls.push(signed.signedUrl);
+      }
+      
+      let audioSignedUrl: string | null = null;
+      if (audioTrack) {
+        const audioExt = audioTrack.name.split('.').pop() || 'mp3';
+        await up(`${base}/audio.${audioExt}`, audioTrack);
+        const { data: a } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/audio.${audioExt}`, 3600);
+        if (a?.signedUrl) audioSignedUrl = a.signedUrl;
+      }
 
-      setCurrentStep('lipsync');
-      setGenerationStatus('processing');
-      setGenerationProgress(10);
-      setGenerationId(gid);
-
-      // 4) Signed URLs for Modal to download (1h)
       const { data: t } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/tracking.mp4`, 3600);
-      const { data: i } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/target.jpg`, 3600);
-      const { data: a } = await supabase.storage.from(BUCKET).createSignedUrl(`${base}/audio.mp3`, 3600);
-      if (!t?.signedUrl || !i?.signedUrl || !a?.signedUrl) throw new Error('Could not create signed URLs');
+      if (!t?.signedUrl || imageUrls.length === 0) throw new Error('Could not create signed URLs');
 
-      // 5) Call Modal
-      const res = await fetch(modalUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tracking_video_url: t.signedUrl,
-          target_image_url: i.signedUrl,
-          audio_track_url: a.signedUrl,
-          generation_id: gid,
-          generation_seconds: genSecs,
-          is_trial: user?.tier === 'free',
-          prompt: (prompt || '').slice(0, 100),
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j?.ok) throw new Error(j?.error || `Processing failed: ${res.status}`);
-
-      // 6) Poll generations
-      const poll = async (): Promise<void> => {
-        const { data: row } = await supabase.from('generations').select('status, error_message, final_video_r2_path').eq('id', gid).single();
-        if (row?.status === 'completed') {
-          setCurrentStep('complete');
-          setGenerationProgress(100);
-          setGenerationStatus('completed');
-          setIsGenerating(false);
-          // Fetch signed URL for video preview/playback
-          try {
-            const { data: urlData, error: urlError } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${gid}/final.mp4`, 3600);
-            if (!urlError && urlData?.signedUrl) {
-              setVideoUrl(urlData.signedUrl);
-            } else {
-              console.error('[vannilli] Failed to create video URL:', urlError);
+      if (useQueueSystem) {
+        // Use video_jobs queue system for DEMO/Industry
+        const { data: gen, error: ge } = await supabase
+          .from('generations')
+          .insert({ cost_credits: genSecs, status: 'pending' })
+          .select('id')
+          .single();
+        if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
+        
+        const { data: job, error: je } = await supabase
+          .from('video_jobs')
+          .insert({
+            user_id: uid,
+            generation_id: gen.id,
+            tier: userTier,
+            is_first_time: false, // TODO: detect first time
+            status: 'PENDING_ANALYSIS',
+            user_video_url: t.signedUrl,
+            master_audio_url: audioSignedUrl || t.signedUrl, // Use video audio if no separate audio
+            target_images: imageUrls,
+            prompt: (prompt || '').slice(0, 100) || null,
+          })
+          .select('id')
+          .single();
+        
+        if (je || !job?.id) throw new Error(je?.message || 'Failed to create video job');
+        
+        setGenerationId(gen.id);
+        setCurrentStep('lipsync');
+        setGenerationStatus('processing');
+        setGenerationProgress(15); // Start at 15% to ensure visibility
+        
+        // Poll for completion
+        const poll = async (): Promise<void> => {
+          const { data: row } = await supabase
+            .from('generations')
+            .select('status, error_message, final_video_r2_path')
+            .eq('id', gen.id)
+            .single();
+          
+          if (row?.status === 'completed') {
+            setCurrentStep('complete');
+            setGenerationProgress(100);
+            setGenerationStatus('completed');
+            setIsGenerating(false);
+            if (row.final_video_r2_path) {
+              const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(row.final_video_r2_path, 3600);
+              if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
             }
-          } catch (e) {
-            console.error('[vannilli] Error creating video URL:', e);
+            refreshUser();
+            return;
           }
-          refreshUser(); // refresh credits after trigger deducts
-          return;
-        }
-        if (row?.status === 'failed') {
-          setGenerationStatus('failed');
-          setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
-          setIsGenerating(false);
-          return;
-        }
-        setGenerationProgress((p) => Math.min(p + 15, 90));
-        setTimeout(poll, 4000);
-      };
-      setTimeout(poll, 3000);
+          if (row?.status === 'failed') {
+            setGenerationStatus('failed');
+            setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
+            setIsGenerating(false);
+            return;
+          }
+          // Update progress based on job status and chunks
+          const { data: jobData } = await supabase
+            .from('video_jobs')
+            .select('status, analysis_status')
+            .eq('id', job.id)
+            .single();
+          
+          const { data: chunks } = await supabase
+            .from('video_chunks')
+            .select('status, credits_charged')
+            .eq('job_id', job.id);
+          
+          const completedChunks = chunks?.filter(c => c.status === 'COMPLETED').length || 0;
+          const totalChunks = chunks?.length || 1;
+          
+          if (jobData?.analysis_status === 'ANALYZED') {
+            setGenerationProgress(20);
+            setCurrentStep('lipsync');
+          } else if (jobData?.status === 'PROCESSING') {
+            // Progress: 15% (analysis) + 70% (processing chunks) + 15% (finalizing)
+            const chunkProgress = totalChunks > 0 ? (completedChunks / totalChunks) * 70 : 0;
+            setGenerationProgress(Math.max(15, Math.min(15 + chunkProgress, 90)));
+            if (completedChunks > 0) {
+              setCurrentStep('syncing');
+            }
+          }
+          
+          setTimeout(poll, 4000);
+        };
+        setTimeout(poll, 3000);
+      } else {
+        // Legacy flow for lower tiers
+        const { data: proj, error: pe } = await supabase
+          .from('projects')
+          .insert({
+            user_id: uid,
+            track_name: 'Studio',
+            bpm: 120,
+            bars: 4,
+            duration_seconds: genSecs,
+            target_image_r2_path: `${base}/target_0.jpg`,
+            driver_video_r2_path: `${base}/tracking.mp4`,
+            prompt: (prompt || '').slice(0, 100) || null,
+            status: 'processing',
+          })
+          .select('id')
+          .single();
+        if (pe || !proj?.id) throw new Error(pe?.message || 'Failed to create project');
+
+        const { data: gen, error: ge } = await supabase
+          .from('generations')
+          .insert({ project_id: proj.id, cost_credits: genSecs, status: 'pending' })
+          .select('id')
+          .single();
+        if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
+        const gid = gen.id;
+
+        await supabase
+          .from('projects')
+          .update({
+            driver_video_r2_path: `${base}/tracking.mp4`,
+            target_image_r2_path: `${base}/target_0.jpg`,
+            audio_r2_path: audioTrack ? `${base}/audio.${audioTrack.name.split('.').pop() || 'mp3'}` : null,
+            prompt: (prompt || '').slice(0, 100) || null,
+          })
+          .eq('id', proj.id);
+
+        setCurrentStep('lipsync');
+        setGenerationStatus('processing');
+        setGenerationProgress(10);
+        setGenerationId(gid);
+
+        const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
+        if (!modalUrl) throw new Error('Processing endpoint not configured');
+
+          // 5) Call Modal (legacy flow)
+        const modalUrl = process.env.NEXT_PUBLIC_MODAL_PROCESS_VIDEO_URL;
+        if (!modalUrl) throw new Error('Processing endpoint not configured');
+        
+        const res = await fetch(modalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tracking_video_url: t.signedUrl,
+            target_image_url: imageUrls[0],
+            audio_track_url: audioSignedUrl,
+            generation_id: gid,
+            generation_seconds: genSecs,
+            is_trial: user?.tier === 'free',
+            prompt: (prompt || '').slice(0, 100),
+          }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j?.ok) throw new Error(j?.error || `Processing failed: ${res.status}`);
+
+        // 6) Poll generations (legacy flow)
+        const poll = async (): Promise<void> => {
+          const { data: row } = await supabase.from('generations').select('status, error_message, final_video_r2_path').eq('id', gid).single();
+          if (row?.status === 'completed') {
+            setCurrentStep('complete');
+            setGenerationProgress(100);
+            setGenerationStatus('completed');
+            setIsGenerating(false);
+            try {
+              const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${gid}/final.mp4`, 3600);
+              if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
+            } catch (e) {
+              console.error('[vannilli] Error creating video URL:', e);
+            }
+            refreshUser();
+            return;
+          }
+          if (row?.status === 'failed') {
+            setGenerationStatus('failed');
+            setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
+            setIsGenerating(false);
+            return;
+          }
+          setGenerationProgress((p) => Math.min(p + 10, 90));
+          setTimeout(poll, 4000);
+        };
+        setTimeout(poll, 3000);
+      }
     } catch (e) {
       setGenerationStatus('failed');
       setGenerationError(sanitizeForUser(e instanceof Error ? e.message : 'Generation failed'));
@@ -295,27 +434,42 @@ function StudioPage() {
               }
             />
 
-            {/* Image Upload */}
-            <MediaUpload
-              type="image"
-              label="2. Vannilli Image"
-              description="Character face to animate (your AI-generated image)"
-              accept="image/jpeg,image/png,image/webp"
-              onFileSelect={handleImageSelect}
-              preview={imagePreview}
-              icon={
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              }
-            />
+            {/* Image Upload - Multi-image for DEMO/Industry, single for others */}
+            {maxImages > 1 ? (
+              <MultiImageUpload
+                label="2. Vannilli Images"
+                description={`Character faces to animate (${maxImages} max, will cycle through chunks)`}
+                maxImages={maxImages}
+                onImagesSelect={handleImagesSelect}
+                previews={imagePreviews}
+                icon={
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                }
+              />
+            ) : (
+              <MediaUpload
+                type="image"
+                label="2. Vannilli Image"
+                description="Character face to animate (your AI-generated image)"
+                accept="image/jpeg,image/png,image/webp"
+                onFileSelect={(file) => handleImagesSelect([file])}
+                preview={imagePreviews[0] || null}
+                icon={
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                }
+              />
+            )}
 
-            {/* Audio Upload */}
+            {/* Audio Upload (Optional) */}
             <MediaUpload
               type="audio"
-              label="3. Vannilli Track"
-              description="Your music track (final audio for the video)"
-              accept="audio/wav,audio/wave"
+              label="3. Vannilli Track (Optional)"
+              description="Your music track (final audio for the video). If not provided, video will use audio from tracking video."
+              accept="audio/wav,audio/wave,audio/mp3,audio/mpeg,video/mp4"
               onFileSelect={handleAudioSelect}
               onDuration={setAudioDuration}
               preview={audioPreview}
@@ -351,7 +505,7 @@ function StudioPage() {
           <div className="space-y-6">
             <GenerationFlow
               hasVideo={!!trackingVideo}
-              hasImage={!!targetImage}
+              hasImage={hasImage}
               hasAudio={!!audioTrack}
               isGenerating={isGenerating}
               progress={generationProgress}
@@ -451,10 +605,10 @@ function StudioPage() {
                         return;
                       }
                       [videoPreview, imagePreview, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
-                      setTrackingVideo(null); setTargetImage(null); setAudioTrack(null);
+                      setTrackingVideo(null); setTargetImages([]); setAudioTrack(null);
                       setPrompt('');
                       setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
-                      setVideoPreview(null); setImagePreview(null); setAudioPreview(null);
+                      setVideoPreview(null); setImagePreviews([]); setAudioPreview(null);
                       setIsGenerating(false); setGenerationProgress(0); setCurrentStep('idle');
                       setGenerationStatus('pending'); setGenerationId(null); setGenerationError(null); setVideoUrl(null);
                       refreshUser();

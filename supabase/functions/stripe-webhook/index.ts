@@ -135,6 +135,26 @@ serve(async (req) => {
           .eq("stripe_subscription_id", subId)
           .single();
 
+        // Check if this is a DEMO tier subscription for credit reset
+        if (inv.customer) {
+          const { data: user } = await supabase
+            .from("users")
+            .select("id, tier")
+            .eq("stripe_customer_id", inv.customer)
+            .single();
+          
+          if (user && user.tier === "demo") {
+            // Reset DEMO tier credits to 20 (discard unused)
+            await supabase
+              .from("users")
+              .update({ credits_remaining: 20 })
+              .eq("id", user.id)
+              .eq("tier", "demo")
+              .execute();
+            console.log(`[stripe-webhook] Reset DEMO tier credits for user ${user.id} to 20`);
+          }
+        }
+        
         if (existing && start && end) {
           await supabase
             .from("subscriptions")
@@ -173,8 +193,9 @@ serve(async (req) => {
           }
         }
 
-        // Grant credits for Artist (80) and Label (330) on each paid invoice (first + renewals)
-        const SUBSCRIPTION_CREDITS: Record<string, number> = { artist: 80, label: 330 };
+        // Grant credits for Artist (80), Label (330), and Industry (1000) on each paid invoice (first + renewals)
+        // DEMO tier credits are reset above, not added here
+        const SUBSCRIPTION_CREDITS: Record<string, number> = { artist: 80, label: 330, industry: 1000 };
         const { data: subRow } = await supabase
           .from("subscriptions")
           .select("user_id, tier")

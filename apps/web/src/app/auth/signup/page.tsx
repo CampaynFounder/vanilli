@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -9,12 +10,21 @@ import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
 export default function SignUpPage() {
   const bgUrl = getAuthBackgroundUrl();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = searchParams?.get('ref');
+    if (ref && ref.trim()) {
+      localStorage.setItem('vannilli_referral_code', ref.trim());
+    }
+  }, [searchParams]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();

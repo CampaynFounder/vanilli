@@ -8,7 +8,7 @@ import { supabase, getSession, signOut as supabaseSignOut } from './supabase';
 export interface User {
   id: string;
   email: string;
-  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry';
+  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry' | 'demo';
   creditsRemaining: number;
   freeGenerationRedeemed: boolean;
   avatarUrl?: string;

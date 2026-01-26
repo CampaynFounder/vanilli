@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
 import { AppBackground } from '@/components/AppBackground';
 
-type Product = 'open_mic' | 'artist' | 'label';
+type Product = 'open_mic' | 'artist' | 'label' | 'industry' | 'demo';
 
 const PLANS: Array<{
   id: Product;
@@ -55,6 +55,28 @@ const PLANS: Array<{
     featured: true,
     features: ['3–9 second videos', '1 credit = 1 second', '330 credits per month', 'Watermarked downloads', 'Lip-sync + audio', 'High volume for serious creators'],
   },
+  {
+    id: 'industry',
+    name: 'Industry',
+    price: 199,
+    period: '/mo',
+    credits: 1000,
+    description: 'Professional tier for AI artist label deals.',
+    cta: 'Re-Up On Credits',
+    featured: false,
+    features: ['Up to 90 second videos', '1 credit = 1 second', '1000 credits per month', 'Auto-segmentation', 'No watermarks', 'Priority processing'],
+  },
+  {
+    id: 'demo',
+    name: 'DEMO',
+    price: 0,
+    period: '/day',
+    credits: 20,
+    description: 'Investor demo tier - 20 credits per day (no rollover).',
+    cta: 'Enroll',
+    featured: false,
+    features: ['Up to 20 second videos', '1 credit = 1 second', '20 credits per day', 'Tempo-based chunking', 'Multi-image support', 'No watermarks'],
+  },
 ];
 
 const cardSpring: Transition = { type: 'spring', stiffness: 380, damping: 28 };
@@ -74,7 +96,7 @@ export default function PricingPage() {
   const router = useRouter();
   const { user, loading: authLoading, session, signOut } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const planRefs = useRef<Record<Product, HTMLDivElement | null>>({ open_mic: null, artist: null, label: null });
+  const planRefs = useRef<Record<Product, HTMLDivElement | null>>({ open_mic: null, artist: null, label: null, industry: null, demo: null });
   const [focusedPlan, setFocusedPlan] = useState<Product>('label');
   const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
 
@@ -243,7 +265,7 @@ export default function PricingPage() {
         )}
         <div
           ref={scrollRef}
-          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto overflow-y-visible pt-6 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
+          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 overflow-x-auto overflow-y-visible pt-6 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
         >
           {PLANS.map((p) => {
             const isFocused = focusedPlan === p.id;

@@ -17,7 +17,7 @@ import { AppBackground } from '@/components/AppBackground';
 interface ProfileData {
   id: string;
   email: string;
-  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry';
+  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry' | 'demo';
   creditsRemaining: number;
   freeGenerationRedeemed: boolean;
   avatarUrl?: string;

@@ -50,7 +50,7 @@ export function GenerationFlow({
     { id: 'complete', label: 'Complete!', icon: '✅' },
   ];
 
-  const allFilesReady = hasVideo && hasImage && hasAudio;
+  const allFilesReady = hasVideo && hasImage; // Audio is optional
   const canGenerate = allFilesReady && durationValid === true && hasCredits;
 
   const getStepStatus = (stepId: string) => {
@@ -117,10 +117,10 @@ export function GenerationFlow({
                   </div>
                   {status === 'active' && (
                     <div className="mt-1">
-                      <div className="w-full bg-slate-800 rounded-full h-1.5">
+                      <div className="w-full bg-slate-800 rounded-full h-1.5 relative">
                         <div
                           className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${Math.max(10, progress)}%` }}
                         />
                       </div>
                     </div>
@@ -177,18 +177,18 @@ export function GenerationFlow({
           ) : !hasCredits && allFilesReady && durationValid === true && showLinkCard ? (
             'Add a payment method above to get 3 free credits'
           ) : allFilesReady && durationValid === false ? (
-            durationError || 'Fix duration (3–9s, video and audio same length)'
-          ) : allFilesReady && hasVideo && hasAudio && durationValid !== true ? (
+            durationError || 'Fix duration (3–9s video, audio must match if provided)'
+          ) : allFilesReady && hasVideo && durationValid !== true ? (
             'Checking durations...'
           ) : (
-            '📤 Upload All 3 Files to Start'
+            '📤 Upload Video & Image to Start (Audio Optional)'
           )}
         </button>
       )}
 
       {!allFilesReady && (
         <p className="text-xs text-slate-400 text-center mt-2">
-          Need: {!hasVideo && 'Video'} {!hasImage && 'Image'} {!hasAudio && 'Audio'}
+          Need: {!hasVideo && 'Video'} {!hasImage && 'Image'} {hasVideo && hasImage && !hasAudio && '(Audio optional)'}
         </p>
       )}
       {allFilesReady && durationValid === true && generationSeconds != null && (

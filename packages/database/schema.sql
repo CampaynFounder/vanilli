@@ -21,7 +21,7 @@ BEGIN
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       stripe_customer_id TEXT UNIQUE,
-      tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'open_mic', 'indie_artist', 'artist', 'label')),
+      tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'open_mic', 'artist', 'label', 'industry', 'demo')),
       credits_remaining INTEGER NOT NULL DEFAULT 0,
       free_generation_redeemed BOOLEAN NOT NULL DEFAULT false,
       device_fingerprint TEXT,
@@ -36,6 +36,10 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer ON users(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_users_device_fingerprint ON users(device_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_users_tier ON users(tier);
+
+-- User profile fields (idempotent for existing installs)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+CREATE INDEX IF NOT EXISTS idx_users_avatar_url ON users(avatar_url) WHERE avatar_url IS NOT NULL;
 
 -- ============================================================================
 -- PROJECTS TABLE
@@ -93,7 +97,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   stripe_subscription_id TEXT UNIQUE NOT NULL,
-  tier TEXT NOT NULL CHECK (tier IN ('open_mic', 'indie_artist', 'artist', 'label')),
+  tier TEXT NOT NULL CHECK (tier IN ('open_mic', 'artist', 'label', 'industry', 'demo')),
   status TEXT NOT NULL CHECK (status IN ('active', 'canceled', 'past_due', 'paused')),
   current_period_start TIMESTAMPTZ NOT NULL,
   current_period_end TIMESTAMPTZ NOT NULL,
@@ -147,6 +151,26 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_user_id)
 CREATE INDEX IF NOT EXISTS idx_referrals_code ON referrals(referral_code);
 CREATE INDEX IF NOT EXISTS idx_referrals_status ON referrals(status);
 
+-- Additional referral metadata
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS referred_product TEXT;
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS referrer_tier_at_signup TEXT;
+
+-- ============================================================================
+-- REFERRAL REWARDS (configurable credit rewards per tier/product)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_tier TEXT NOT NULL CHECK (referrer_tier IN ('free', 'open_mic', 'artist', 'label', 'industry', 'demo')),
+  referred_product TEXT NOT NULL CHECK (referred_product IN ('open_mic', 'artist', 'label', 'industry', 'topup')),
+  credits_awarded INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(referrer_tier, referred_product)
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_rewards_referrer_tier ON referral_rewards(referrer_tier);
+CREATE INDEX IF NOT EXISTS idx_referral_rewards_referred_product ON referral_rewards(referred_product);
+
 -- ============================================================================
 -- CONTENT REPORTS TABLE (for moderation)
 -- ============================================================================
@@ -178,6 +202,7 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE referral_rewards ENABLE ROW LEVEL SECURITY;
 
 -- Users: Can only read/update their own data
 DROP POLICY IF EXISTS users_select_own ON users;
@@ -215,6 +240,28 @@ CREATE POLICY audit_log_select_own ON audit_log FOR SELECT USING (auth.uid() = u
 DROP POLICY IF EXISTS referrals_select_own ON referrals;
 CREATE POLICY referrals_select_own ON referrals FOR SELECT
   USING (auth.uid() = referrer_user_id OR auth.uid() = referred_user_id);
+DROP POLICY IF EXISTS referrals_insert_own ON referrals;
+CREATE POLICY referrals_insert_own ON referrals FOR INSERT
+  WITH CHECK (
+    auth.uid() = referrer_user_id
+    AND referred_user_id IS NULL
+    AND status = 'pending'
+    AND credits_awarded = 0
+  );
+
+-- Referral rewards: Authenticated read, service-role manage
+DROP POLICY IF EXISTS referral_rewards_select_authenticated ON referral_rewards;
+CREATE POLICY referral_rewards_select_authenticated ON referral_rewards FOR SELECT
+  TO authenticated
+  USING (true);
+DROP POLICY IF EXISTS referral_rewards_insert_service_role ON referral_rewards;
+CREATE POLICY referral_rewards_insert_service_role ON referral_rewards FOR INSERT
+  TO service_role
+  WITH CHECK (true);
+DROP POLICY IF EXISTS referral_rewards_update_service_role ON referral_rewards;
+CREATE POLICY referral_rewards_update_service_role ON referral_rewards FOR UPDATE
+  TO service_role
+  USING (true);
 
 -- Content Reports: Users can insert reports and see their own
 DROP POLICY IF EXISTS content_reports_select_own ON content_reports;
@@ -325,6 +372,70 @@ BEGIN
   RETURN v_new_balance;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Apply referral credit on signup/activation
+CREATE OR REPLACE FUNCTION apply_referral(
+  p_referral_code TEXT,
+  p_referred_product TEXT
+)
+RETURNS TABLE (referral_id UUID, credits_awarded INTEGER, referrer_user_id UUID) AS $$
+DECLARE
+  v_referral RECORD;
+  v_referrer_tier TEXT;
+  v_reward INTEGER;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated';
+  END IF;
+
+  SELECT * INTO v_referral
+  FROM referrals
+  WHERE referral_code = p_referral_code
+  LIMIT 1
+  FOR UPDATE;
+
+  IF v_referral IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF v_referral.referred_user_id IS NOT NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT tier INTO v_referrer_tier
+  FROM users
+  WHERE id = v_referral.referrer_user_id;
+
+  SELECT credits_awarded INTO v_reward
+  FROM referral_rewards
+  WHERE referrer_tier = v_referrer_tier
+    AND referred_product = p_referred_product
+  LIMIT 1;
+
+  UPDATE referrals
+  SET referred_user_id = auth.uid(),
+      status = 'completed',
+      credits_awarded = COALESCE(v_reward, 0),
+      referred_product = p_referred_product,
+      referrer_tier_at_signup = v_referrer_tier,
+      completed_at = NOW()
+  WHERE id = v_referral.id;
+
+  IF COALESCE(v_reward, 0) > 0 THEN
+    PERFORM add_credits(v_referral.referrer_user_id, v_reward);
+    PERFORM log_user_action(
+      v_referral.referrer_user_id,
+      'referral_credit_earned',
+      'referrals',
+      v_referral.id,
+      jsonb_build_object('credits', v_reward, 'referred_product', p_referred_product)
+    );
+  END IF;
+
+  RETURN QUERY SELECT v_referral.id, COALESCE(v_reward, 0), v_referral.referrer_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION apply_referral(TEXT, TEXT) TO authenticated;
 
 -- ============================================================================
 -- EMAIL COLLECTIONS TABLE (Pre-Launch Signups)

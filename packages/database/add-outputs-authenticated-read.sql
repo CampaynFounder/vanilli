@@ -16,7 +16,7 @@ CREATE POLICY "outputs_authenticated_select" ON storage.objects
       SELECT 1 
       FROM public.generations g
       JOIN public.projects p ON p.id = g.project_id
-      WHERE g.final_video_r2_path = ('vannilli/' || storage.objects.name)
+      WHERE g.final_video_r2_path = storage.objects.name
         AND p.user_id = auth.uid()
     )
   );

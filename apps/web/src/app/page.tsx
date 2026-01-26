@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Calculator } from '@/components/Calculator';
@@ -8,6 +9,14 @@ import { useSignupModal } from '@/hooks/useSignupModal';
 
 export default function HomePage() {
   const { showModal } = useSignupModal();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref && ref.trim()) {
+      localStorage.setItem('vannilli_referral_code', ref.trim());
+    }
+  }, []);
 
   const handlePreLaunchLink = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();

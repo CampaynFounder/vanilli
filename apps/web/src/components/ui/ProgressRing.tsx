@@ -51,8 +51,8 @@ export function ProgressRing({
       </svg>
       {/* Center text */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-2xl font-bold text-white">
-          {Math.round(progress)}%
+        <span className="text-2xl font-bold text-white drop-shadow-lg">
+          {Math.round(Math.max(0, progress))}%
         </span>
       </div>
     </div>
