@@ -61,22 +61,22 @@ function HistoryPage() {
       <div className="relative z-10">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <Logo width={120} height={40} className="h-12 md:h-14" />
+            <div className="flex items-center gap-6 md:gap-8">
+              <Logo width={120} height={40} className="h-14 md:h-16" />
               <div className="flex items-center gap-4 md:gap-6">
-                <Link href="/profile" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Profile">
-                  <img src="/icons/nav/profile.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                <Link href="/profile" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Profile">
+                  <img src="/icons/nav/profile.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
                 </Link>
-                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
-                  <img src="/icons/nav/studio.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Studio">
+                  <img src="/icons/nav/studio.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
                 </Link>
-                <Link href="/history" className="opacity-100 transition-opacity" aria-label="History">
-                  <img src="/icons/nav/history.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                <Link href="/history" className="opacity-100 transition-opacity flex items-center" aria-label="History">
+                  <img src="/icons/nav/history.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
                 </Link>
-                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity" aria-label="Pricing">
-                  <img src="/icons/nav/pricing.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Pricing">
+                  <img src="/icons/nav/pricing.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
                 </Link>
               </div>
             </div>

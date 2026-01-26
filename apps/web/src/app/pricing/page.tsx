@@ -194,10 +194,10 @@ export default function PricingPage() {
       <div className="relative z-10">
       {/* Header */}
       <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-between">
             <Link href={user ? '/profile' : '/'} className="flex items-center">
-              <Logo width={120} height={40} className="h-12 md:h-14" />
+              <Logo width={120} height={40} className="h-14 md:h-16" />
             </Link>
             <div className="flex items-center gap-4">
               {!user && (
@@ -206,12 +206,12 @@ export default function PricingPage() {
                 </Link>
               )}
               <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
-                <img src="/icons/nav/pricing.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                <img src="/icons/nav/pricing.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
               </Link>
               {user ? (
                 <>
                   <Link href="/studio" className="flex items-center opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
-                    <img src="/icons/nav/studio.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
+                    <img src="/icons/nav/studio.png" alt="" className="h-[60px] md:h-[64px] w-auto object-contain" />
                   </Link>
                   <button
                     onClick={async () => { await signOut(); router.push('/'); }}
