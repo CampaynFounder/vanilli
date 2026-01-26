@@ -9,8 +9,15 @@
 
 /* Ultra-dark theme base */
 @layer base {
+  html {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
   body {
     @apply bg-slate-950 text-slate-100;
+    overflow-x: hidden;
+    max-width: 100vw;
+    position: relative;
   }
 }
 
