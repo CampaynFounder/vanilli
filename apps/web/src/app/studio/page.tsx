@@ -46,6 +46,7 @@ function StudioPage() {
   const [generationStatus, setGenerationStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   // Client-side: 3–9s, same length, length must not exceed credits. 1 credit = 1 second. Use whole seconds only (floor).
   const DURATION_MATCH_TOLERANCE = 0.5;
@@ -197,6 +198,17 @@ function StudioPage() {
           setGenerationProgress(100);
           setGenerationStatus('completed');
           setIsGenerating(false);
+          // Fetch signed URL for video preview/playback
+          try {
+            const { data: urlData, error: urlError } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${gid}/final.mp4`, 3600);
+            if (!urlError && urlData?.signedUrl) {
+              setVideoUrl(urlData.signedUrl);
+            } else {
+              console.error('[vannilli] Failed to create video URL:', urlError);
+            }
+          } catch (e) {
+            console.error('[vannilli] Error creating video URL:', e);
+          }
           refreshUser(); // refresh credits after trigger deducts
           return;
         }
@@ -394,11 +406,38 @@ function StudioPage() {
             <GenerationPreview
               status={generationStatus}
               progress={generationProgress}
+              videoUrl={videoUrl}
               onDownloadClick={
                 generationId
                   ? async () => {
-                      const { data } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${generationId}/final.mp4`, 3600);
-                      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                      try {
+                        // Use existing videoUrl if available, otherwise create a new signed URL
+                        let downloadUrl = videoUrl;
+                        if (!downloadUrl) {
+                          const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${generationId}/final.mp4`, 3600);
+                          if (error) {
+                            console.error('[vannilli] Download failed:', error);
+                            setGenerationError(`Download failed: ${error.message || 'Could not create download link'}`);
+                            return;
+                          }
+                          downloadUrl = data?.signedUrl || null;
+                        }
+                        if (downloadUrl) {
+                          // Create a temporary anchor to trigger download
+                          const a = document.createElement('a');
+                          a.href = downloadUrl;
+                          a.download = `vannilli-video-${generationId}.mp4`;
+                          a.target = '_blank';
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        } else {
+                          setGenerationError('Download link not available');
+                        }
+                      } catch (e) {
+                        console.error('[vannilli] Download error:', e);
+                        setGenerationError('Download failed. Please try again.');
+                      }
                     }
                   : undefined
               }
@@ -417,7 +456,7 @@ function StudioPage() {
                       setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
                       setVideoPreview(null); setImagePreview(null); setAudioPreview(null);
                       setIsGenerating(false); setGenerationProgress(0); setCurrentStep('idle');
-                      setGenerationStatus('pending'); setGenerationId(null); setGenerationError(null);
+                      setGenerationStatus('pending'); setGenerationId(null); setGenerationError(null); setVideoUrl(null);
                       refreshUser();
                     }
                   : undefined

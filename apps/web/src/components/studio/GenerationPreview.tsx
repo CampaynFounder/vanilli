@@ -12,10 +12,13 @@ interface GenerationPreviewProps {
   onDownloadClick?: () => void;
   /** When provided, completed state shows "Create another" — call when user has 9+ credits to reset flow. */
   onCreateAnother?: () => void;
+  /** Signed URL for the completed video (for preview/playback). */
+  videoUrl?: string | Promise<string | null> | null;
 }
 
-export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother }: GenerationPreviewProps) {
+export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl }: GenerationPreviewProps) {
   const [showNoise, setShowNoise] = useState(true);
+  const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'processing') {
@@ -24,6 +27,21 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
       return () => clearTimeout(timer);
     }
   }, [status]);
+
+  // Resolve videoUrl promise if needed
+  useEffect(() => {
+    if (status === 'completed' && videoUrl) {
+      if (typeof videoUrl === 'string') {
+        setResolvedVideoUrl(videoUrl);
+      } else if (videoUrl instanceof Promise) {
+        videoUrl.then((url) => setResolvedVideoUrl(url || null)).catch(() => setResolvedVideoUrl(null));
+      } else {
+        setResolvedVideoUrl(null);
+      }
+    } else {
+      setResolvedVideoUrl(null);
+    }
+  }, [status, videoUrl]);
 
   if (status === 'pending') {
     return (
@@ -70,28 +88,59 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
   if (status === 'completed') {
     return (
       <div className="relative aspect-video bg-slate-900 rounded-3xl overflow-hidden glass-card-elevated">
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center space-y-3">
-            <div className="text-6xl mb-4">✅</div>
-            <p className="text-2xl font-bold text-white mb-2">Video Ready!</p>
-            <div className="flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={onDownloadClick}
-                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all tap-effect animate-glow-pulse"
-              >
-                Download Video
-              </button>
+        {resolvedVideoUrl ? (
+          <>
+            <video
+              src={resolvedVideoUrl}
+              controls
+              className="w-full h-full object-contain bg-black"
+              preload="metadata"
+            />
+            <div className="absolute bottom-4 left-0 right-0 flex flex-wrap gap-3 justify-center px-4">
+              {onDownloadClick && (
+                <button
+                  onClick={onDownloadClick}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all tap-effect animate-glow-pulse shadow-lg"
+                >
+                  Download Video
+                </button>
+              )}
               {onCreateAnother && (
                 <button
                   onClick={onCreateAnother}
-                  className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold rounded-lg transition-all"
+                  className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold rounded-lg transition-all shadow-lg"
                 >
                   Create another
                 </button>
               )}
             </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-3">
+              <div className="text-6xl mb-4">✅</div>
+              <p className="text-2xl font-bold text-white mb-2">Video Ready!</p>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {onDownloadClick && (
+                  <button
+                    onClick={onDownloadClick}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all tap-effect animate-glow-pulse"
+                  >
+                    Download Video
+                  </button>
+                )}
+                {onCreateAnother && (
+                  <button
+                    onClick={onCreateAnother}
+                    className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white font-semibold rounded-lg transition-all"
+                  >
+                    Create another
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
