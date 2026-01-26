@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, withAuth } from '@/lib/auth';
@@ -17,7 +17,7 @@ import { AppBackground } from '@/components/AppBackground';
 interface ProfileData {
   id: string;
   email: string;
-  tier: 'free' | 'open_mic' | 'indie_artist' | 'artist' | 'label';
+  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry';
   creditsRemaining: number;
   freeGenerationRedeemed: boolean;
   avatarUrl?: string;
@@ -57,11 +57,17 @@ interface ReferralData {
   }>;
 }
 
+interface ReferralReward {
+  referredProduct: string;
+  creditsAwarded: number;
+}
+
 function ProfilePage() {
   const router = useRouter();
   const { user: authUser, session, refreshUser, signOut } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [referralData, setReferralData] = useState<ReferralData | null>(null);
+  const [referralRewards, setReferralRewards] = useState<ReferralReward[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLinkBanner, setShowLinkBanner] = useState(false);
 
@@ -78,7 +84,7 @@ function ProfilePage() {
     fetchProfileAndReferrals();
   };
 
-  const fetchProfileAndReferrals = async () => {
+  const fetchProfileAndReferrals = useCallback(async () => {
     if (!session?.user?.id) return;
     const uid = session.user.id;
     try {
@@ -88,11 +94,34 @@ function ProfilePage() {
         let refCode = '';
         const { data: rData } = await supabase.from('referrals').select('referral_code').eq('referrer_user_id', uid).limit(1);
         const r = Array.isArray(rData) && rData.length > 0 ? rData[0] : null;
-        if (r?.referral_code) refCode = r.referral_code;
-        else refCode = `VANNI-${uid.slice(0, 8).toUpperCase()}`;
+        if (r?.referral_code) {
+          refCode = r.referral_code;
+        } else {
+          refCode = `VANNI-${uid.slice(0, 8).toUpperCase()}`;
+          const { error: insertErr } = await supabase
+            .from('referrals')
+            .insert({
+              referrer_user_id: uid,
+              referral_code: refCode,
+              status: 'pending',
+              credits_awarded: 0,
+              referred_user_id: null,
+            });
+          if (insertErr) console.warn('[vannilli] referral code insert failed:', insertErr);
+        }
         const { data: subData, error: subErr } = await supabase.from('subscriptions').select('status,tier,current_period_end').eq('user_id', uid).eq('status', 'active').limit(1);
         const sub = !subErr && Array.isArray(subData) && subData.length > 0 ? subData[0] : null;
         setProfile({ id: u.id, email: u.email, tier: u.tier, creditsRemaining: u.credits_remaining ?? 0, freeGenerationRedeemed: u.free_generation_redeemed ?? false, avatarUrl: u.avatar_url, referralCode: refCode, createdAt: u.created_at, stripeCustomerId: u.stripe_customer_id ?? null, paymentMethodLast4: u.payment_method_last4 ?? null, paymentMethodBrand: u.payment_method_brand ?? null, hasValidCard: u.has_valid_card === true, subscription: sub ? { status: sub.status, tier: sub.tier, currentPeriodEnd: sub.current_period_end } : undefined });
+        const { data: rewardRows } = await supabase
+          .from('referral_rewards')
+          .select('referred_product, credits_awarded')
+          .eq('referrer_tier', u.tier);
+        setReferralRewards(
+          (rewardRows || []).map((row) => ({
+            referredProduct: row.referred_product,
+            creditsAwarded: row.credits_awarded ?? 0,
+          }))
+        );
       }
       const { data: refs } = await supabase.from('referrals').select('id,referral_code,credits_awarded,status,referred_product,created_at,completed_at,referred_user_id').eq('referrer_user_id', uid).order('created_at', { ascending: false });
       if (refs?.length) {
@@ -103,27 +132,60 @@ function ProfilePage() {
       } else setReferralData({ stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  };
+  }, [session]);
 
   useEffect(() => {
     fetchProfileAndReferrals();
-  }, [session]);
+  }, [fetchProfileAndReferrals]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     const setup = q.get('setup');
-    if (setup === 'success' || setup === 'cancel') {
-      let n = 0;
-      const run = () => {
-        refreshUser();
-        n++;
-        if (setup === 'success' && n < 6) setTimeout(run, 1500);
-        else window.history.replaceState(null, '', '/profile');
+    const setupIntentId = q.get('setup_intent');
+    const setupIntentClientSecret = q.get('setup_intent_client_secret');
+    
+    if (setup === 'success' || setupIntentId || setupIntentClientSecret) {
+      // Handle redirect from Cash App or other payment methods
+      const handleRedirect = async () => {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!url || !session?.access_token) return;
+        
+        // If we have setup_intent_id in URL, register it (Cash App mobile redirect)
+        if (setupIntentId && setupIntentId.startsWith('seti_')) {
+          try {
+            const res = await fetch(`${url}/functions/v1/register-user`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({ setup_intent_id: setupIntentId }),
+            });
+            const j = (await res.json().catch(() => ({}))) as { error?: string; credits_remaining?: number; payment_method_already_used?: boolean };
+            if (res.ok && j.credits_remaining !== undefined) {
+              refreshUser();
+              fetchProfileAndReferrals();
+              window.history.replaceState(null, '', '/profile');
+              return;
+            }
+          } catch (e) {
+            console.error('[profile] Redirect registration error:', e);
+          }
+        }
+        
+        // Fallback: poll for success (for web QR code flow or if setup_intent_id not in URL)
+        let n = 0;
+        const run = () => {
+          refreshUser();
+          fetchProfileAndReferrals();
+          n++;
+          if (setup === 'success' && n < 6) setTimeout(run, 1500);
+          else window.history.replaceState(null, '', '/profile');
+        };
+        run();
       };
-      run();
+      handleRedirect();
     }
-  }, [refreshUser]);
+  }, [refreshUser, fetchProfileAndReferrals]);
 
   if (loading) {
     return (
@@ -138,16 +200,19 @@ function ProfilePage() {
 
   const displayProfile: ProfileData = profile || { id: authUser?.id || '', email: authUser?.email || '', tier: authUser?.tier || 'free', creditsRemaining: authUser?.creditsRemaining ?? 0, freeGenerationRedeemed: authUser?.freeGenerationRedeemed ?? false, avatarUrl: authUser?.avatarUrl, referralCode: authUser?.id ? `VANNI-${authUser.id.slice(0, 8).toUpperCase()}` : '', createdAt: new Date().toISOString(), stripeCustomerId: null, paymentMethodLast4: null, paymentMethodBrand: null, hasValidCard: authUser?.hasValidCard ?? false };
   const displayReferralData: ReferralData = referralData || { stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] };
+  const displayReferralRewards = referralRewards;
   // Prefer session (auth) email when public.users has the uuid@auth.local placeholder
   const displayEmail = (displayProfile.email && !displayProfile.email.endsWith('@auth.local')) ? displayProfile.email : (session?.user?.email || displayProfile.email || '');
 
-  const referredUsers = displayReferralData.referrals.map((r) => ({
-    email: r.referredUser?.email || 'Unknown',
-    tier: r.referredUser?.tier || 'unknown',
-    signedUpAt: r.referredUser?.signedUpAt || r.createdAt,
-    status: r.status,
-    creditsAwarded: r.creditsAwarded,
-  }));
+  const referredUsers = displayReferralData.referrals
+    .filter((r) => r.referredUser)
+    .map((r) => ({
+      email: r.referredUser?.email || 'Unknown',
+      tier: r.referredUser?.tier || 'unknown',
+      signedUpAt: r.referredUser?.signedUpAt || r.createdAt,
+      status: r.status,
+      creditsAwarded: r.creditsAwarded,
+    }));
 
   return (
     <div className="min-h-screen relative">
@@ -292,6 +357,7 @@ function ProfilePage() {
               pendingReferrals={displayReferralData.stats.pendingReferrals}
               totalCreditsEarned={displayReferralData.stats.totalCreditsEarned}
               referredUsers={referredUsers}
+              rewardConfig={displayReferralRewards}
             />
           </div>
         </div>

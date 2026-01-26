@@ -37,18 +37,27 @@ function LinkPaymentForm({
         setSubmitting(false);
         return;
       }
-      const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/profile` : '/profile';
+      const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/profile?setup=success` : '/profile?setup=success';
       const { error, setupIntent } = await stripe.confirmSetup({
         elements,
         clientSecret,
         confirmParams: { return_url: returnUrl },
         redirect: 'if_required',
       });
+      
+      // Handle redirect case (Cash App on mobile redirects to Cash App app)
+      if (!setupIntent && !error) {
+        // Redirect happened - the return_url will handle it
+        // Don't set submitting to false, let the redirect happen
+        return;
+      }
+      
       if (error) {
         onError(error.message || 'Could not confirm');
         setSubmitting(false);
         return;
       }
+      
       if (setupIntent?.status === 'succeeded' && setupIntent.id) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const { data: { session } } = await supabase.auth.getSession();
