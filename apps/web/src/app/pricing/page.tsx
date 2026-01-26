@@ -206,12 +206,12 @@ export default function PricingPage() {
                 </Link>
               )}
               <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
-                <img src="/icons/nav/pricing.png" alt="" className="h-10 md:h-11 w-auto object-contain" />
+                <img src="/icons/nav/pricing.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
               </Link>
               {user ? (
                 <>
                   <Link href="/studio" className="flex items-center opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
-                    <img src="/icons/nav/studio.png" alt="" className="h-10 md:h-11 w-auto object-contain" />
+                    <img src="/icons/nav/studio.png" alt="" className="h-15 md:h-16 w-auto object-contain" />
                   </Link>
                   <button
                     onClick={async () => { await signOut(); router.push('/'); }}
