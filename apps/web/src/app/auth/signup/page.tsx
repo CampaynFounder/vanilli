@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -8,15 +8,8 @@ import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
-export default function SignUpPage() {
-  const bgUrl = getAuthBackgroundUrl();
+function ReferralHandler() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -25,6 +18,18 @@ export default function SignUpPage() {
       localStorage.setItem('vannilli_referral_code', ref.trim());
     }
   }, [searchParams]);
+
+  return null;
+}
+
+function SignUpForm() {
+  const bgUrl = getAuthBackgroundUrl();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,20 +80,24 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative">
-      {/* Background image + overlay for legibility */}
-      <div className="absolute inset-0 z-0">
-        <div
-          className="absolute inset-0 bg-slate-950"
-          style={{
-            backgroundImage: `url(${bgUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-        <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
-      </div>
-      <div className="relative z-10 w-full max-w-md">
+    <>
+      <Suspense fallback={null}>
+        <ReferralHandler />
+      </Suspense>
+      <div className="min-h-screen flex items-center justify-center px-4 relative">
+        {/* Background image + overlay for legibility */}
+        <div className="absolute inset-0 z-0">
+          <div
+            className="absolute inset-0 bg-slate-950"
+            style={{
+              backgroundImage: `url(${bgUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+          <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
+        </div>
+        <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <Logo width={200} height={67} className="h-16 mb-2" />
@@ -190,6 +199,11 @@ export default function SignUpPage() {
           </Link>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
+}
+
+export default function SignUpPage() {
+  return <SignUpForm />;
 }
