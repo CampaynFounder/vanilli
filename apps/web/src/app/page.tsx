@@ -100,7 +100,7 @@ export default function HomePage() {
           </h1>
           
           <p className="text-xl text-white max-w-2xl mx-auto drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] font-semibold">
-            Bring Your AI Artist To Life with Perfect Lip Sync
+            Stop wondering how AI Artists are getting signed. Create Yours Now. Don't Miss the Major Label Bag.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center pt-4 w-full sm:w-auto">
