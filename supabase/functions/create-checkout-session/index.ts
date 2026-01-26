@@ -30,6 +30,7 @@ serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
+    console.error("[create-checkout-session] Missing or invalid Authorization header");
     return new Response(JSON.stringify({ error: "Sign in to continue" }), {
       status: 401,
       headers: { ...cors, "Content-Type": "application/json" },
@@ -53,7 +54,8 @@ serve(async (req) => {
   const supabaseAuth = createClient(supabaseUrl, supabaseAnon);
   const { data: { user }, error: authErr } = await supabaseAuth.auth.getUser(token);
   if (authErr || !user?.id) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    console.error("[create-checkout-session] Auth error:", authErr?.message || "No user");
+    return new Response(JSON.stringify({ error: "Unauthorized", details: authErr?.message }), {
       status: 401,
       headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -70,6 +72,7 @@ serve(async (req) => {
   }
 
   const product = body.product as Product | undefined;
+  console.log("[create-checkout-session] Processing request for product:", product);
   if (!product || !PRODUCTS[product]) {
     return new Response(JSON.stringify({ error: "Invalid product" }), {
       status: 400,
