@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { CountdownTimer } from './CountdownTimer';
 import { shouldShowCountdown } from '@/config/launch';
 import { useSignupModal } from '@/hooks/useSignupModal';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
 export function SignupForm() {
   const { session } = useAuth();
+  const bgUrl = getAuthBackgroundUrl();
   const [isVisible, setIsVisible] = useState(false);
   const [hasShown, setHasShown] = useState(false);
   const [showBackdrop, setShowBackdrop] = useState(false);

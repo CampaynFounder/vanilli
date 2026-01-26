@@ -62,7 +62,7 @@ function SignInForm() {
             backgroundPosition: 'center',
           }}
         />
-        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+        <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
       </div>
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
@@ -171,7 +171,7 @@ function SignInFallback() {
             backgroundPosition: 'center',
           }}
         />
-        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+        <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
       </div>
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
         <Logo width={200} height={67} className="h-16 mb-4" />

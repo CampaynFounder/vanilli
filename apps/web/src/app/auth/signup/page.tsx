@@ -76,7 +76,7 @@ export default function SignUpPage() {
             backgroundPosition: 'center',
           }}
         />
-        <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+        <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
       </div>
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
