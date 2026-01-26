@@ -7,6 +7,10 @@ interface ReferralStatsProps {
   completedReferrals: number;
   pendingReferrals: number;
   totalCreditsEarned: number;
+  rewardConfig?: Array<{
+    referredProduct: string;
+    creditsAwarded: number;
+  }>;
   referredUsers: Array<{
     email: string;
     tier: string;
@@ -21,8 +25,13 @@ export function ReferralStats({
   completedReferrals,
   pendingReferrals,
   totalCreditsEarned,
+  rewardConfig = [],
   referredUsers,
 }: ReferralStatsProps) {
+  const sortedRewards = [...rewardConfig].sort((a, b) => a.referredProduct.localeCompare(b.referredProduct));
+  const formatProduct = (value: string) =>
+    value ? value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
+
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
@@ -55,6 +64,23 @@ export function ReferralStats({
           <div className="text-xs text-slate-400">Credits Earned</div>
         </GlassCard>
       </div>
+
+      {sortedRewards.length > 0 && (
+        <GlassCard>
+          <h3 className="text-lg font-semibold text-white mb-4">Referral Rewards</h3>
+          <div className="space-y-2">
+            {sortedRewards.map((reward) => (
+              <div
+                key={`${reward.referredProduct}-${reward.creditsAwarded}`}
+                className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg"
+              >
+                <div className="text-sm text-slate-200">{formatProduct(reward.referredProduct)}</div>
+                <div className="text-sm font-semibold text-purple-300">+{reward.creditsAwarded} credits</div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {/* Referred Users List */}
       {referredUsers.length > 0 && (
