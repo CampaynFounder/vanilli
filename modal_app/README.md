@@ -147,3 +147,26 @@ If the video API (or the **Generate JWT** / **Verify** flow on `/debug`) returns
 
 5. **Redeploy**  
    After changing `vannilli-secrets`, run `./modal_app/deploy.sh` again so the new values are used.
+
+## Troubleshooting: "Video generation failed. Please try again. If it persists, contact VANNILLI support."
+
+This means the **video API returned an HTTP error (4xx/5xx)** on the request that starts the generation. The JSON response now includes `video_api_status` (e.g. 401, 400, 403, 500) to help narrow it down.
+
+**See the full error in Modal logs:**
+
+1. **Modal dashboard:** [modal.com](https://modal.com) → your app `vannilli-process-video` → **Logs** for the run that processed the request. Look for:
+   - `[vannilli] Kling start FAIL: ...` — includes HTTP status and the API response body.
+
+2. **CLI:**
+   ```bash
+   modal app logs vannilli-process-video
+   ```
+   Or for a specific run, use the run ID from the dashboard.
+
+**By `video_api_status`:**
+
+- **401** — Auth: JWT or API key rejected. Re-check `KLING_ACCESS_KEY` / `KLING_API_KEY` (or `KLING_SECRET_KEY`), JWT format (`iss`/`nbf`/`exp`), and `mode=std`. Use `test_kling_auth` or `gen_kling_jwt.py --verify`.
+- **400** — Bad request: invalid `mode`, URLs, or other params. Check the log line for the `body` (e.g. `code=1201` / `message=...`).  
+  - `imageUrl: must not be blank` — we send `image_url` and `imageUrl` (both with the target image URL). Ensure the frontend passes a valid, non-empty `target_image_url` (Supabase `createSignedUrl`). **SUPABASE_URL** is normalized to end with `/` before creating the Supabase client to satisfy the “Storage endpoint URL should have a trailing slash” requirement.
+- **403** — Forbidden: permissions or account limits.
+- **500** — Video API server error; retry later.

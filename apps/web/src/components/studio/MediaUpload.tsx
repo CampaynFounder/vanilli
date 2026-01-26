@@ -162,7 +162,7 @@ export function MediaUpload({
               <img
                 src={preview}
                 alt="Preview"
-                className="w-full h-64 object-cover rounded-lg"
+                className="w-full h-64 sm:h-72 md:h-80 object-contain rounded-lg bg-black/40"
               />
             )}
             {type === 'audio' && (

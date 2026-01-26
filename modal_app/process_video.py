@@ -24,10 +24,11 @@ OUTPUTS_PREFIX = "outputs"
 def process_video(data: Optional[dict] = None):
     """POST JSON: { tracking_video_url, target_image_url, audio_track_url, generation_id, is_trial, generation_seconds?, prompt? }"""
     data = data or {}
-    tracking_url = data.get("tracking_video_url")
-    target_url = data.get("target_image_url")
-    audio_url = data.get("audio_track_url")
-    generation_id = data.get("generation_id")
+    def _str(v): return (v or "").strip() or None
+    tracking_url = _str(data.get("tracking_video_url"))
+    target_url = _str(data.get("target_image_url"))
+    audio_url = _str(data.get("audio_track_url"))
+    generation_id = (data.get("generation_id") or "").strip() or None
     is_trial = data.get("is_trial", False)
     prompt = (data.get("prompt") or "").strip()[:100]
     gen_secs = float(data.get("generation_seconds") or 0)
@@ -35,7 +36,8 @@ def process_video(data: Optional[dict] = None):
     if not all([tracking_url, target_url, audio_url, generation_id]):
         return {"ok": False, "error": "Missing required fields"}
 
-    supabase_url = os.environ["SUPABASE_URL"]
+    _base = (os.environ.get("SUPABASE_URL") or "").strip()
+    supabase_url = (_base.rstrip("/") + "/") if _base else _base
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
     # Kling: Access Key + Secret (JWT) or single Bearer. Secret can be KLING_SECRET_KEY or KLING_API_KEY.
@@ -128,12 +130,14 @@ def process_video(data: Optional[dict] = None):
                 print(f"[vannilli] trim/upload FAIL: type={err_type} {err_msg} body={body}")
                 tracking_url_for_kling = tracking_url
 
-        # Kling motion-control: driver_video + target_image. mode=std (API rejects "standard"). character_orientation=image.
-        # prompt: optional; describe context/environment, not motion. Kling caps; we send max 100 chars.
+        # Kling motion-control: driver/reference video + image. mode=std. character_orientation=image.
+        # api.klingai.com may expect imageUrl (camelCase); fal/some docs use image_url and video_url. Send both.
         payload = {
             "model_name": "kling-v2",
             "driver_video_url": tracking_url_for_kling,
-            "target_image_url": target_url,
+            "video_url": tracking_url_for_kling,
+            "image_url": target_url,
+            "imageUrl": target_url,
             "mode": "std",
             "character_orientation": "image",
         }
@@ -154,7 +158,11 @@ def process_video(data: Optional[dict] = None):
                 err_log = f"Kling motion-control HTTP {r.status_code}: {body!r}"
                 print(f"[vannilli] Kling start FAIL: {err_log}")
                 _fail(supabase, generation_id, "Video generation failed. Please try again. If it persists, contact VANNILLI support.")
-                return {"ok": False, "error": "Video generation failed. Please try again. If it persists, contact VANNILLI support."}
+                return {
+                    "ok": False,
+                    "error": "Video generation failed. Please try again. If it persists, contact VANNILLI support.",
+                    "video_api_status": r.status_code,
+                }
             j = r.json()
             if j.get("code") != 0:
                 print(f"[vannilli] Kling start code!=0: {j.get('message', '')!r}")

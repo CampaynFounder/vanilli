@@ -51,7 +51,7 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
           <img 
             src={placeholderImage} 
             alt="Preview"
-            className="w-full h-full object-cover blur-xl animate-unblur"
+            className="w-full h-full object-contain bg-black/40 blur-xl animate-unblur"
           />
         )}
 
