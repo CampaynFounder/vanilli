@@ -601,7 +601,7 @@ function StudioPage() {
                         router.replace('/pricing');
                         return;
                       }
-                      [videoPreview, imagePreview, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
+                      [videoPreview, ...imagePreviews, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
                       setTrackingVideo(null); setTargetImages([]); setAudioTrack(null);
                       setPrompt('');
                       setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
