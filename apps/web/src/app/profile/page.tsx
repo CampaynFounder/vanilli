@@ -199,8 +199,8 @@ function ProfilePage() {
   }
 
   // Type assertion: ensure tier matches ProfileData interface
-  const authTier = authUser?.tier && authUser.tier !== 'indie_artist' ? authUser.tier : 'free';
-  const displayProfile: ProfileData = profile || { id: authUser?.id || '', email: authUser?.email || '', tier: authTier as ProfileData['tier'], creditsRemaining: authUser?.creditsRemaining ?? 0, freeGenerationRedeemed: authUser?.freeGenerationRedeemed ?? false, avatarUrl: authUser?.avatarUrl, referralCode: authUser?.id ? `VANNI-${authUser.id.slice(0, 8).toUpperCase()}` : '', createdAt: new Date().toISOString(), stripeCustomerId: null, paymentMethodLast4: null, paymentMethodBrand: null, hasValidCard: authUser?.hasValidCard ?? false };
+  const authTier: ProfileData['tier'] = authUser?.tier || 'free';
+  const displayProfile: ProfileData = profile || { id: authUser?.id || '', email: authUser?.email || '', tier: authTier, creditsRemaining: authUser?.creditsRemaining ?? 0, freeGenerationRedeemed: authUser?.freeGenerationRedeemed ?? false, avatarUrl: authUser?.avatarUrl, referralCode: authUser?.id ? `VANNI-${authUser.id.slice(0, 8).toUpperCase()}` : '', createdAt: new Date().toISOString(), stripeCustomerId: null, paymentMethodLast4: null, paymentMethodBrand: null, hasValidCard: authUser?.hasValidCard ?? false };
   const displayReferralData: ReferralData = referralData || { stats: { totalReferrals: 0, completedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0 }, referrals: [] };
   const displayReferralRewards = referralRewards;
   // Prefer session (auth) email when public.users has the uuid@auth.local placeholder
