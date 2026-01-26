@@ -1,5 +1,5 @@
 interface PremiumBadgeProps {
-  tier: 'free' | 'open_mic' | 'indie_artist' | 'artist' | 'label';
+  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry';
   className?: string;
 }
 
@@ -14,11 +14,6 @@ const tierConfig = {
     colors: 'bg-green-600 text-white',
     shimmer: false,
   },
-  indie_artist: {
-    label: 'Indie Artist',
-    colors: 'bg-blue-600 text-white',
-    shimmer: true,
-  },
   artist: {
     label: 'Artist',
     colors: 'bg-purple-600 text-white',
@@ -27,6 +22,11 @@ const tierConfig = {
   label: {
     label: 'Label',
     colors: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white',
+    shimmer: true,
+  },
+  industry: {
+    label: 'Industry',
+    colors: 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white',
     shimmer: true,
   },
 };
