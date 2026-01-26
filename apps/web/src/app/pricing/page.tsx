@@ -246,10 +246,10 @@ export default function PricingPage() {
       <section className="pt-12 sm:pt-16 pb-10 sm:pb-14 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
-            Ship more videos. Spend less.
+            Create More Videos. Secure Your AI Label Deal.
           </h1>
           <p className="mt-4 text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto">
-            Rise above with pro lip-sync for AI music videos. 1 credit = 1 second. You need 9+ credits to create (3–9s clips).
+            More Labels are looking for Hyper Real AI Artists. Don't miss this opportunity to build a roster and get a Major Label Bag.
           </p>
         </div>
       </section>
