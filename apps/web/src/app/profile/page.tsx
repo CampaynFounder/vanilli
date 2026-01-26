@@ -221,23 +221,25 @@ function ProfilePage() {
       <AppBackground />
       <div className="relative z-10">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50">
-        <div className="max-w-7xl mx-auto px-6 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6 md:gap-8">
-              <Logo width={120} height={40} className="h-[192px] md:h-[224px] w-auto object-contain" />
-              <div className="flex items-center gap-4 md:gap-6">
-                <Link href="/profile" className="opacity-100 transition-opacity flex items-center" aria-label="Profile">
-                  <img src="/icons/nav/profile.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50 h-20">
+        <div className="max-w-7xl mx-auto px-6 h-full">
+          <div className="flex items-center justify-between h-full">
+            <div className="flex items-center gap-4 md:gap-6 h-full">
+              <div className="h-full flex items-center">
+                <Logo width={120} height={40} className="h-full w-auto object-contain" />
+              </div>
+              <div className="flex items-center gap-3 md:gap-4 h-full">
+                <Link href="/profile" className="opacity-100 transition-opacity flex items-center h-full" aria-label="Profile">
+                  <img src="/icons/nav/profile.png" alt="" className="h-full w-auto object-cover" />
                 </Link>
-                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Studio">
-                  <img src="/icons/nav/studio.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="Studio">
+                  <img src="/icons/nav/studio.png" alt="" className="h-full w-auto object-cover" />
                 </Link>
-                <Link href="/history" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="History">
-                  <img src="/icons/nav/history.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+                <Link href="/history" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="History">
+                  <img src="/icons/nav/history.png" alt="" className="h-full w-auto object-cover" />
                 </Link>
-                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Pricing">
-                  <img src="/icons/nav/pricing.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="Pricing">
+                  <img src="/icons/nav/pricing.png" alt="" className="h-full w-auto object-cover" />
                 </Link>
               </div>
             </div>

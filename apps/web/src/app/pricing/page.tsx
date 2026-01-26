@@ -193,25 +193,25 @@ export default function PricingPage() {
       <AppBackground />
       <div className="relative z-10">
       {/* Header */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <div className="flex items-center justify-between">
-            <Link href={user ? '/profile' : '/'} className="flex items-center">
-              <Logo width={120} height={40} className="h-[192px] md:h-[224px] w-auto object-contain" />
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50 h-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+          <div className="flex items-center justify-between h-full">
+            <Link href={user ? '/profile' : '/'} className="flex items-center h-full">
+              <Logo width={120} height={40} className="h-full w-auto object-contain" />
             </Link>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 h-full">
               {!user && (
                 <Link href="/#features" className="hidden sm:block text-sm text-slate-400 hover:text-white transition-colors">
                   How it works
                 </Link>
               )}
-              <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
-                <img src="/icons/nav/pricing.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+              <Link href="/pricing" className="hidden sm:flex items-center h-full opacity-100 transition-opacity" aria-label="Pricing">
+                <img src="/icons/nav/pricing.png" alt="" className="h-full w-auto object-cover" />
               </Link>
               {user ? (
                 <>
-                  <Link href="/studio" className="flex items-center opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
-                    <img src="/icons/nav/studio.png" alt="" className="h-[160px] md:h-[176px] w-auto object-contain" />
+                  <Link href="/studio" className="flex items-center h-full opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
+                    <img src="/icons/nav/studio.png" alt="" className="h-full w-auto object-cover" />
                   </Link>
                   <button
                     onClick={async () => { await signOut(); router.push('/'); }}
