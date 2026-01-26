@@ -221,35 +221,35 @@ function ProfilePage() {
       <AppBackground />
       <div className="relative z-10">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50 h-20">
-        <div className="max-w-7xl mx-auto px-6 h-full">
-          <div className="flex items-center justify-between h-full">
-            <div className="flex items-center gap-4 md:gap-6 h-full">
-              <div className="h-full flex items-center">
-                <Logo width={120} height={40} className="h-full w-auto object-contain" />
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/50 h-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-full">
+          <div className="flex items-center justify-between h-full gap-2">
+            <div className="flex items-center gap-3 md:gap-4 h-full flex-shrink-0">
+              <div className="flex items-center">
+                <Logo width={120} height={40} className="h-14 w-auto object-contain" />
               </div>
-              <div className="flex items-center gap-3 md:gap-4 h-full">
-                <Link href="/profile" className="opacity-100 transition-opacity flex items-center h-full" aria-label="Profile">
-                  <img src="/icons/nav/profile.png" alt="" className="h-full w-auto object-cover" />
+              <div className="flex items-center gap-2 md:gap-3">
+                <Link href="/profile" className="opacity-100 transition-opacity flex items-center" aria-label="Profile">
+                  <img src="/icons/nav/profile.png" alt="" className="h-12 w-auto object-contain" />
                 </Link>
-                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="Studio">
-                  <img src="/icons/nav/studio.png" alt="" className="h-full w-auto object-cover" />
+                <Link href="/studio" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Studio">
+                  <img src="/icons/nav/studio.png" alt="" className="h-12 w-auto object-contain" />
                 </Link>
-                <Link href="/history" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="History">
-                  <img src="/icons/nav/history.png" alt="" className="h-full w-auto object-cover" />
+                <Link href="/history" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="History">
+                  <img src="/icons/nav/history.png" alt="" className="h-12 w-auto object-contain" />
                 </Link>
-                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity flex items-center h-full" aria-label="Pricing">
-                  <img src="/icons/nav/pricing.png" alt="" className="h-full w-auto object-cover" />
+                <Link href="/pricing" className="opacity-60 hover:opacity-100 transition-opacity flex items-center" aria-label="Pricing">
+                  <img src="/icons/nav/pricing.png" alt="" className="h-12 w-auto object-contain" />
                 </Link>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg flex items-center justify-center">
-                <span className="text-xs font-semibold text-purple-300">{displayProfile.creditsRemaining} credits</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="px-2.5 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg flex items-center justify-center min-w-fit">
+                <span className="text-xs font-semibold text-purple-300 text-center whitespace-nowrap">{displayProfile.creditsRemaining} credits</span>
               </div>
               <button
                 onClick={async () => { await signOut(); router.push('/'); }}
-                className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-sm"
+                className="flex items-center gap-2 px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-xs md:text-sm flex-shrink-0"
                 aria-label="Sign out"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
