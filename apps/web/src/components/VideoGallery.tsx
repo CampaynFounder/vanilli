@@ -360,8 +360,18 @@ export function VideoGallery() {
                   controls={isPlaying}
                   controlsList="nodownload"
                   playsInline
-                  preload="none"
+                  preload="metadata"
                   muted={!isPlaying}
+                  onLoadedMetadata={(e) => {
+                    // Show first frame of video as preview (replaces poster)
+                    if (!isPlaying) {
+                      const videoEl = e.currentTarget;
+                      // Seek to first frame to show video preview
+                      videoEl.currentTime = 0.1;
+                      // Pause immediately to show the frame without playing
+                      videoEl.pause();
+                    }
+                  }}
                   onPlay={(e) => {
                     setPlayingVideoId(uniqueId);
                     trackVideoPlay(video.id, video.videoUrl);
