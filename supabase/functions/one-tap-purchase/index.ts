@@ -239,8 +239,7 @@ serve(async (req) => {
       const { error: tierErr } = await supabase
         .from("users")
         .update({ tier: "demo" })
-        .eq("id", user.id)
-        .execute();
+        .eq("id", user.id);
       if (tierErr) {
         console.error(`[one-tap-purchase] Failed to update user tier to demo:`, tierErr);
       } else {
