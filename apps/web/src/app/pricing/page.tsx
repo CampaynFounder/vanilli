@@ -193,35 +193,35 @@ export default function PricingPage() {
       <AppBackground />
       <div className="relative z-10">
       {/* Header */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50 h-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
-          <div className="flex items-center justify-between h-full gap-2">
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/95 border-b border-slate-800/50 h-14 sm:h-16">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 h-full">
+          <div className="flex items-center justify-between h-full gap-1 sm:gap-2">
             <Link href={user ? '/profile' : '/'} className="flex items-center flex-shrink-0">
-              <Logo width={120} height={40} className="h-14 w-auto object-contain" />
+              <Logo width={120} height={40} className="h-10 sm:h-12 md:h-14 w-auto object-contain" />
             </Link>
-            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0">
               {!user && (
                 <Link href="/#features" className="hidden sm:block text-xs md:text-sm text-slate-400 hover:text-white transition-colors">
                   How it works
                 </Link>
               )}
               <Link href="/pricing" className="hidden sm:flex items-center opacity-100 transition-opacity" aria-label="Pricing">
-                <img src="/icons/nav/pricing.png" alt="" className="h-12 w-auto object-contain" />
+                <img src="/icons/nav/pricing.png" alt="" className="h-8 sm:h-10 md:h-12 w-auto object-contain" />
               </Link>
               {user ? (
                 <>
                   <Link href="/studio" className="flex items-center opacity-60 hover:opacity-100 transition-opacity" aria-label="Studio">
-                    <img src="/icons/nav/studio.png" alt="" className="h-12 w-auto object-contain" />
+                    <img src="/icons/nav/studio.png" alt="" className="h-8 sm:h-10 md:h-12 w-auto object-contain" />
                   </Link>
                   <button
                     onClick={async () => { await signOut(); router.push('/'); }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-xs md:text-sm"
+                    className="flex items-center gap-1 sm:gap-1.5 md:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors flex-shrink-0"
                     aria-label="Sign out"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    Sign out
+                    <span className="hidden sm:inline text-xs md:text-sm">Sign out</span>
                   </button>
                 </>
               ) : (
