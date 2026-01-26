@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, getSession, signOut as supabaseSignOut } from './supabase';
@@ -8,7 +8,7 @@ import { supabase, getSession, signOut as supabaseSignOut } from './supabase';
 export interface User {
   id: string;
   email: string;
-  tier: 'free' | 'open_mic' | 'indie_artist' | 'artist' | 'label';
+  tier: 'free' | 'open_mic' | 'artist' | 'label' | 'industry';
   creditsRemaining: number;
   freeGenerationRedeemed: boolean;
   avatarUrl?: string;
@@ -35,6 +35,7 @@ export function useAuth(): AuthState & {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const referralApplyInFlight = useRef(false);
 
   const fetchUserProfile = async () => {
     try {
@@ -58,7 +59,9 @@ export function useAuth(): AuthState & {
       const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
       if (!error && row) {
         const email = (row.email && row.email.endsWith('@auth.local') && currentSession?.user?.email) ? currentSession.user.email : row.email;
-        setUser({ id: row.id, email: email || '', tier: row.tier, creditsRemaining: row.credits_remaining ?? 0, freeGenerationRedeemed: row.free_generation_redeemed ?? false, avatarUrl: row.avatar_url, hasValidCard: row.has_valid_card === true });
+        // Type assertion: ensure tier matches User interface (no indie_artist, includes industry)
+        const tier = (row.tier === 'indie_artist' ? 'artist' : row.tier) as User['tier'];
+        setUser({ id: row.id, email: email || '', tier, creditsRemaining: row.credits_remaining ?? 0, freeGenerationRedeemed: row.free_generation_redeemed ?? false, avatarUrl: row.avatar_url, hasValidCard: row.has_valid_card === true });
       } else {
         fallback();
       }
@@ -91,6 +94,42 @@ export function useAuth(): AuthState & {
       authListener?.subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!session?.user?.id || !user || referralApplyInFlight.current) return;
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('vannilli_referral_code');
+    if (!stored) return;
+    const referralCode = stored.trim();
+    if (!referralCode) return;
+    const appliedCode = localStorage.getItem('vannilli_referral_applied_code');
+    if (appliedCode === referralCode) {
+      localStorage.removeItem('vannilli_referral_code');
+      return;
+    }
+
+    const applyReferral = async () => {
+      referralApplyInFlight.current = true;
+      try {
+        const { error } = await supabase.rpc('apply_referral', {
+          p_referral_code: referralCode,
+          p_referred_product: 'open_mic',
+        });
+        if (!error) {
+          localStorage.setItem('vannilli_referral_applied_code', referralCode);
+          localStorage.removeItem('vannilli_referral_code');
+        } else {
+          console.warn('[vannilli] apply_referral error:', error);
+        }
+      } catch (err) {
+        console.warn('[vannilli] apply_referral failed:', err);
+      } finally {
+        referralApplyInFlight.current = false;
+      }
+    };
+
+    applyReferral();
+  }, [session?.user?.id, user]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
