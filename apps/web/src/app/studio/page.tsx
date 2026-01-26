@@ -403,16 +403,21 @@ function StudioPage() {
                 </Link>
               </div>
             </div>
-            <button
-              onClick={async () => { await signOut(); router.push('/'); }}
-              className="flex items-center gap-2 px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-xs md:text-sm flex-shrink-0"
-              aria-label="Sign out"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Sign out
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="px-2.5 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg flex items-center justify-center min-w-fit">
+                <span className="text-xs font-semibold text-purple-300 text-center whitespace-nowrap">{creditsRemaining} credits</span>
+              </div>
+              <button
+                onClick={async () => { await signOut(); router.push('/'); }}
+                className="flex items-center gap-2 px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-xs md:text-sm flex-shrink-0"
+                aria-label="Sign out"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </nav>
