@@ -144,50 +144,84 @@ export default function HomePage() {
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
               How It Works
             </h2>
-            <p className="text-lg text-slate-400">
-              Create professional music videos in 4 simple steps
-            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                step: '01',
-                title: 'Enter Your BPM',
-                description: 'Tell us the tempo of your track and how many bars you need.',
-                icon: '🎵',
-              },
-              {
-                step: '02',
-                title: 'Upload Your Style',
-                description: 'Upload an AI-generated image that defines your visual aesthetic.',
-                icon: '🎨',
-              },
-              {
-                step: '03',
-                title: 'Record Performance',
-                description: 'Rap or sing along to your track while we capture your movements.',
-                icon: '📹',
-              },
-              {
-                step: '04',
-                title: 'Download Video',
-                description: 'Get your professional music video in minutes, ready to share.',
-                icon: '⬇️',
-              },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 hover:border-slate-700 transition-all"
-              >
-                <div className="text-4xl mb-4">{item.icon}</div>
-                <div className="text-xs font-semibold text-purple-400 mb-2 tracking-wider">
-                  STEP {item.step}
+          {/* All you Need Section */}
+          <div className="mb-16">
+            <h3 className="text-2xl font-bold text-white mb-6 text-center">All you Need:</h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  title: 'Your Vibe',
+                  description: 'Record the Vibe of the Artist performing the track and upload',
+                  icon: '🎬',
+                },
+                {
+                  title: 'Your Vocals',
+                  description: 'Upload The Song',
+                  icon: '🎵',
+                },
+                {
+                  title: 'Your Visuals',
+                  description: 'Upload Photos your AI Artist photos',
+                  icon: '🎨',
+                },
+                {
+                  title: 'Your Direction',
+                  description: 'Describe the scene for VANNILLI AI',
+                  icon: '💬',
+                },
+              ].map((item, index) => (
+                <div
+                  key={index}
+                  className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 hover:border-slate-700 transition-all"
+                >
+                  <div className="text-4xl mb-4">{item.icon}</div>
+                  <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">{item.description}</p>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{item.description}</p>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Then You Section */}
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-6 text-center">Then You:</h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  step: '01',
+                  title: 'Upload Your Vibe, Your Visuals, Your Vocals, and give us the direction',
+                  icon: '📤',
+                },
+                {
+                  step: '02',
+                  title: 'We bring the visuals to life.',
+                  icon: '✨',
+                },
+                {
+                  step: '03',
+                  title: 'You Download the Video',
+                  icon: '⬇️',
+                },
+                {
+                  step: '04',
+                  title: 'Post and Go Viral',
+                  icon: '🚀',
+                },
+              ].map((item) => (
+                <div
+                  key={item.step}
+                  className="bg-slate-900/50 p-6 rounded-xl border border-slate-800 hover:border-slate-700 transition-all"
+                >
+                  <div className="text-4xl mb-4">{item.icon}</div>
+                  <div className="text-xs font-semibold text-purple-400 mb-2 tracking-wider">
+                    STEP {item.step}
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
