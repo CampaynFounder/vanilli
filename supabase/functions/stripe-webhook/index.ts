@@ -296,6 +296,60 @@ serve(async (req) => {
         break;
       }
 
+      case "customer.subscription.created": {
+        const sub = obj as {
+          id: string;
+          customer?: string;
+          status?: string;
+          metadata?: { tier?: string; user_id?: string };
+          current_period_start?: number;
+          current_period_end?: number;
+        };
+        const subId = sub.id;
+        const tier = sub.metadata?.tier;
+        const uid = sub.metadata?.user_id;
+        const customerId = typeof sub.customer === "string" ? sub.customer : null;
+        
+        console.log(`[stripe-webhook] Subscription created: id=${subId}, tier=${tier}, user_id=${uid}, customer=${customerId}`);
+        
+        // Find user if not in metadata
+        let userId = uid;
+        if (!userId && customerId) {
+          const { data: userRow } = await supabase
+            .from("users")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+          userId = userRow?.id ?? null;
+        }
+        
+        // For DEMO tier, grant initial 20 credits immediately when subscription is created
+        if (tier === "demo" && userId) {
+          console.log(`[stripe-webhook] DEMO tier subscription created, granting initial 20 credits to user ${userId}`);
+          
+          // Update user tier to demo
+          const { error: tierErr } = await supabase
+            .from("users")
+            .update({ tier: "demo", credits_remaining: 20 })
+            .eq("id", userId)
+            .execute();
+          
+          if (tierErr) {
+            console.error(`[stripe-webhook] Failed to update DEMO tier:`, tierErr);
+          } else {
+            console.log(`[stripe-webhook] Updated user ${userId} to DEMO tier with 20 credits`);
+            await supabase.from("audit_log").insert({
+              user_id: userId,
+              action: "credit_purchase",
+              resource_type: "subscription",
+              resource_id: null,
+              metadata: { source: "subscription_created", tier: "demo", credits: 20, stripe_subscription_id: subId, event_id: event.id },
+            });
+          }
+        }
+        break;
+      }
+
       case "customer.subscription.deleted": {
         const sub = obj as { id: string };
         await supabase

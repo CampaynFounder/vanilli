@@ -65,6 +65,17 @@ function StudioPage() {
     return 9; // open_mic, artist, label
   };
   
+  // Handle checkout success - refresh user data to get updated credits
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      // Remove query param from URL
+      window.history.replaceState({}, '', '/studio');
+      // Refresh user data to get updated credits/tier
+      refreshUser();
+    }
+  }, [refreshUser]);
+
   useEffect(() => {
     if (videoDuration == null || videoDuration <= 0) {
       setDurationValidation(null);

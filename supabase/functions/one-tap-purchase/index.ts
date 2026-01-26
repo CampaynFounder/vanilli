@@ -226,10 +226,27 @@ serve(async (req) => {
     });
   }
   const sub = JSON.parse(subText) as {
+    id?: string;
     status?: string;
     latest_invoice?: { payment_intent?: { status?: string; client_secret?: string } } | string;
   };
+  console.log(`[one-tap-purchase] Subscription created: id=${sub.id}, status=${sub.status}, product=${product}`);
+  
   if (sub.status === "active" || sub.status === "trialing") {
+    // For DEMO tier, also update user tier immediately (credits will be granted via webhook)
+    if (product === "demo") {
+      console.log(`[one-tap-purchase] DEMO tier subscription active, updating user tier`);
+      const { error: tierErr } = await supabase
+        .from("users")
+        .update({ tier: "demo" })
+        .eq("id", user.id)
+        .execute();
+      if (tierErr) {
+        console.error(`[one-tap-purchase] Failed to update user tier to demo:`, tierErr);
+      } else {
+        console.log(`[one-tap-purchase] Updated user ${user.id} tier to demo`);
+      }
+    }
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...cors, "Content-Type": "application/json" },
