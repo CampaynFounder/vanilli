@@ -510,11 +510,30 @@ def api():
                     
                     # Video audio is the TARGET (we want to match master audio to video)
                     alignment = audalign.target_align(str(video_audio_path), str(master_audio_dir))
-                    audalign_sync_offset = alignment.get("offset", 0.0)
-                    if not isinstance(audalign_sync_offset, (int, float)):
-                        audalign_sync_offset = float(audalign_sync_offset)
                     
-                    print(f"[chunk-preview] Audalign sync offset: {audalign_sync_offset:.3f}s")
+                    # Extract offset (try match_info first, then fallback)
+                    raw_audalign_offset = None
+                    if isinstance(alignment, dict) and "match_info" in alignment:
+                        match_info = alignment["match_info"]
+                        for target_file, target_info in match_info.items():
+                            if isinstance(target_info, dict) and "match_info" in target_info:
+                                for source_file, source_info in target_info["match_info"].items():
+                                    if isinstance(source_info, dict) and "offset_seconds" in source_info:
+                                        offsets = source_info["offset_seconds"]
+                                        if offsets and len(offsets) > 0:
+                                            raw_audalign_offset = float(offsets[0])
+                                            break
+                                if raw_audalign_offset is not None:
+                                    break
+                    
+                    if raw_audalign_offset is None:
+                        raw_audalign_offset = alignment.get("offset", 0.0)
+                        if not isinstance(raw_audalign_offset, (int, float)):
+                            raw_audalign_offset = float(raw_audalign_offset)
+                    
+                    # audalign appears to return doubled offset, divide by 2
+                    audalign_sync_offset = raw_audalign_offset / 2.0
+                    print(f"[chunk-preview] Audalign sync offset: {raw_audalign_offset:.3f}s (raw) → {audalign_sync_offset:.3f}s (divided by 2)")
                     print(f"[chunk-preview] Manual vs Audalign: {manual_sync_offset:.3f}s vs {audalign_sync_offset:.3f}s (diff: {abs(manual_sync_offset - audalign_sync_offset):.3f}s)")
                 except Exception as e:
                     print(f"[chunk-preview] Audalign failed: {e}, using manual calculation only")
