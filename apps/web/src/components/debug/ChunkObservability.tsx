@@ -388,25 +388,37 @@ export function ChunkObservability() {
         throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
       }
 
+      const requestBody = {
+        video_url: videoSignedUrl,
+        audio_url: audioSignedUrl,
+        sync_offset: syncOffsetValue,
+        chunk_duration: chunkDurationValue,
+        image_urls: imageUrls || [], // Optional array of image URLs
+      };
+      
       console.log('Calling Modal to generate chunk previews...', {
         video_url: videoSignedUrl.substring(0, 50) + '...',
         audio_url: audioSignedUrl.substring(0, 50) + '...',
         sync_offset: syncOffsetValue,
         chunk_duration: chunkDurationValue,
+        image_urls_count: imageUrls?.length || 0,
+        request_body_keys: Object.keys(requestBody),
       });
+      
+      // Validate values before sending
+      if (syncOffsetValue === null || syncOffsetValue === undefined) {
+        throw new Error(`Invalid sync_offset: ${syncOffsetValue}`);
+      }
+      if (chunkDurationValue === null || chunkDurationValue === undefined || chunkDurationValue <= 0) {
+        throw new Error(`Invalid chunk_duration: ${chunkDurationValue}`);
+      }
       
       const response = await fetch(modalUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          video_url: videoSignedUrl,
-          audio_url: audioSignedUrl,
-          sync_offset: syncOffsetValue,
-          chunk_duration: chunkDurationValue,
-          image_urls: imageUrls || [], // Optional array of image URLs
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
