@@ -240,15 +240,15 @@ def api():
     
     @web.post("/")
     async def generate_previews(req: Request):
-        """Generate chunk previews.
+        """Generate chunk previews for observability.
+        
+        Automatically calculates tempo, sync offset, and chunk duration from video/audio.
         
         Body:
         {
-            "video_url": str,
-            "audio_url": str,
-            "sync_offset": float,
-            "chunk_duration": float,
-            "generation_id": str (optional)
+            "video_url": str,  # Required: URL to tracking video
+            "audio_url": str,  # Required: URL to master audio
+            "image_urls": [str]  # Optional: Array of image URLs
         }
         """
         try:
@@ -259,98 +259,78 @@ def api():
                 status_code=400
             )
         
-        # Support both formats: chunk_preview format and media_analyzer format (for backwards compatibility)
-        # chunk_preview format: video_url, audio_url, sync_offset, chunk_duration
-        # media_analyzer format: job_id, video, audio (needs to fetch sync_offset/chunk_duration from DB)
-        
-        video_url = data.get("video_url") or data.get("video")
-        audio_url = data.get("audio_url") or data.get("audio")
-        sync_offset = data.get("sync_offset")
-        chunk_duration = data.get("chunk_duration")
-        generation_id = data.get("generation_id")
-        job_id = data.get("job_id")
+        # Only accept video_url, audio_url, and optional image_urls
+        video_url = data.get("video_url")
+        audio_url = data.get("audio_url")
         image_urls = data.get("image_urls", [])  # Optional array of image URLs
         
-        # If using media_analyzer format (job_id, video, audio), fetch sync_offset/chunk_duration from DB
-        # But only if job_id is a valid UUID (not a temporary ID like "temp_...")
-        if job_id and (sync_offset is None or chunk_duration is None):
-            # Check if job_id looks like a valid UUID (not a temporary ID)
-            import re
-            uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
-            is_valid_uuid = bool(uuid_pattern.match(job_id))
-            is_temp_id = job_id.startswith("temp_")
-            
-            if is_valid_uuid and not is_temp_id:
-                print(f"[chunk-preview] Received media_analyzer format, fetching analysis from DB for job_id: {job_id}")
-                try:
-                    from supabase import create_client
-                    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-                    supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-                    supabase = create_client(supabase_url, supabase_key)
-                    
-                    job_data = supabase.table("video_jobs").select("sync_offset, chunk_duration, generation_id").eq("id", job_id).single().execute()
-                    if job_data.data:
-                        if sync_offset is None:
-                            sync_offset = job_data.data.get("sync_offset")
-                        if chunk_duration is None:
-                            chunk_duration = job_data.data.get("chunk_duration")
-                        if not generation_id:
-                            generation_id = job_data.data.get("generation_id")
-                    else:
-                        return JSONResponse(
-                            {"error": f"Job {job_id} not found in database"},
-                            status_code=404
-                        )
-                except Exception as e:
-                    print(f"[chunk-preview] Error fetching job data: {e}")
-                    return JSONResponse(
-                        {"error": f"Failed to fetch job data: {str(e)}"},
-                        status_code=500
-                    )
-            else:
-                # Temporary job_id - skip DB lookup, require sync_offset/chunk_duration to be provided
-                print(f"[chunk-preview] Temporary job_id detected ({job_id}), skipping DB lookup. sync_offset and chunk_duration must be provided directly.")
-                if sync_offset is None or chunk_duration is None:
-                    return JSONResponse(
-                        {
-                            "error": f"Temporary job_id provided but sync_offset and chunk_duration are required. Please provide: video_url, audio_url, sync_offset, chunk_duration",
-                            "received_fields": list(data.keys()),
-                            "hint": "For temporary job IDs, you must provide sync_offset and chunk_duration directly (cannot fetch from DB)"
-                        },
-                        status_code=400
-                    )
-        
-        # Validate required fields (allow 0 for sync_offset, but not None)
-        missing_fields = []
+        # Validate required fields
         if not video_url:
-            missing_fields.append("video_url or video")
-        if not audio_url:
-            missing_fields.append("audio_url or audio")
-        if sync_offset is None:
-            missing_fields.append("sync_offset (or valid UUID job_id to fetch from DB)")
-        if chunk_duration is None or chunk_duration <= 0:
-            missing_fields.append("chunk_duration (or valid UUID job_id to fetch from DB)")
-        
-        if missing_fields:
-            print(f"[chunk-preview] Missing fields: {missing_fields}, received data: {list(data.keys())}")
             return JSONResponse(
-                {"error": f"Missing required fields: {', '.join(missing_fields)}", "received_fields": list(data.keys())},
+                {"error": "Missing required field: video_url"},
+                status_code=400
+            )
+        if not audio_url:
+            return JSONResponse(
+                {"error": "Missing required field: audio_url"},
                 status_code=400
             )
         
+        print(f"[chunk-preview] Analyzing media to calculate tempo and sync offset...")
+        
+        # Call media_analyzer to get sync_offset and chunk_duration
+        try:
+            # Import the media_analyzer function
+            import sys
+            sys.path.insert(0, "/root/modal_app")
+            from media_analyzer import analyze_media
+            
+            # Use a temporary job_id for analysis (won't be saved to DB)
+            temp_job_id = f"temp_chunk_preview_{int(__import__('time').time())}"
+            
+            # Analyze media to get sync_offset, bpm, and chunk_duration
+            analysis_result = analyze_media.remote(
+                job_id=temp_job_id,
+                video_url=video_url,
+                audio_url=audio_url,
+            )
+            
+            sync_offset = analysis_result["sync_offset"]
+            chunk_duration = analysis_result["chunk_duration"]
+            bpm = analysis_result["bpm"]
+            
+            print(f"[chunk-preview] Analysis complete: BPM={bpm:.2f}, sync_offset={sync_offset:.3f}s, chunk_duration={chunk_duration:.3f}s")
+            
+        except Exception as e:
+            error_msg = str(e)[:500]
+            print(f"[chunk-preview] Error analyzing media: {error_msg}")
+            return JSONResponse(
+                {"error": f"Failed to analyze media: {error_msg}"},
+                status_code=500
+            )
+        
+        # Generate chunk previews with calculated values
         try:
             result = generate_chunk_previews.remote(
                 video_url=video_url,
                 audio_url=audio_url,
                 sync_offset=float(sync_offset),
                 chunk_duration=float(chunk_duration),
-                generation_id=generation_id,
+                generation_id=None,  # Not needed for observability
                 image_urls=image_urls if image_urls else None,
             )
+            
+            # Add analysis results to response
+            result["analysis"] = {
+                "bpm": bpm,
+                "sync_offset": sync_offset,
+                "chunk_duration": chunk_duration,
+            }
+            
             return JSONResponse(result)
         except Exception as e:
             error_msg = str(e)[:500]
-            print(f"[chunk-preview] Error: {error_msg}")
+            print(f"[chunk-preview] Error generating chunks: {error_msg}")
             return JSONResponse(
                 {"error": error_msg},
                 status_code=500
