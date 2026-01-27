@@ -386,7 +386,7 @@ export function ChunkObservability() {
             const audioStartTime = videoStartTime + result.analysis.sync_offset;
             const audioEndTime = audioStartTime + result.analysis.chunk_duration;
             const imageIndex = imageFiles.length > 0 ? i % imageFiles.length : null;
-            const imageUrl = imageIndex !== null ? imageUrls[imageIndex] : null;
+            const imageUrl = imageIndex !== null && imageUrls ? imageUrls[imageIndex] : null;
             calculatedChunks.push({
               chunkIndex: i,
               videoStartTime,
