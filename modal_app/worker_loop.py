@@ -435,12 +435,14 @@ def process_job_with_chunks(
                 if sync_offset and sync_offset > 0:
                     # Positive offset: music starts X seconds into video
                     # Delay audio by X seconds so it aligns with when music starts
+                    # Use adelay filter: adelay=delays|delays (in milliseconds, per channel)
                     print(f"[worker] Applying sync_offset {sync_offset:.3f}s: delaying audio to align with music start in video")
+                    delay_ms = int(sync_offset * 1000)
                     subprocess.run(
                         ["ffmpeg", "-y",
                          "-i", str(kling_output_path),  # Video from Kling
                          "-i", str(audio_slice_path),   # Audio slice
-                         "-filter_complex", f"[1:a]adelay={int(sync_offset * 1000)}|{int(sync_offset * 1000)}[a]",
+                         "-filter_complex", f"[1:a]adelay={delay_ms}|{delay_ms}[a]",
                          "-map", "0:v:0", "-map", "[a]",
                          "-c:v", "libx264", "-preset", "veryfast",
                          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
