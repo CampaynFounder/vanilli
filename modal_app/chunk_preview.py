@@ -480,10 +480,20 @@ def api():
                 if not isinstance(sync_offset, (int, float)):
                     sync_offset = float(sync_offset)
                 
-                # Track onset detection info for UI display
+                # IMPORTANT: audalign may return offset that needs adjustment
+                # User reports offset is ~50% too small (audio comes in too early)
+                # Apply correction: double the offset if it's positive
+                raw_sync_offset = sync_offset
+                if sync_offset > 0:
+                    sync_offset = sync_offset * 2.0
+                    print(f"[chunk-preview] Raw audalign offset: {raw_sync_offset:.3f}s → Doubled to {sync_offset:.3f}s (user reported ~50% too small)")
+                else:
+                    print(f"[chunk-preview] Raw audalign offset: {raw_sync_offset:.3f}s (no adjustment needed for negative/zero offset)")
+                
+                # Track onset detection info for UI display (use raw offset before doubling)
                 onset_detection_info = {
                     "used": False,
-                    "audalign_offset": sync_offset,
+                    "audalign_offset": raw_sync_offset,  # Show raw audalign offset in UI
                     "first_onset_time": None,
                     "reason": None
                 }
