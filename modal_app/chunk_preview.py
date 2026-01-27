@@ -172,15 +172,31 @@ def generate_chunk_previews(
             video_chunk_actual_duration = video_end_time - video_start_time
             
             # Audio timing: All chunks are shifted by sync_offset
-            # Chunk 0: Audio starts at 0 in master audio, will be delayed by sync_offset when muxing
-            # Chunk 1+: Audio starts at (i * chunk_duration - sync_offset) in master audio
+            # Pattern: Each chunk audio starts where previous chunk audio ended
+            # Chunk 0: Audio 0 to chunk_duration (delayed by sync_offset when muxing)
+            # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
+            # Chunk 2: Audio starts at end of chunk 1 audio, continues for chunk_duration
+            # etc.
             if sync_offset and sync_offset > 0:
                 if i == 0:
                     # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
                     audio_start_time = 0
+                elif i == 1:
+                    # Chunk 1: Starts at (chunk_duration - sync_offset) = (8 - 2) = 6s
+                    # This is where chunk 0 audio effectively ends after accounting for offset
+                    audio_start_time = chunk_duration - sync_offset
                 else:
-                    # Subsequent chunks: Shifted by sync_offset (e.g., chunk 1 at 8s video = 6s audio)
-                    audio_start_time = (i * chunk_duration) - sync_offset
+                    # Chunk 2+: Start where previous chunk audio ended
+                    # Previous chunk (i-1) audio start = chunk_duration - sync_offset (if i-1 == 1) or calculated recursively
+                    # For i=2: prev_start = chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
+                    # For i>2: prev_start = (i-1) * chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
+                    if i == 2:
+                        prev_audio_start = chunk_duration - sync_offset
+                        prev_audio_end = prev_audio_start + chunk_duration
+                        audio_start_time = prev_audio_end
+                    else:
+                        # i > 2: Use formula (i * chunk_duration) - sync_offset
+                        audio_start_time = (i * chunk_duration) - sync_offset
             else:
                 # No sync offset: audio chunks match video chunks exactly
                 audio_start_time = i * chunk_duration
