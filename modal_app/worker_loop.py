@@ -287,8 +287,21 @@ def process_job_with_chunks(
         duration = float(result.stdout.strip())
         
         # Calculate number of chunks
-        num_chunks = int(ceil(duration / chunk_duration))
-        print(f"[worker] Processing {num_chunks} chunks with duration {chunk_duration:.2f}s each")
+        # Skip last chunk if it would be less than 3 seconds
+        MIN_CHUNK_DURATION = 3.0
+        num_chunks_raw = ceil(duration / chunk_duration)
+        last_chunk_start = (num_chunks_raw - 1) * chunk_duration
+        last_chunk_duration = duration - last_chunk_start
+        
+        if last_chunk_duration < MIN_CHUNK_DURATION and num_chunks_raw > 1:
+            # Skip the last chunk if it's too short
+            num_chunks = int(num_chunks_raw - 1)
+            print(f"[worker] Video duration: {duration:.2f}s, chunk duration: {chunk_duration:.2f}s")
+            print(f"[worker] Last chunk would be {last_chunk_duration:.2f}s (< {MIN_CHUNK_DURATION}s), skipping it")
+            print(f"[worker] Processing {num_chunks} chunks (instead of {int(num_chunks_raw)})")
+        else:
+            num_chunks = int(num_chunks_raw)
+            print(f"[worker] Processing {num_chunks} chunks with duration {chunk_duration:.2f}s each")
         
         # Create chunk records
         chunk_records = []

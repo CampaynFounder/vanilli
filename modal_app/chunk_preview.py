@@ -149,8 +149,21 @@ def generate_chunk_previews(
         audio_duration = float(result.stdout.strip())
         
         # Calculate number of chunks
-        num_chunks = int(ceil(video_duration / chunk_duration))
-        print(f"[chunk-preview] Video: {video_duration:.2f}s, Audio: {audio_duration:.2f}s, Chunks: {num_chunks}")
+        # Skip last chunk if it would be less than 3 seconds
+        MIN_CHUNK_DURATION = 3.0
+        num_chunks_raw = ceil(video_duration / chunk_duration)
+        last_chunk_start = (num_chunks_raw - 1) * chunk_duration
+        last_chunk_duration = video_duration - last_chunk_start
+        
+        if last_chunk_duration < MIN_CHUNK_DURATION and num_chunks_raw > 1:
+            # Skip the last chunk if it's too short
+            num_chunks = int(num_chunks_raw - 1)
+            print(f"[chunk-preview] Video: {video_duration:.2f}s, Audio: {audio_duration:.2f}s")
+            print(f"[chunk-preview] Last chunk would be {last_chunk_duration:.2f}s (< {MIN_CHUNK_DURATION}s), skipping it")
+            print(f"[chunk-preview] Processing {num_chunks} chunks (instead of {int(num_chunks_raw)})")
+        else:
+            num_chunks = int(num_chunks_raw)
+            print(f"[chunk-preview] Video: {video_duration:.2f}s, Audio: {audio_duration:.2f}s, Chunks: {num_chunks}")
         
         chunks_dir = work_path / "chunks"
         chunks_dir.mkdir(exist_ok=True)
