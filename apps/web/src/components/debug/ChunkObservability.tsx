@@ -340,12 +340,10 @@ export function ChunkObservability() {
           }
         }
         
-        // Then generate previews directly with the values we have (don't wait for state)
+        // Then generate previews - Modal will calculate tempo/sync automatically
         await generateChunkPreviewsWithValues(
           videoSignedUrl,
           audioSignedUrl,
-          calculatedSyncOffset,
-          calculatedChunkDuration,
           imageSignedUrls.length > 0 ? imageSignedUrls : undefined
         );
         
@@ -373,8 +371,6 @@ export function ChunkObservability() {
   const generateChunkPreviewsWithValues = async (
     videoSignedUrl: string,
     audioSignedUrl: string,
-    syncOffsetValue: number,
-    chunkDurationValue: number,
     imageUrls?: string[]
   ) => {
     setGeneratingPreviews(true);
@@ -388,30 +384,19 @@ export function ChunkObservability() {
         throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
       }
 
+      // Only send video_url, audio_url, and optional image_urls
+      // The Modal function will automatically calculate tempo, sync_offset, and chunk_duration
       const requestBody = {
         video_url: videoSignedUrl,
         audio_url: audioSignedUrl,
-        sync_offset: syncOffsetValue,
-        chunk_duration: chunkDurationValue,
         image_urls: imageUrls || [], // Optional array of image URLs
       };
       
-      console.log('Calling Modal to generate chunk previews...', {
+      console.log('Calling Modal to generate chunk previews (will auto-calculate tempo/sync)...', {
         video_url: videoSignedUrl.substring(0, 50) + '...',
         audio_url: audioSignedUrl.substring(0, 50) + '...',
-        sync_offset: syncOffsetValue,
-        chunk_duration: chunkDurationValue,
         image_urls_count: imageUrls?.length || 0,
-        request_body_keys: Object.keys(requestBody),
       });
-      
-      // Validate values before sending
-      if (syncOffsetValue === null || syncOffsetValue === undefined) {
-        throw new Error(`Invalid sync_offset: ${syncOffsetValue}`);
-      }
-      if (chunkDurationValue === null || chunkDurationValue === undefined || chunkDurationValue <= 0) {
-        throw new Error(`Invalid chunk_duration: ${chunkDurationValue}`);
-      }
       
       const response = await fetch(modalUrl, {
         method: 'POST',
@@ -427,6 +412,44 @@ export function ChunkObservability() {
       }
 
       const result = await response.json();
+      
+      // Update calculated values from the analysis results returned by Modal
+      if (result.analysis) {
+        setCalculatedBpm(result.analysis.bpm);
+        setCalculatedSyncOffset(result.analysis.sync_offset);
+        setCalculatedChunkDuration(result.analysis.chunk_duration);
+        
+        // Calculate tempo analysis for display
+        const analysis = calculateChunkDurationFromBpm(result.analysis.bpm);
+        setTempoAnalysis(analysis);
+        
+        // Recalculate chunks with the returned values
+        if (videoDuration !== null) {
+          const numChunks = Math.ceil(videoDuration / result.analysis.chunk_duration);
+          const calculatedChunks: ChunkInfo[] = [];
+          for (let i = 0; i < numChunks; i++) {
+            const videoStartTime = i * result.analysis.chunk_duration;
+            const videoEndTime = Math.min(videoStartTime + result.analysis.chunk_duration, videoDuration);
+            const audioStartTime = videoStartTime + result.analysis.sync_offset;
+            const audioEndTime = audioStartTime + result.analysis.chunk_duration;
+            const imageIndex = imageFiles.length > 0 ? i % imageFiles.length : null;
+            const imageUrl = imageIndex !== null ? imageUrls[imageIndex] : null;
+            calculatedChunks.push({
+              chunkIndex: i,
+              videoStartTime,
+              videoEndTime,
+              audioStartTime,
+              audioEndTime,
+              imageIndex,
+              imageUrl,
+              syncOffset: result.analysis.sync_offset,
+              chunkDuration: result.analysis.chunk_duration,
+            });
+          }
+          setChunks(calculatedChunks);
+        }
+      }
+      
       setChunkPreviews(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate chunk previews');
