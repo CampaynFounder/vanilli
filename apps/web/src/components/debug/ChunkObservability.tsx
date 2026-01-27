@@ -1012,21 +1012,29 @@ export function ChunkObservability() {
                           // Fetch-based download to prevent new tab navigation
                           try {
                             const response = await fetch(preview.video_chunk_url);
+                            if (!response.ok) {
+                              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
                             const blob = await response.blob();
                             const url = window.URL.createObjectURL(blob);
                             const link = document.createElement('a');
                             link.href = url;
                             link.download = `chunk_${preview.chunk_index + 1}_video.mp4`;
+                            link.target = '_self'; // Explicitly prevent new tab
+                            link.rel = 'noopener noreferrer'; // Security best practice
                             link.style.display = 'none';
                             document.body.appendChild(link);
                             link.click();
-                            // Clean up after download starts
-                            setTimeout(() => {
-                              document.body.removeChild(link);
+                            // Clean up immediately after click
+                            requestAnimationFrame(() => {
+                              if (link.parentNode) {
+                                document.body.removeChild(link);
+                              }
                               window.URL.revokeObjectURL(url);
-                            }, 100);
+                            });
                           } catch (err) {
                             console.error('Download failed:', err);
+                            alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
                           }
                         }}
                         className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center cursor-pointer"
@@ -1040,21 +1048,29 @@ export function ChunkObservability() {
                           // Fetch-based download to prevent new tab navigation
                           try {
                             const response = await fetch(preview.audio_chunk_url);
+                            if (!response.ok) {
+                              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
                             const blob = await response.blob();
                             const url = window.URL.createObjectURL(blob);
                             const link = document.createElement('a');
                             link.href = url;
                             link.download = `chunk_${preview.chunk_index + 1}_audio.wav`;
+                            link.target = '_self'; // Explicitly prevent new tab
+                            link.rel = 'noopener noreferrer'; // Security best practice
                             link.style.display = 'none';
                             document.body.appendChild(link);
                             link.click();
-                            // Clean up after download starts
-                            setTimeout(() => {
-                              document.body.removeChild(link);
+                            // Clean up immediately after click
+                            requestAnimationFrame(() => {
+                              if (link.parentNode) {
+                                document.body.removeChild(link);
+                              }
                               window.URL.revokeObjectURL(url);
-                            }, 100);
+                            });
                           } catch (err) {
                             console.error('Download failed:', err);
+                            alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
                           }
                         }}
                         className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center cursor-pointer"
