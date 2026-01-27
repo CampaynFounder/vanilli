@@ -124,7 +124,7 @@ export function GenerationFlow({
                           style={{ width: `${Math.max(10, progress)}%` }}
                         />
                       </div>
-                      {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
+                      {estimatedTimeRemaining != null && estimatedTimeRemaining > 0 && (
                         <p className="text-xs text-slate-400 mt-1">
                           Estimated time remaining: {Math.floor(estimatedTimeRemaining / 60)}:{(estimatedTimeRemaining % 60).toString().padStart(2, '0')}
                         </p>
