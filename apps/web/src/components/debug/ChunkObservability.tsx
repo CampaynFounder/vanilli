@@ -36,6 +36,13 @@ interface ChunkPreview {
   audio_end_time: number;
 }
 
+interface OnsetDetection {
+  used: boolean;
+  audalign_offset: number;
+  first_onset_time: number | null;
+  reason: string | null;
+}
+
 interface ChunkPreviewResult {
   video_duration: number;
   audio_duration: number;
@@ -45,6 +52,7 @@ interface ChunkPreviewResult {
     bpm: number;
     sync_offset: number;
     chunk_duration: number;
+    onset_detection?: OnsetDetection;
   };
 }
 

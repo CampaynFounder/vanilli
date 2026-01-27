@@ -441,6 +441,14 @@ def api():
                 if not isinstance(sync_offset, (int, float)):
                     sync_offset = float(sync_offset)
                 
+                # Track onset detection info for UI display
+                onset_detection_info = {
+                    "used": False,
+                    "audalign_offset": sync_offset,
+                    "first_onset_time": None,
+                    "reason": None
+                }
+                
                 # Onset-based fallback: If audalign returns near-zero offset, detect first musical transient
                 # This handles cases where audalign fails to detect dead space at video start
                 if abs(sync_offset) < 0.1:
@@ -453,18 +461,24 @@ def api():
                         
                         if len(onset_frames) > 0:
                             first_onset_time = librosa.frames_to_time(onset_frames[0], sr=sr_video)
+                            onset_detection_info["first_onset_time"] = float(first_onset_time)
                             print(f"[chunk-preview] First onset detected at {first_onset_time:.3f}s in video audio")
                             
                             # If first onset is > 0.3s, use it as offset (music starts later in video)
                             if first_onset_time > 0.3:
                                 print(f"[chunk-preview] Using onset-based offset: {first_onset_time:.3f}s (music starts {first_onset_time:.3f}s into video)")
+                                onset_detection_info["used"] = True
+                                onset_detection_info["reason"] = f"First onset at {first_onset_time:.3f}s > 0.3s threshold"
                                 sync_offset = first_onset_time
                             else:
                                 print(f"[chunk-preview] First onset is too early ({first_onset_time:.3f}s), keeping audalign offset")
+                                onset_detection_info["reason"] = f"First onset at {first_onset_time:.3f}s <= 0.3s threshold"
                         else:
                             print(f"[chunk-preview] No onsets detected in video audio, keeping audalign offset")
+                            onset_detection_info["reason"] = "No onsets detected"
                     except Exception as e:
                         print(f"[chunk-preview] Onset detection failed: {e}, keeping audalign offset")
+                        onset_detection_info["reason"] = f"Onset detection error: {str(e)[:100]}"
                 
                 # Interpret offset:
                 # Positive offset = master audio starts BEFORE video audio (music in video starts later)
@@ -523,6 +537,7 @@ def api():
                 "bpm": bpm,
                 "sync_offset": sync_offset,
                 "chunk_duration": chunk_duration,
+                "onset_detection": onset_detection_info,
             }
             
             return JSONResponse(result)
