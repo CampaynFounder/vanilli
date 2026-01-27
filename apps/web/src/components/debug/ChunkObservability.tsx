@@ -41,6 +41,11 @@ interface ChunkPreviewResult {
   audio_duration: number;
   num_chunks: number;
   chunks: ChunkPreview[];
+  analysis?: {
+    bpm: number;
+    sync_offset: number;
+    chunk_duration: number;
+  };
 }
 
 export function ChunkObservability() {
@@ -354,6 +359,13 @@ export function ChunkObservability() {
 
       const result = await response.json();
       
+      console.log('Received chunk preview result:', {
+        has_analysis: !!result.analysis,
+        has_chunks: !!result.chunks,
+        num_chunks: result.num_chunks,
+        chunks_length: result.chunks?.length,
+      });
+      
       // Update calculated values from the analysis results returned by Modal
       if (result.analysis) {
         setCalculatedBpm(result.analysis.bpm);
@@ -389,9 +401,18 @@ export function ChunkObservability() {
           }
           setChunks(calculatedChunks);
         }
+      } else {
+        console.warn('No analysis data in response:', result);
       }
       
-      setChunkPreviews(result);
+      // Set chunk previews - this should display the downloadable chunks
+      if (result.chunks && result.chunks.length > 0) {
+        setChunkPreviews(result);
+        console.log('Chunk previews set, should be visible in UI');
+      } else {
+        console.error('No chunks in response:', result);
+        throw new Error('No chunks returned from Modal function');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate chunk previews');
     } finally {
