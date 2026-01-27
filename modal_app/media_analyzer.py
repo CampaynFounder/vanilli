@@ -155,10 +155,27 @@ def analyze_media(
             str(audio_path),  # master audio (target file)
             str(video_audio_dir),  # directory containing video audio to align
         )
+        
+        # Debug: Print full alignment result to understand structure
+        print(f"[analyzer] Full alignment result: {alignment}")
+        print(f"[analyzer] Alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
+        
         sync_offset = alignment.get("offset", 0.0)
         if not isinstance(sync_offset, (int, float)):
             sync_offset = float(sync_offset)
-        print(f"[analyzer] Sync offset: {sync_offset}s (master is {'ahead' if sync_offset > 0 else 'behind'} video)")
+        
+        # Interpret offset:
+        # Positive offset = master audio starts BEFORE video audio (music in video starts later)
+        # This means: music starts X seconds INTO the video (dead space at start)
+        # Negative offset = master audio starts AFTER video audio (video matches mid-song)
+        print(f"[analyzer] Sync offset: {sync_offset:.3f}s")
+        if sync_offset > 0:
+            print(f"[analyzer]   → Music starts {sync_offset:.3f}s INTO the video (dead space at start)")
+            print(f"[analyzer]   → When muxing: delay audio by {sync_offset:.3f}s to align with music start")
+        elif sync_offset < 0:
+            print(f"[analyzer]   → Video matches mid-song (audio needs trimming by {abs(sync_offset):.3f}s)")
+        else:
+            print(f"[analyzer]   → Perfect sync (no offset needed)")
         
         # 2. Calculate BPM and measure grid using librosa
         print("[analyzer] Analyzing tempo with librosa...")

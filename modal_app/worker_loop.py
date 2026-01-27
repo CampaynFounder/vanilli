@@ -267,51 +267,17 @@ def process_job_with_chunks(
             )
             master_audio_raw_path = audio_wav_path
         
-        # Apply Smart Trim based on sync_offset polarity
-        # This eliminates dead air by trimming the appropriate input file
-        print(f"[worker] Applying Smart Trim with sync_offset: {sync_offset:.3f}s")
+        # DO NOT trim video/audio - keep full files
+        # The sync_offset will be used when muxing final video with audio
+        # Positive offset = music starts X seconds into video (dead space at start)
+        # We'll shift the audio to the right by offset amount when muxing
+        print(f"[worker] Sync offset: {sync_offset:.3f}s (will be applied when muxing final video)")
+        print(f"[worker] Positive offset = music starts {sync_offset:.3f}s into video (dead space at start)")
+        print(f"[worker] Negative offset = video matches mid-song (audio needs trimming)")
         
-        # Threshold for "near zero" - avoid unnecessary processing for tiny offsets
-        SMART_TRIM_THRESHOLD = 0.1  # 100ms
-        
-        # Initialize effective_sync_offset (will be 0 after Smart Trim)
-        effective_sync_offset = 0.0
-        
-        if abs(sync_offset) < SMART_TRIM_THRESHOLD:
-            # Near zero offset - no trimming needed
-            print(f"[worker] Offset is near zero ({sync_offset:.3f}s), skipping trim")
-            user_video_path = user_video_raw_path
-            master_audio_path = master_audio_raw_path
-            # Keep original offset for chunking (it's small enough to not matter)
-            effective_sync_offset = sync_offset or 0.0
-        elif sync_offset > 0:
-            # CASE A: Positive offset - Dead air in video
-            # Trim the video start to remove dead air, audio starts at 0
-            print(f"[worker] Trimming {sync_offset:.3f}s from VIDEO start (removing dead air)")
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(user_video_raw_path),
-                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-perfect cut
-                 "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
-                 str(user_video_path)],
-                check=True, capture_output=True
-            )
-            master_audio_path = master_audio_raw_path
-            # After trimming video, sync_offset is effectively 0 for chunking
-            effective_sync_offset = 0.0
-        else:
-            # CASE B: Negative offset - Mid-song performance
-            # Trim the audio start, video starts at 0
-            trim_val = abs(sync_offset)
-            print(f"[worker] Trimming {trim_val:.3f}s from AUDIO start (matching mid-song)")
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(trim_val), "-i", str(master_audio_raw_path),
-                 "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
-                 str(master_audio_path)],
-                check=True, capture_output=True
-            )
-            user_video_path = user_video_raw_path
-            # After trimming audio, sync_offset is effectively 0 for chunking
-            effective_sync_offset = 0.0
+        # Use original files (no trimming)
+        user_video_path = user_video_raw_path
+        master_audio_path = master_audio_raw_path
         
         # Get video duration
         result = subprocess.run(
@@ -414,10 +380,12 @@ def process_job_with_chunks(
                     raise Exception(f"Failed to create signed URL for chunk {i+1}")
                 
                 # Calculate timing information for observability
-                # After Smart Trim, video and audio are aligned at 0, so timing matches
+                # sync_offset represents when music starts in the video
+                # Positive offset = music starts X seconds into video (dead space at start)
                 video_chunk_start_time = i * chunk_duration
-                # Use effective_sync_offset (0 after Smart Trim) instead of original sync_offset
-                audio_start_time = video_chunk_start_time + effective_sync_offset
+                # Audio timing: chunk starts at video_chunk_start_time, but we need to account for offset
+                # If offset is positive (music starts later in video), audio chunk starts at video_chunk_start_time + offset
+                audio_start_time = video_chunk_start_time + (sync_offset or 0.0)
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
                 
@@ -425,7 +393,7 @@ def process_job_with_chunks(
                 kling_requested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk start: {video_chunk_start_time:.3f}s")
-                print(f"  - Audio start: {audio_start_time:.3f}s (original sync_offset: {sync_offset:.3f}s, effective after Smart Trim: {effective_sync_offset:.3f}s)")
+                print(f"  - Audio start: {audio_start_time:.3f}s (sync_offset: {sync_offset:.3f}s - music starts {sync_offset:.3f}s into video)")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 print(f"  - Chunk duration: {chunk_duration:.3f}s")
@@ -460,14 +428,35 @@ def process_job_with_chunks(
                 )
                 
                 # Mux video + audio
+                # Apply sync_offset: if positive, delay audio to align with when music starts in video
+                # Positive offset = music starts X seconds into video, so delay audio by X seconds
                 segment_path = chunks_dir / f"segment_{i:03d}.mp4"
-                subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
-                     "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
-                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-                     "-shortest", str(segment_path)],
-                    check=True, capture_output=True
-                )
+                
+                if sync_offset and sync_offset > 0:
+                    # Positive offset: music starts X seconds into video
+                    # Delay audio by X seconds so it aligns with when music starts
+                    print(f"[worker] Applying sync_offset {sync_offset:.3f}s: delaying audio to align with music start in video")
+                    subprocess.run(
+                        ["ffmpeg", "-y",
+                         "-i", str(kling_output_path),  # Video from Kling
+                         "-i", str(audio_slice_path),   # Audio slice
+                         "-filter_complex", f"[1:a]adelay={int(sync_offset * 1000)}|{int(sync_offset * 1000)}[a]",
+                         "-map", "0:v:0", "-map", "[a]",
+                         "-c:v", "libx264", "-preset", "veryfast",
+                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+                         "-movflags", "+faststart",
+                         "-shortest", str(segment_path)],
+                        check=True, capture_output=True
+                    )
+                else:
+                    # No offset or negative offset: audio starts immediately
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
+                         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
+                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+                         "-shortest", str(segment_path)],
+                        check=True, capture_output=True
+                    )
                 
                 # Upload individual chunk for preview/download
                 chunk_output_key = f"{OUTPUTS_PREFIX}/{generation_id or job_id}/chunk_{i:03d}.mp4"
@@ -492,8 +481,7 @@ def process_job_with_chunks(
                         "video_chunk_url": chunk_url,
                         "video_chunk_start_time": video_chunk_start_time,
                         "audio_start_time": audio_start_time,
-                        "sync_offset": effective_sync_offset,
-                        "original_sync_offset": sync_offset or 0.0,  # Keep original for reference
+                        "sync_offset": sync_offset or 0.0,  # Offset when music starts in video
                         "chunk_duration": chunk_duration,
                         "kling_task_id": task_id,
                         "kling_requested_at": kling_requested_at,
@@ -522,8 +510,8 @@ def process_job_with_chunks(
                     # (some fields may not be set if error occurred early)
                     try:
                         video_chunk_start_time = i * chunk_duration
-                        # After Smart Trim, audio timing matches video timing
-                        audio_start_time = i * chunk_duration + effective_sync_offset
+                        # Audio timing accounts for sync_offset (when music starts in video)
+                        audio_start_time = i * chunk_duration + (sync_offset or 0.0)
                         image_index = i % len(target_images)
                         current_image = target_images[image_index] if target_images else None
                         
@@ -533,8 +521,7 @@ def process_job_with_chunks(
                             # Include any observability data we have
                             "video_chunk_start_time": video_chunk_start_time,
                             "audio_start_time": audio_start_time,
-                            "sync_offset": effective_sync_offset,
-                            "original_sync_offset": sync_offset or 0.0,  # Keep original for reference
+                            "sync_offset": sync_offset or 0.0,  # Offset when music starts in video
                             "chunk_duration": chunk_duration,
                             "image_index": image_index,
                             "image_url": current_image,

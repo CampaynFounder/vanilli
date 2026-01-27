@@ -973,10 +973,12 @@ export function ChunkObservability() {
                           link.style.display = 'none';
                           document.body.appendChild(link);
                           link.click();
-                          // Clean up after a short delay
-                          setTimeout(() => {
-                            document.body.removeChild(link);
-                          }, 100);
+                          // Clean up immediately
+                          requestAnimationFrame(() => {
+                            if (link.parentNode) {
+                              document.body.removeChild(link);
+                            }
+                          });
                         }}
                         className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center cursor-pointer"
                       >
@@ -994,10 +996,12 @@ export function ChunkObservability() {
                           link.style.display = 'none';
                           document.body.appendChild(link);
                           link.click();
-                          // Clean up after a short delay
-                          setTimeout(() => {
-                            document.body.removeChild(link);
-                          }, 100);
+                          // Clean up immediately
+                          requestAnimationFrame(() => {
+                            if (link.parentNode) {
+                              document.body.removeChild(link);
+                            }
+                          });
                         }}
                         className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center cursor-pointer"
                       >

@@ -432,9 +432,25 @@ def api():
                 shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
                 
                 alignment = audalign.target_align(str(audio_path), str(video_audio_dir))
+                
+                # Debug: Print full alignment result
+                print(f"[chunk-preview] Full alignment result: {alignment}")
+                print(f"[chunk-preview] Alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
+                
                 sync_offset = alignment.get("offset", 0.0)
                 if not isinstance(sync_offset, (int, float)):
                     sync_offset = float(sync_offset)
+                
+                # Interpret offset:
+                # Positive offset = master audio starts BEFORE video audio (music in video starts later)
+                # This means: music starts X seconds INTO the video (dead space at start)
+                print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s")
+                if sync_offset > 0:
+                    print(f"[chunk-preview]   → Music starts {sync_offset:.3f}s INTO the video (dead space at start)")
+                elif sync_offset < 0:
+                    print(f"[chunk-preview]   → Video matches mid-song (audio needs trimming by {abs(sync_offset):.3f}s)")
+                else:
+                    print(f"[chunk-preview]   → Perfect sync (no offset needed) - WARNING: Check if this is correct!")
                 
                 # Calculate BPM using librosa
                 print(f"[chunk-preview] Calculating tempo...")
