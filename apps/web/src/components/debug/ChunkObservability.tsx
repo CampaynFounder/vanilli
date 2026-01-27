@@ -203,60 +203,6 @@ export function ChunkObservability() {
     }
   };
 
-  const calculateChunks = () => {
-    if (!videoFile || !videoUrl) {
-      setError('Please upload a tracking video');
-      return;
-    }
-    
-    if (!audioFile || !audioUrl) {
-      setError('Please upload an audio file');
-      return;
-    }
-
-    if (!tempoAnalysis) {
-      setError('Please analyze audio tempo first');
-      return;
-    }
-
-    if (!videoDuration) {
-      setError('Video duration not loaded. Please wait for video to load.');
-      return;
-    }
-
-    setError(null);
-    setLoading(true);
-
-    const chunkDuration = tempoAnalysis.chunkDuration;
-    const numChunks = Math.ceil(videoDuration / chunkDuration);
-    const calculatedChunks: ChunkInfo[] = [];
-
-    for (let i = 0; i < numChunks; i++) {
-      const videoStartTime = i * chunkDuration;
-      const videoEndTime = Math.min(videoStartTime + chunkDuration, videoDuration);
-      const audioStartTime = videoStartTime + (syncOffset || 0);
-      const audioEndTime = audioStartTime + chunkDuration;
-      
-      // Images are optional
-      const imageIndex = imageFiles.length > 0 ? i % imageFiles.length : null;
-      const imageUrl = imageIndex !== null ? imageUrls[imageIndex] : null;
-
-      calculatedChunks.push({
-        chunkIndex: i,
-        videoStartTime,
-        videoEndTime,
-        audioStartTime,
-        audioEndTime,
-        imageIndex,
-        imageUrl,
-        syncOffset: syncOffset || 0,
-        chunkDuration,
-      });
-    }
-
-    setChunks(calculatedChunks);
-    setLoading(false);
-  };
 
   const analyzeMediaWithModal = async () => {
     if (!videoFile || !audioFile || !videoUrl || !audioUrl) {
@@ -399,7 +345,7 @@ export function ChunkObservability() {
         setChunks(calculatedChunks);
         
         // Upload images if provided and get signed URLs
-        let imageSignedUrls: string[] = [];
+        const imageSignedUrls: string[] = [];
         if (imageFiles.length > 0) {
           const imagePaths: string[] = [];
           for (let i = 0; i < imageFiles.length; i++) {
