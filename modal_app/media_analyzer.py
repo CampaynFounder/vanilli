@@ -139,7 +139,6 @@ def analyze_media(
         alignment = audalign.target_align(
             str(audio_path),  # master audio (target)
             str(video_audio_path),  # video audio (to align)
-            technique="correlation",
         )
         sync_offset = alignment.get("offset", 0.0)
         if not isinstance(sync_offset, (int, float)):
