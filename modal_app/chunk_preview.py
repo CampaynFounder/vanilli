@@ -15,7 +15,7 @@ app = modal.App("vannilli-chunk-preview")
 img = (
     modal.Image.debian_slim()
     .apt_install("ffmpeg")
-    .pip_install("requests", "supabase", "fastapi", "starlette", "librosa", "audalign", "numpy")
+    .pip_install("requests", "supabase", "fastapi", "starlette", "librosa", "audalign", "numpy", "scipy")
     .add_local_dir(Path(__file__).parent, remote_path="/root/modal_app")
 )
 
@@ -462,46 +462,76 @@ def api():
                     check=True, capture_output=True
                 )
                 
-                # Calculate sync offset using audalign
-                print(f"[chunk-preview] Calculating sync offset...")
-                video_audio_dir = base / "video_audio_dir"
-                video_audio_dir.mkdir(exist_ok=True)
-                import shutil
-                video_audio_in_dir = video_audio_dir / "video_audio.wav"
-                shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+                # Calculate sync offset using manual cross-correlation (same as media_analyzer)
+                print(f"[chunk-preview] Calculating sync offset using cross-correlation...")
                 
-                alignment = audalign.target_align(str(audio_path), str(video_audio_dir))
+                def calculate_sync_offset_manual(master_audio_path, video_audio_path):
+                    """Manually calculate sync offset using cross-correlation."""
+                    import numpy as np
+                    from scipy import signal
+                    
+                    # Load both audio files at same sample rate
+                    y_master, sr_master = librosa.load(str(master_audio_path), sr=22050)
+                    y_video, sr_video = librosa.load(str(video_audio_path), sr=22050)
+                    
+                    # Use shorter length for correlation (first 30 seconds should be enough)
+                    max_corr_length = min(len(y_master), len(y_video), int(30 * sr_master))
+                    y_master_short = y_master[:max_corr_length]
+                    y_video_short = y_video[:max_corr_length]
+                    
+                    print(f"[chunk-preview] Computing cross-correlation (master: {len(y_master_short)/sr_master:.2f}s, video: {len(y_video_short)/sr_video:.2f}s)...")
+                    
+                    # Compute cross-correlation
+                    correlation = signal.correlate(y_master_short, y_video_short, mode='full')
+                    
+                    # Find peak correlation (best match point)
+                    peak_index = np.argmax(np.abs(correlation))
+                    center_index = len(y_video_short) - 1
+                    offset_samples = peak_index - center_index
+                    offset_seconds = offset_samples / sr_master
+                    
+                    print(f"[chunk-preview] Cross-correlation peak at index {peak_index}, offset: {offset_seconds:.3f}s")
+                    
+                    return offset_seconds
                 
-                # Debug: Print full alignment result
-                print(f"[chunk-preview] Full alignment result: {alignment}")
-                print(f"[chunk-preview] Alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
+                # Calculate manual offset
+                manual_sync_offset = calculate_sync_offset_manual(audio_path, video_audio_path)
+                print(f"[chunk-preview] Manual sync offset (cross-correlation): {manual_sync_offset:.3f}s")
                 
-                sync_offset = alignment.get("offset", 0.0)
-                if not isinstance(sync_offset, (int, float)):
-                    sync_offset = float(sync_offset)
+                # Also get audalign result for comparison
+                try:
+                    video_audio_dir = base / "video_audio_dir"
+                    video_audio_dir.mkdir(exist_ok=True)
+                    import shutil
+                    video_audio_in_dir = video_audio_dir / "video_audio.wav"
+                    shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+                    
+                    alignment = audalign.target_align(str(audio_path), str(video_audio_dir))
+                    audalign_sync_offset = alignment.get("offset", 0.0)
+                    if not isinstance(audalign_sync_offset, (int, float)):
+                        audalign_sync_offset = float(audalign_sync_offset)
+                    
+                    print(f"[chunk-preview] Audalign sync offset: {audalign_sync_offset:.3f}s")
+                    print(f"[chunk-preview] Manual vs Audalign: {manual_sync_offset:.3f}s vs {audalign_sync_offset:.3f}s (diff: {abs(manual_sync_offset - audalign_sync_offset):.3f}s)")
+                except Exception as e:
+                    print(f"[chunk-preview] Audalign failed: {e}, using manual calculation only")
+                    audalign_sync_offset = None
                 
-                # IMPORTANT: audalign may return offset that needs adjustment
-                # User reports offset is ~50% too small (audio comes in too early)
-                # Apply correction: double the offset if it's positive
-                raw_sync_offset = sync_offset
-                if sync_offset > 0:
-                    sync_offset = sync_offset * 2.0
-                    print(f"[chunk-preview] Raw audalign offset: {raw_sync_offset:.3f}s → Doubled to {sync_offset:.3f}s (user reported ~50% too small)")
-                else:
-                    print(f"[chunk-preview] Raw audalign offset: {raw_sync_offset:.3f}s (no adjustment needed for negative/zero offset)")
+                # Use manual calculation as primary
+                sync_offset = manual_sync_offset
+                raw_sync_offset = audalign_sync_offset if audalign_sync_offset is not None else manual_sync_offset
                 
-                # Track onset detection info for UI display (use raw offset before doubling)
+                # Track onset detection info for UI display
                 onset_detection_info = {
                     "used": False,
-                    "audalign_offset": raw_sync_offset,  # Show raw audalign offset in UI
+                    "audalign_offset": raw_sync_offset,  # Show audalign offset in UI (or manual if audalign failed)
                     "first_onset_time": None,
                     "reason": None
                 }
                 
-                # Onset-based fallback: If audalign returns near-zero offset, detect first musical transient
-                # This handles cases where audalign fails to detect dead space at video start
+                # Onset-based fallback: If manual calculation returns near-zero offset, detect first musical transient
                 if abs(sync_offset) < 0.1:
-                    print(f"[chunk-preview] Audalign returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
+                    print(f"[chunk-preview] Manual calculation returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
                     try:
                         # Load video audio and detect onsets
                         y_video, sr_video = librosa.load(str(video_audio_path), sr=22050)

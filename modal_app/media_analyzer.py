@@ -244,7 +244,7 @@ def analyze_media(
         # Onset-based fallback: If manual calculation returns near-zero offset, detect first musical transient
         # This handles cases where cross-correlation fails to detect dead space at video start
         if abs(sync_offset) < 0.1:
-            print(f"[analyzer] Audalign returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
+            print(f"[analyzer] Manual calculation returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
             try:
                 # Load video audio and detect onsets
                 y_video, sr_video = librosa.load(str(video_audio_path), sr=22050)
