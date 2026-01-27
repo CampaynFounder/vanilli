@@ -483,6 +483,7 @@ function StudioPage() {
         // Generate thumbnail for legacy flow too
         const thumbnailPath = primaryImageThumbnailPath || videoThumbnailPath;
         
+        // Create generation record IMMEDIATELY so it's visible in history
         const { data: gen, error: ge } = await supabase
           .from('generations')
           .insert({ 
@@ -490,10 +491,17 @@ function StudioPage() {
             cost_credits: genSecs, 
             status: 'pending',
             thumbnail_r2_path: thumbnailPath, // Store thumbnail path
+            progress_percentage: 0, // Initial progress
+            current_stage: 'pending', // Initial stage
           })
-          .select('id')
+          .select('id, cost_credits, status, thumbnail_r2_path, created_at')
           .single();
-        if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');
+        if (ge || !gen?.id) {
+          console.error('[studio] Failed to create generation:', ge);
+          throw new Error(ge?.message || 'Failed to create generation');
+        }
+        
+        console.log('[studio] Generation created:', gen.id, 'credits:', genSecs);
         const gid = gen.id;
 
         await supabase
