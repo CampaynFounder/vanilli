@@ -867,11 +867,32 @@ function StudioPage() {
                         if (downloadUrl) {
                           // Create a temporary anchor to trigger download
                           const a = document.createElement('a');
-                          a.href = downloadUrl;
-                          a.download = `vannilli-video-${generationId}.mp4`;
-                          a.target = '_blank';
-                          document.body.appendChild(a);
-                          a.click();
+                          // Use fetch-based download to prevent new tab navigation
+                          try {
+                            const response = await fetch(downloadUrl);
+                            if (!response.ok) {
+                              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `vannilli-video-${generationId}.mp4`;
+                            link.target = '_self';
+                            link.rel = 'noopener noreferrer';
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
+                            link.click();
+                            requestAnimationFrame(() => {
+                              if (link.parentNode) {
+                                document.body.removeChild(link);
+                              }
+                              window.URL.revokeObjectURL(url);
+                            });
+                          } catch (err) {
+                            console.error('[studio] Download failed:', err);
+                            alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                          }
                           document.body.removeChild(a);
                         } else {
                           setGenerationError('Download link not available');

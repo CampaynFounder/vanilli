@@ -182,14 +182,10 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
       }
       
       // If path is already a full URL, use it directly
+      // Use fetch-based download to prevent new tab navigation
+      let downloadUrl: string;
       if (path.startsWith('http')) {
-        const a = document.createElement('a');
-        a.href = path;
-        a.download = filename;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadUrl = path;
       } else {
         // Create signed URL from storage path
         const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(path, 3600);
@@ -198,13 +194,35 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
           setDownloadErrorId(downloadKey);
           return;
         }
-        const a = document.createElement('a');
-        a.href = data.signedUrl;
-        a.download = filename;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadUrl = data.signedUrl;
+      }
+      
+      // Fetch and download as blob to prevent new tab
+      try {
+        const response = await fetch(downloadUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.target = '_self';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        requestAnimationFrame(() => {
+          if (link.parentNode) {
+            document.body.removeChild(link);
+          }
+          window.URL.revokeObjectURL(url);
+        });
+      } catch (err) {
+        console.error('[history] Download failed:', err);
+        setDownloadError(err instanceof Error ? err.message : 'Download failed');
+        setDownloadErrorId(downloadKey);
       }
     } catch (err) {
       setDownloadError('Download failed. Please try again.');
