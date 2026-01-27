@@ -49,7 +49,7 @@ function HistoryPage() {
           
           const { data: g2 } = await supabase
             .from('generations')
-            .select('*, video_jobs!inner(user_id,user_video_url,target_images,prompt)')
+            .select('*, video_jobs!inner(user_id,user_video_url,target_images,prompt,user_bpm,bpm)')
             .eq('video_jobs.user_id', uid)
             .is('project_id', null); // Only get queue system generations (no project)
           

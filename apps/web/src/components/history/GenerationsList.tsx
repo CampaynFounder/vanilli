@@ -27,6 +27,8 @@ export interface Generation {
     user_video_url?: string;
     target_images?: string[];
     prompt?: string | null;
+    user_bpm?: number | null;
+    bpm?: number | null; // Calculated BPM from analysis
   } | null;
 }
 
@@ -400,12 +402,25 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                       {displayName}
                     </h3>
                     <div className="flex items-center gap-3 text-sm text-slate-400 mb-2 flex-wrap">
-                      {generation.projects && (
+                      {/* Show BPM from projects (legacy) or video_jobs (new system) */}
+                      {(generation.projects || generation.video_jobs) && (
                         <>
-                          <span>{generation.projects.bpm} BPM</span>
+                          <span>
+                            {generation.projects?.bpm || 
+                             generation.video_jobs?.user_bpm || 
+                             generation.video_jobs?.bpm || 
+                             'N/A'} BPM
+                            {generation.video_jobs?.user_bpm && (
+                              <span className="text-xs text-purple-400 ml-1" title="User-provided BPM">(user)</span>
+                            )}
+                          </span>
                           <span>•</span>
-                          <span>{generation.projects.bars} bars</span>
-                          <span>•</span>
+                          {generation.projects && (
+                            <>
+                              <span>{generation.projects.bars} bars</span>
+                              <span>•</span>
+                            </>
+                          )}
                         </>
                       )}
                       <span className="font-semibold text-purple-400">
