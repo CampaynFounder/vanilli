@@ -257,8 +257,10 @@ def analyze_media(
                                 if offsets and len(offsets) > 0:
                                     # Use first offset (most confident match)
                                     # This is when master audio matches video audio at 0s
-                                    audalign_sync_offset = float(offsets[0])
-                                    print(f"[analyzer] Extracted offset from match_info: {audalign_sync_offset:.3f}s (from {len(offsets)} matches)")
+                                    raw_offset = float(offsets[0])
+                                    # audalign appears to return doubled offset, divide by 2
+                                    audalign_sync_offset = raw_offset / 2.0
+                                    print(f"[analyzer] Extracted offset from match_info: {raw_offset:.3f}s (raw) → {audalign_sync_offset:.3f}s (divided by 2)")
                                     print(f"[analyzer]   → Master audio at {audalign_sync_offset:.3f}s matches video audio at 0s")
                                     print(f"[analyzer]   → Music starts {audalign_sync_offset:.3f}s into video (dead space at start)")
                                     break
@@ -277,16 +279,20 @@ def analyze_media(
                         break
                 
                 if master_audio_key and master_audio_key in alignment:
-                    audalign_sync_offset = alignment[master_audio_key]
-                    if not isinstance(audalign_sync_offset, (int, float)):
-                        audalign_sync_offset = float(audalign_sync_offset)
-                    print(f"[analyzer] Extracted offset from top-level key '{master_audio_key}': {audalign_sync_offset:.3f}s")
+                    raw_offset = alignment[master_audio_key]
+                    if not isinstance(raw_offset, (int, float)):
+                        raw_offset = float(raw_offset)
+                    # audalign appears to return doubled offset, divide by 2
+                    audalign_sync_offset = raw_offset / 2.0
+                    print(f"[analyzer] Extracted offset from top-level key '{master_audio_key}': {raw_offset:.3f}s (raw) → {audalign_sync_offset:.3f}s (divided by 2)")
                 else:
                     # Last resort: try "offset" key
-                    audalign_sync_offset = alignment.get("offset", 0.0)
-                    if not isinstance(audalign_sync_offset, (int, float)):
-                        audalign_sync_offset = float(audalign_sync_offset)
-                    print(f"[analyzer] Using fallback offset key: {audalign_sync_offset:.3f}s")
+                    raw_offset = alignment.get("offset", 0.0)
+                    if not isinstance(raw_offset, (int, float)):
+                        raw_offset = float(raw_offset)
+                    # audalign appears to return doubled offset, divide by 2
+                    audalign_sync_offset = raw_offset / 2.0
+                    print(f"[analyzer] Using fallback offset key: {raw_offset:.3f}s (raw) → {audalign_sync_offset:.3f}s (divided by 2)")
             
             print(f"[analyzer] Audalign sync offset (final): {audalign_sync_offset:.3f}s")
             print(f"[analyzer] Manual vs Audalign: {manual_sync_offset:.3f}s vs {audalign_sync_offset:.3f}s (diff: {abs(manual_sync_offset - audalign_sync_offset):.3f}s)")
