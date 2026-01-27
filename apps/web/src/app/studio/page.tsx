@@ -268,10 +268,15 @@ function StudioPage() {
         
         // Calculate estimated time based on video duration
         // Rough estimate: 60-90 seconds per chunk, plus analysis time
-        const estimatedSecondsPerChunk = 75;
-        const numChunks = Math.ceil(videoDuration / (chunk_duration || 9));
-        const estimatedTotalSeconds = 30 + (numChunks * estimatedSecondsPerChunk); // 30s for analysis
-        setEstimatedTimeRemaining(estimatedTotalSeconds);
+        if (videoDuration && videoDuration > 0) {
+          const estimatedSecondsPerChunk = 75;
+          const numChunks = Math.ceil(videoDuration / (chunk_duration || 9));
+          const estimatedTotalSeconds = 30 + (numChunks * estimatedSecondsPerChunk); // 30s for analysis
+          setEstimatedTimeRemaining(estimatedTotalSeconds);
+        } else {
+          // Fallback estimate if video duration is not available
+          setEstimatedTimeRemaining(90); // Default 90 seconds
+        }
         
         // Poll for progress updates (async, non-blocking)
         const poll = async (): Promise<void> => {
