@@ -14,7 +14,9 @@ app = modal.App("vannilli-video-worker")
 # Updated image with audalign for audio alignment
 # ffprobe is included in ffmpeg package, no need to install separately
 # Mount the modal_app directory so all Python files are available
-modal_app_mount = modal.Mount.from_local_dir(
+from modal import Mount
+
+modal_app_mount = Mount.from_local_dir(
     Path(__file__).parent,
     remote_path="/root/modal_app"
 )
