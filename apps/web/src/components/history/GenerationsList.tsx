@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GlassCard } from '../ui/GlassCard';
 import { sanitizeForUser } from '@/lib/utils';
@@ -246,7 +246,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     return 'Untitled Generation';
   };
   
-  // Thumbnail component that handles signed URLs
+  // Thumbnail component - static image for most statuses
   const ThumbnailImage = ({ path, alt }: { path: string; alt: string }) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     
@@ -280,6 +280,65 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   };
 
+  // Video scrubbing thumbnail - only for pending/processing status
+  const VideoScrubbingThumbnail = ({ videoUrl, alt }: { videoUrl: string; alt: string }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [signedUrl, setSignedUrl] = useState<string | null>(null);
+    
+    useEffect(() => {
+      const loadVideo = async () => {
+        try {
+          const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(videoUrl, 3600);
+          if (!error && data?.signedUrl) {
+            setSignedUrl(data.signedUrl);
+          }
+        } catch (e) {
+          console.error('[history] Error loading video for scrubbing:', e);
+        }
+      };
+      loadVideo();
+    }, [videoUrl]);
+    
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!videoRef.current || !containerRef.current || !signedUrl) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = x / rect.width;
+      
+      if (videoRef.current.duration) {
+        videoRef.current.currentTime = percentage * videoRef.current.duration;
+      }
+    };
+    
+    if (!signedUrl) {
+      return <div className="text-2xl">⏳</div>;
+    }
+    
+    return (
+      <div
+        ref={containerRef}
+        className="w-full h-full relative cursor-pointer"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => {
+          if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+          }
+        }}
+      >
+        <video
+          ref={videoRef}
+          src={signedUrl}
+          className="w-full h-full object-cover"
+          muted
+          preload="metadata"
+          playsInline
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {generations.map((generation) => {
@@ -294,7 +353,14 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
             <div className="flex items-start gap-4">
               {/* Thumbnail */}
               <div className="flex-shrink-0 w-32 h-20 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center relative">
-                {generation.thumbnail_r2_path ? (
+                {isProcessing && generation.video_jobs?.user_video_url ? (
+                  // Live video scrubbing for pending/processing status
+                  <VideoScrubbingThumbnail 
+                    videoUrl={generation.video_jobs.user_video_url}
+                    alt={displayName}
+                  />
+                ) : generation.thumbnail_r2_path && (generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') ? (
+                  // Static thumbnail for completed/failed/cancelled
                   <ThumbnailImage 
                     path={generation.thumbnail_r2_path} 
                     alt={displayName}
@@ -303,6 +369,8 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   <div className="text-4xl">⏳</div>
                 ) : generation.status === 'completed' ? (
                   <div className="text-4xl">✅</div>
+                ) : generation.status === 'failed' ? (
+                  <div className="text-4xl">❌</div>
                 ) : (
                   <div className="text-4xl">🎬</div>
                 )}
