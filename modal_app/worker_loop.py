@@ -274,11 +274,16 @@ def process_job_with_chunks(
         # Threshold for "near zero" - avoid unnecessary processing for tiny offsets
         SMART_TRIM_THRESHOLD = 0.1  # 100ms
         
+        # Initialize effective_sync_offset (will be 0 after Smart Trim)
+        effective_sync_offset = 0.0
+        
         if abs(sync_offset) < SMART_TRIM_THRESHOLD:
             # Near zero offset - no trimming needed
             print(f"[worker] Offset is near zero ({sync_offset:.3f}s), skipping trim")
             user_video_path = user_video_raw_path
             master_audio_path = master_audio_raw_path
+            # Keep original offset for chunking (it's small enough to not matter)
+            effective_sync_offset = sync_offset or 0.0
         elif sync_offset > 0:
             # CASE A: Positive offset - Dead air in video
             # Trim the video start to remove dead air, audio starts at 0
@@ -412,7 +417,7 @@ def process_job_with_chunks(
                 # After Smart Trim, video and audio are aligned at 0, so timing matches
                 video_chunk_start_time = i * chunk_duration
                 # Use effective_sync_offset (0 after Smart Trim) instead of original sync_offset
-                audio_start_time = video_chunk_start_time + (effective_sync_offset if 'effective_sync_offset' in locals() else 0.0)
+                audio_start_time = video_chunk_start_time + effective_sync_offset
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
                 
@@ -420,7 +425,7 @@ def process_job_with_chunks(
                 kling_requested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk start: {video_chunk_start_time:.3f}s")
-                print(f"  - Audio start: {audio_start_time:.3f}s (original sync_offset: {sync_offset:.3f}s, effective after Smart Trim: {effective_sync_offset if 'effective_sync_offset' in locals() else 0.0:.3f}s)")
+                print(f"  - Audio start: {audio_start_time:.3f}s (original sync_offset: {sync_offset:.3f}s, effective after Smart Trim: {effective_sync_offset:.3f}s)")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 print(f"  - Chunk duration: {chunk_duration:.3f}s")
@@ -487,7 +492,7 @@ def process_job_with_chunks(
                         "video_chunk_url": chunk_url,
                         "video_chunk_start_time": video_chunk_start_time,
                         "audio_start_time": audio_start_time,
-                        "sync_offset": effective_sync_offset if 'effective_sync_offset' in locals() else (sync_offset or 0.0),
+                        "sync_offset": effective_sync_offset,
                         "original_sync_offset": sync_offset or 0.0,  # Keep original for reference
                         "chunk_duration": chunk_duration,
                         "kling_task_id": task_id,
@@ -518,7 +523,7 @@ def process_job_with_chunks(
                     try:
                         video_chunk_start_time = i * chunk_duration
                         # After Smart Trim, audio timing matches video timing
-                        audio_start_time = i * chunk_duration + (effective_sync_offset if 'effective_sync_offset' in locals() else 0.0)
+                        audio_start_time = i * chunk_duration + effective_sync_offset
                         image_index = i % len(target_images)
                         current_image = target_images[image_index] if target_images else None
                         
@@ -528,7 +533,7 @@ def process_job_with_chunks(
                             # Include any observability data we have
                             "video_chunk_start_time": video_chunk_start_time,
                             "audio_start_time": audio_start_time,
-                            "sync_offset": effective_sync_offset if 'effective_sync_offset' in locals() else (sync_offset or 0.0),
+                            "sync_offset": effective_sync_offset,
                             "original_sync_offset": sync_offset or 0.0,  # Keep original for reference
                             "chunk_duration": chunk_duration,
                             "image_index": image_index,
