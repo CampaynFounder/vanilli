@@ -380,24 +380,28 @@ def process_job_with_chunks(
                     raise Exception(f"Failed to create signed URL for chunk {i+1}")
                 
                 # Calculate timing information for observability
-                # sync_offset represents when music starts in the video (only affects chunk 0)
+                # sync_offset represents when music starts in the video
                 # Positive offset = music starts X seconds into video (dead space at start)
+                # This shifts ALL audio chunks to the right by sync_offset in the video timeline
                 # Master audio starts at 0, no offset needed
                 video_chunk_start_time = i * chunk_duration
                 video_chunk_end_time = min(video_chunk_start_time + chunk_duration, duration)
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
-                # Audio timing: Only chunk 0 needs sync offset handling
-                # Chunk 0: Audio starts at 0 in master audio (full chunk_duration), delayed by sync_offset when muxing
-                # Chunk 1+: Audio continues sequentially (full chunk_duration), aligns musically by tempo/measures
-                if i == 0 and sync_offset and sync_offset > 0:
-                    # Chunk 0: Extract full chunk_duration from master audio starting at 0
-                    # Will be delayed by sync_offset when muxing to align with music start
-                    audio_start_time = 0
+                # Audio timing: All chunks are shifted by sync_offset
+                # Chunk 0: Audio starts at 0 in master audio, delayed by sync_offset when muxing
+                # Chunk 1+: Audio starts at (i * chunk_duration - sync_offset) in master audio
+                # This ensures audio aligns with video after the shift
+                if sync_offset and sync_offset > 0:
+                    if i == 0:
+                        # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
+                        audio_start_time = 0
+                    else:
+                        # Subsequent chunks: Shifted by sync_offset (e.g., chunk 1 at 8s video = 6s audio)
+                        audio_start_time = (i * chunk_duration) - sync_offset
                     audio_duration = video_chunk_actual_duration
                 else:
-                    # Subsequent chunks: Full chunk_duration, sequential in master audio
-                    # Aligns musically by tempo and measures (chunk_duration is measure-aligned)
+                    # No sync offset: audio chunks match video chunks exactly
                     audio_start_time = i * chunk_duration
                     audio_duration = video_chunk_actual_duration
                 
@@ -409,10 +413,11 @@ def process_job_with_chunks(
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk: {video_chunk_start_time:.3f}s to {video_chunk_end_time:.3f}s (duration: {video_chunk_actual_duration:.3f}s)")
                 print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s) in master audio")
-                if i == 0 and sync_offset and sync_offset > 0:
-                    print(f"  - Chunk 0: Audio is full {audio_duration:.3f}s from master audio, will be delayed by {sync_offset:.3f}s when muxing to align with music start")
-                elif i > 0:
-                    print(f"  - Chunk {i}: Audio aligns musically by tempo/measures (full {audio_duration:.3f}s, sequential from master audio)")
+                if sync_offset and sync_offset > 0:
+                    if i == 0:
+                        print(f"  - Chunk 0: Audio starts at 0s, will be delayed by {sync_offset:.3f}s when muxing (shifts audio right by {sync_offset:.3f}s)")
+                    else:
+                        print(f"  - Chunk {i}: Audio shifted by {sync_offset:.3f}s (video at {video_chunk_start_time:.3f}s = audio at {audio_start_time:.3f}s in master)")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
