@@ -11,10 +11,11 @@ import modal
 app = modal.App("vannilli-chunk-preview")
 
 # Same image as worker, but with FastAPI for web endpoint
+# Also includes librosa and audalign for media analysis
 img = (
     modal.Image.debian_slim()
     .apt_install("ffmpeg")
-    .pip_install("requests", "supabase", "fastapi", "starlette")
+    .pip_install("requests", "supabase", "fastapi", "starlette", "librosa", "audalign", "numpy")
     .add_local_dir(Path(__file__).parent, remote_path="/root/modal_app")
 )
 
@@ -279,27 +280,74 @@ def api():
         print(f"[chunk-preview] Analyzing media to calculate tempo and sync offset...")
         
         # Call media_analyzer to get sync_offset and chunk_duration
+        # We'll inline the analysis logic here to avoid cross-app dependencies
         try:
-            # Import the media_analyzer function
-            import sys
-            sys.path.insert(0, "/root/modal_app")
-            from media_analyzer import analyze_media
+            import requests
+            import librosa
+            import audalign
+            import numpy as np
+            import subprocess
+            import tempfile
+            from pathlib import Path
             
-            # Use a temporary job_id for analysis (won't be saved to DB)
-            temp_job_id = f"temp_chunk_preview_{int(__import__('time').time())}"
+            print(f"[chunk-preview] Downloading media files for analysis...")
             
-            # Analyze media to get sync_offset, bpm, and chunk_duration
-            analysis_result = analyze_media.remote(
-                job_id=temp_job_id,
-                video_url=video_url,
-                audio_url=audio_url,
-            )
-            
-            sync_offset = analysis_result["sync_offset"]
-            chunk_duration = analysis_result["chunk_duration"]
-            bpm = analysis_result["bpm"]
-            
-            print(f"[chunk-preview] Analysis complete: BPM={bpm:.2f}, sync_offset={sync_offset:.3f}s, chunk_duration={chunk_duration:.3f}s")
+            with tempfile.TemporaryDirectory() as d:
+                base = Path(d)
+                video_path = base / "video.mp4"
+                audio_path = base / "audio.wav"
+                video_audio_path = base / "video_audio.wav"
+                
+                # Download files
+                r = requests.get(video_url, timeout=120)
+                r.raise_for_status()
+                video_path.write_bytes(r.content)
+                
+                r = requests.get(audio_url, timeout=120)
+                r.raise_for_status()
+                audio_content = r.content
+                audio_path.write_bytes(audio_content)
+                
+                # Extract audio from video for alignment
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(video_path), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(video_audio_path)],
+                    check=True, capture_output=True
+                )
+                
+                # Calculate sync offset using audalign
+                print(f"[chunk-preview] Calculating sync offset...")
+                video_audio_dir = base / "video_audio_dir"
+                video_audio_dir.mkdir(exist_ok=True)
+                import shutil
+                video_audio_in_dir = video_audio_dir / "video_audio.wav"
+                shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+                
+                alignment = audalign.target_align(str(audio_path), str(video_audio_dir))
+                sync_offset = alignment.get("offset", 0.0)
+                if not isinstance(sync_offset, (int, float)):
+                    sync_offset = float(sync_offset)
+                
+                # Calculate BPM using librosa
+                print(f"[chunk-preview] Calculating tempo...")
+                y, sr = librosa.load(str(audio_path), sr=22050)
+                tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+                bpm = float(tempo)
+                
+                # Calculate chunk duration
+                beats_per_second = bpm / 60.0
+                seconds_per_beat = 60.0 / bpm
+                seconds_per_measure = seconds_per_beat * 4
+                target_duration = 9.0
+                measures_per_chunk = max(1, int(target_duration / seconds_per_measure))
+                chunk_duration = measures_per_chunk * seconds_per_measure
+                
+                if chunk_duration > 9.0:
+                    measures_per_chunk -= 1
+                    chunk_duration = measures_per_chunk * seconds_per_measure
+                if chunk_duration < seconds_per_measure:
+                    chunk_duration = seconds_per_measure
+                
+                print(f"[chunk-preview] Analysis complete: BPM={bpm:.2f}, sync_offset={sync_offset:.3f}s, chunk_duration={chunk_duration:.3f}s")
             
         except Exception as e:
             error_msg = str(e)[:500]
