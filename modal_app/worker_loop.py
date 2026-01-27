@@ -176,6 +176,14 @@ def worker_loop():
         output_key = f"{OUTPUTS_PREFIX}/{generation_id or job_id}/final.mp4"
         print(f"[worker] Uploading final video to {output_key}...")
         
+        # Verify final video exists before trying to upload
+        if not final_video_path.exists():
+            raise Exception(f"Final video file does not exist: {final_video_path}")
+        if final_video_path.stat().st_size == 0:
+            raise Exception(f"Final video file is empty: {final_video_path}")
+        
+        print(f"[worker] Final video file exists: {final_video_path}, size: {final_video_path.stat().st_size / 1024 / 1024:.2f} MB")
+        
         with open(final_video_path, "rb") as f:
             supabase.storage.from_(BUCKET).upload(output_key, f.read(), file_options={"content-type": "video/mp4"})
         
@@ -760,4 +768,15 @@ def process_job_with_chunks(
                 "current_stage": "finalizing",
             }).eq("id", generation_id).execute()
         
-        return final_path
+        # IMPORTANT: Copy final video to a persistent location before temp directory is deleted
+        # The temp directory will be cleaned up when this function returns
+        import shutil
+        persistent_final_path = work_path / "final_persistent.mp4"
+        shutil.copy2(str(final_path), str(persistent_final_path))
+        
+        # Verify the copy exists and has content
+        if not persistent_final_path.exists() or persistent_final_path.stat().st_size == 0:
+            raise Exception(f"Failed to create persistent final video copy - file missing or empty")
+        print(f"[worker] Final video copied to persistent location: {persistent_final_path.stat().st_size / 1024 / 1024:.2f} MB")
+        
+        return persistent_final_path
