@@ -262,22 +262,27 @@ def api():
                 status_code=400
             )
         
-        # Only accept video_url, audio_url, and optional image_urls
-        video_url = data.get("video_url") if isinstance(data, dict) else None
-        audio_url = data.get("audio_url") if isinstance(data, dict) else None
+        # Accept both formats: video_url/audio_url OR video/audio (for backwards compatibility)
+        video_url = data.get("video_url") or data.get("video") if isinstance(data, dict) else None
+        audio_url = data.get("audio_url") or data.get("audio") if isinstance(data, dict) else None
         image_urls = data.get("image_urls", []) if isinstance(data, dict) else []  # Optional array of image URLs
+        
+        # Ignore job_id if provided (not needed for observability)
+        job_id = data.get("job_id") if isinstance(data, dict) else None
+        if job_id:
+            print(f"[chunk-preview] Ignoring job_id: {job_id} (not needed for observability)")
         
         # Validate required fields
         if not video_url:
-            print(f"[chunk-preview] Missing video_url. Received data: {data}")
+            print(f"[chunk-preview] Missing video_url/video. Received data: {data}")
             return JSONResponse(
-                {"error": "Missing required field: video_url", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
+                {"error": "Missing required field: video_url or video", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
                 status_code=400
             )
         if not audio_url:
-            print(f"[chunk-preview] Missing audio_url. Received data: {data}")
+            print(f"[chunk-preview] Missing audio_url/audio. Received data: {data}")
             return JSONResponse(
-                {"error": "Missing required field: audio_url", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
+                {"error": "Missing required field: audio_url or audio", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
                 status_code=400
             )
         
