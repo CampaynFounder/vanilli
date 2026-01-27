@@ -13,6 +13,12 @@ app = modal.App("vannilli-video-worker")
 
 # Updated image with audalign for audio alignment
 # ffprobe is included in ffmpeg package, no need to install separately
+# Mount the modal_app directory so all Python files are available
+modal_app_mount = modal.Mount.from_local_dir(
+    Path(__file__).parent,
+    remote_path="/root/modal_app"
+)
+
 img = modal.Image.debian_slim().apt_install(
     "ffmpeg"
 ).pip_install(
@@ -55,14 +61,19 @@ def get_kling_bearer() -> str:
 def worker_loop():
     """Main worker loop: Fetches and processes jobs from queue."""
     # Import at runtime (inside function) to avoid deploy-time import errors
-    # These modules will be available in the Modal container
+    # These modules will be available in the Modal container via the mount
     import sys
     from pathlib import Path
     
-    # Add modal_app directory to path for imports
-    modal_app_dir = Path(__file__).parent
+    # Add mounted modal_app directory to path
+    modal_app_dir = Path("/root/modal_app")
     if str(modal_app_dir) not in sys.path:
         sys.path.insert(0, str(modal_app_dir))
+    
+    # Also try the current file's directory (fallback)
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
     
     from job_queue_manager import JobQueueManager
     from video_orchestrator import VideoProductionOrchestrator, KlingClient
