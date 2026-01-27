@@ -13,16 +13,12 @@ app = modal.App("vannilli-video-worker")
 
 # Updated image with audalign for audio alignment
 # ffprobe is included in ffmpeg package, no need to install separately
-# Mount the modal_app directory so all Python files are available
-modal_app_mount = modal.mount.from_local_dir(
-    Path(__file__).parent,
-    remote_path="/root/modal_app"
-)
-
-img = modal.Image.debian_slim().apt_install(
-    "ffmpeg"
-).pip_install(
-    "requests", "supabase", "audalign", "pyjwt", "librosa", "numpy"
+# Add modal_app directory to image so all Python files are available
+img = (
+    modal.Image.debian_slim()
+    .apt_install("ffmpeg")
+    .pip_install("requests", "supabase", "audalign", "pyjwt", "librosa", "numpy")
+    .add_local_dir(Path(__file__).parent, remote_path="/root/modal_app")
 )
 
 BUCKET = "vannilli"
