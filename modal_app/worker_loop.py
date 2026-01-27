@@ -522,6 +522,7 @@ def process_job_with_chunks(
                 chunk_video_url = (signed_chunk_url.get("signedUrl") or signed_chunk_url.get("signed_url")) if isinstance(signed_chunk_url, dict) else None
                 
                 # Update chunk record with full observability data
+                # Note: Muxing has completed successfully at this point
                 if chunk_id:
                     update_data = {
                         "status": "COMPLETED",
@@ -541,7 +542,25 @@ def process_job_with_chunks(
                         "kling_completed_at": kling_completed_at,
                         "kling_video_url": kling_video_url,
                     }
-                    supabase.table("video_chunks").update(update_data).eq("id", chunk_id).execute()
+                    try:
+                        supabase.table("video_chunks").update(update_data).eq("id", chunk_id).execute()
+                        print(f"[worker] Chunk {i+1} database update successful")
+                    except Exception as db_error:
+                        # Log database error but don't fail the chunk - muxing succeeded
+                        error_str = str(db_error)
+                        print(f"[worker] WARNING: Database update failed for chunk {i+1}: {error_str}")
+                        print(f"[worker] Chunk {i+1} muxing completed successfully, but database update failed")
+                        # Try to update with minimal fields
+                        try:
+                            minimal_update = {
+                                "status": "COMPLETED",
+                                "video_url": chunk_video_url or chunk_output_key,
+                                "error_message": f"Database update error: {error_str[:200]}",
+                            }
+                            supabase.table("video_chunks").update(minimal_update).eq("id", chunk_id).execute()
+                        except Exception:
+                            # If even minimal update fails, log but continue
+                            print(f"[worker] ERROR: Could not update chunk {i+1} status in database")
                 
                 final_segments.append(segment_path)
                 
