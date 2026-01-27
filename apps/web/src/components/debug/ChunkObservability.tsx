@@ -961,23 +961,46 @@ export function ChunkObservability() {
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <a
-                        href={preview.video_chunk_url}
-                        download={`chunk_${preview.chunk_index + 1}_video.mp4`}
-                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center"
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Programmatic download to avoid navigation
+                          const link = document.createElement('a');
+                          link.href = preview.video_chunk_url;
+                          link.download = `chunk_${preview.chunk_index + 1}_video.mp4`;
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center cursor-pointer"
                       >
                         Download Video Chunk {preview.chunk_index + 1}
-                      </a>
-                      <a
-                        href={preview.audio_chunk_url}
-                        download={`chunk_${preview.chunk_index + 1}_audio.wav`}
-                        className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center"
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Programmatic download to avoid navigation
+                          const link = document.createElement('a');
+                          link.href = preview.audio_chunk_url;
+                          link.download = `chunk_${preview.chunk_index + 1}_audio.wav`;
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center cursor-pointer"
                       >
                         Download Audio Chunk {preview.chunk_index + 1}
-                      </a>
+                      </button>
                     </div>
                     <div className="mt-2 text-xs text-slate-500">
                       Chunk {preview.chunk_index + 1}: Video + Audio{preview.image_url ? ` + Image ${(preview.image_index ?? 0) + 1}` : ''} should align perfectly
+                    </div>
+                    <div className="mt-1 text-xs text-blue-400">
+                      💡 Downloads open in new tab - debug page stays active
                     </div>
                   </div>
                 );
