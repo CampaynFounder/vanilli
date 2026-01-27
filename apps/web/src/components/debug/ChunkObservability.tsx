@@ -240,122 +240,52 @@ export function ChunkObservability() {
       setUploadingFiles(false);
       setAnalyzingMedia(true);
 
-      // Call Modal media_analyzer to get tempo and sync offset
-      const analyzerUrl = process.env.NEXT_PUBLIC_MODAL_MEDIA_ANALYZER_URL || '';
-      
-      if (!analyzerUrl) {
-        throw new Error('Modal media analyzer URL not configured. Set NEXT_PUBLIC_MODAL_MEDIA_ANALYZER_URL');
-      }
-
-      console.log('Calling Modal media analyzer...');
-      
-      const response = await fetch(analyzerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          job_id: `temp_${tempId}`, // Temporary job ID
-          video: videoSignedUrl,
-          audio: audioSignedUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const analysisResult = await response.json();
-      
-      // Extract results
-      const bpm = analysisResult.bpm;
-      const calculatedSyncOffset = analysisResult.sync_offset;
-      const calculatedChunkDuration = analysisResult.chunk_duration;
-
-      if (bpm && calculatedSyncOffset !== undefined && calculatedChunkDuration) {
-        // Store calculated values
-        setCalculatedBpm(bpm);
-        setCalculatedSyncOffset(calculatedSyncOffset);
-        setCalculatedChunkDuration(calculatedChunkDuration);
-        
-        // Calculate tempo analysis for display
-        const analysis = calculateChunkDurationFromBpm(bpm);
-        setTempoAnalysis(analysis);
-        
-        // Auto-calculate chunks first
-        const numChunks = Math.ceil(videoDuration! / analysis.chunkDuration);
-        const calculatedChunks: ChunkInfo[] = [];
-        for (let i = 0; i < numChunks; i++) {
-          const videoStartTime = i * analysis.chunkDuration;
-          const videoEndTime = Math.min(videoStartTime + analysis.chunkDuration, videoDuration!);
-          const audioStartTime = videoStartTime + calculatedSyncOffset;
-          const audioEndTime = audioStartTime + analysis.chunkDuration;
-          const imageIndex = imageFiles.length > 0 ? i % imageFiles.length : null;
-          const imageUrl = imageIndex !== null ? imageUrls[imageIndex] : null;
-          calculatedChunks.push({
-            chunkIndex: i,
-            videoStartTime,
-            videoEndTime,
-            audioStartTime,
-            audioEndTime,
-            imageIndex,
-            imageUrl,
-            syncOffset: calculatedSyncOffset,
-            chunkDuration: analysis.chunkDuration,
-          });
-        }
-        setChunks(calculatedChunks);
-        
-        // Upload images if provided and get signed URLs
-        const imageSignedUrls: string[] = [];
-        if (imageFiles.length > 0) {
-          const imagePaths: string[] = [];
-          for (let i = 0; i < imageFiles.length; i++) {
-            const imagePath = `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`;
-            const { error: imageError } = await supabase.storage
-              .from('vannilli')
-              .upload(imagePath, imageFiles[i], {
-                contentType: imageFiles[i].type || 'image/jpeg',
-                upsert: true,
-              });
-            if (imageError) {
-              console.warn(`Failed to upload image ${i}:`, imageError);
-            } else {
-              imagePaths.push(imagePath);
-            }
-          }
-          
-          // Get signed URLs for uploaded images
-          for (const imagePath of imagePaths) {
-            const { data: imageSigned, error: imageSignedError } = await supabase.storage
-              .from('vannilli')
-              .createSignedUrl(imagePath, 3600);
-            if (!imageSignedError && imageSigned) {
-              const imageSignedUrl = (imageSigned as any)?.signedUrl || (imageSigned as any)?.signed_url;
-              if (imageSignedUrl) {
-                imageSignedUrls.push(imageSignedUrl);
-              }
-            }
+      // Upload images if provided and get signed URLs
+      const imageSignedUrls: string[] = [];
+      if (imageFiles.length > 0) {
+        const imagePaths: string[] = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+          const imagePath = `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`;
+          const { error: imageError } = await supabase.storage
+            .from('vannilli')
+            .upload(imagePath, imageFiles[i], {
+              contentType: imageFiles[i].type || 'image/jpeg',
+              upsert: true,
+            });
+          if (imageError) {
+            console.warn(`Failed to upload image ${i}:`, imageError);
+          } else {
+            imagePaths.push(imagePath);
           }
         }
         
-        // Then generate previews - Modal will calculate tempo/sync automatically
-        await generateChunkPreviewsWithValues(
-          videoSignedUrl,
-          audioSignedUrl,
-          imageSignedUrls.length > 0 ? imageSignedUrls : undefined
+        // Get signed URLs for uploaded images
+        for (const imagePath of imagePaths) {
+          const { data: imageSigned, error: imageSignedError } = await supabase.storage
+            .from('vannilli')
+            .createSignedUrl(imagePath, 3600);
+          if (!imageSignedError && imageSigned) {
+            const imageSignedUrl = (imageSigned as any)?.signedUrl || (imageSigned as any)?.signed_url;
+            if (imageSignedUrl) {
+              imageSignedUrls.push(imageSignedUrl);
+            }
+          }
+        }
+      }
+      
+      // Generate chunk previews - Modal will automatically calculate tempo, sync offset, and chunk duration
+      await generateChunkPreviewsWithValues(
+        videoSignedUrl,
+        audioSignedUrl,
+        imageSignedUrls.length > 0 ? imageSignedUrls : undefined
+      );
+      
+      // Clean up image files too
+      if (imageFiles.length > 0) {
+        const imagePaths = imageFiles.map((_, i) => 
+          `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`
         );
-        
-        // Clean up image files too
-        if (imageFiles.length > 0) {
-          const imagePaths = imageFiles.map((_, i) => 
-            `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`
-          );
-          supabase.storage.from('vannilli').remove(imagePaths).catch(console.error);
-        }
-      } else {
-        throw new Error('Analysis did not return expected values');
+        supabase.storage.from('vannilli').remove(imagePaths).catch(console.error);
       }
 
       // Clean up temp files (async, don't wait)
