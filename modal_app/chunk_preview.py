@@ -155,16 +155,21 @@ def generate_chunk_previews(
             video_chunk_actual_duration = video_end_time - video_start_time
             
             # Audio timing: Match production logic in worker_loop.py
-            # Chunk 0: Audio starts at 0 in master (video will be trimmed by sync_offset in production)
-            # Chunk 1+: Audio starts where previous chunk audio ended in master
+            # Chunk 0: Audio starts at 0 in master, delayed by sync_offset when muxing
+            # Chunk 1: Audio starts at chunk_duration in master, silence prepended in production
+            # Chunk 2+: Audio starts where previous chunk ended in master
             if sync_offset and sync_offset > 0:
                 if i == 0:
                     # Chunk 0: Audio extracted from 0 to chunk_duration
-                    # In production, video is trimmed by sync_offset, so both start at 0
+                    # In production, audio is delayed by sync_offset when muxing
                     audio_start_time = 0
+                elif i == 1:
+                    # Chunk 1: Audio starts at chunk_duration in master
+                    # In production, silence is prepended to this audio
+                    audio_start_time = chunk_duration
                 else:
-                    # Chunk 1+: Start where previous chunk audio ended in master
-                    # If chunk 0 extracts 0-8s, chunk 1 starts at 8s
+                    # Chunk 2+: Start where previous chunk audio ended in master
+                    # If chunk 0 extracts 0-8s, chunk 1 starts at 8s, chunk 2 starts at 16s, etc.
                     prev_audio_end = i * chunk_duration
                     audio_start_time = prev_audio_end
             else:
