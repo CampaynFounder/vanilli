@@ -389,16 +389,30 @@ def process_job_with_chunks(
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
                 # Audio timing: All chunks are shifted by sync_offset
-                # Chunk 0: Audio starts at 0 in master audio, delayed by sync_offset when muxing
-                # Chunk 1+: Audio starts at (i * chunk_duration - sync_offset) in master audio
-                # This ensures audio aligns with video after the shift
+                # Pattern: Each chunk audio starts where previous chunk audio ended
+                # Chunk 0: Audio 0 to chunk_duration (delayed by sync_offset when muxing)
+                # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
+                # Chunk 2+: Audio starts where previous chunk audio ended (sequential)
                 if sync_offset and sync_offset > 0:
                     if i == 0:
                         # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
                         audio_start_time = 0
+                    elif i == 1:
+                        # Chunk 1: Starts at (chunk_duration - sync_offset) = (8 - 2) = 6s
+                        # This is where chunk 0 audio effectively ends after accounting for offset
+                        audio_start_time = chunk_duration - sync_offset
                     else:
-                        # Subsequent chunks: Shifted by sync_offset (e.g., chunk 1 at 8s video = 6s audio)
-                        audio_start_time = (i * chunk_duration) - sync_offset
+                        # Chunk 2+: Start where previous chunk audio ended
+                        # Previous chunk (i-1) audio start = chunk_duration - sync_offset (if i-1 == 1) or calculated recursively
+                        # For i=2: prev_start = chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
+                        # For i>2: prev_start = (i-1) * chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
+                        if i == 2:
+                            prev_audio_start = chunk_duration - sync_offset
+                            prev_audio_end = prev_audio_start + chunk_duration
+                            audio_start_time = prev_audio_end
+                        else:
+                            # i > 2: Use formula (i * chunk_duration) - sync_offset
+                            audio_start_time = (i * chunk_duration) - sync_offset
                     audio_duration = video_chunk_actual_duration
                 else:
                     # No sync offset: audio chunks match video chunks exactly
@@ -416,8 +430,11 @@ def process_job_with_chunks(
                 if sync_offset and sync_offset > 0:
                     if i == 0:
                         print(f"  - Chunk 0: Audio starts at 0s, will be delayed by {sync_offset:.3f}s when muxing (shifts audio right by {sync_offset:.3f}s)")
+                    elif i == 1:
+                        print(f"  - Chunk 1: Audio starts at {audio_start_time:.3f}s (chunk_duration {chunk_duration:.3f}s - sync_offset {sync_offset:.3f}s)")
                     else:
-                        print(f"  - Chunk {i}: Audio shifted by {sync_offset:.3f}s (video at {video_chunk_start_time:.3f}s = audio at {audio_start_time:.3f}s in master)")
+                        prev_audio_end = (chunk_duration - sync_offset) + chunk_duration if i == 2 else ((i-1) * chunk_duration - sync_offset) + chunk_duration
+                        print(f"  - Chunk {i}: Audio starts at {audio_start_time:.3f}s (where chunk {i-1} audio ended: {prev_audio_end:.3f}s)")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
