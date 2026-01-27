@@ -281,7 +281,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   };
 
   // Video scrubbing thumbnail - only for pending/processing status
-  const VideoScrubbingThumbnail = ({ videoUrl, alt }: { videoUrl: string; alt: string }) => {
+  const VideoScrubbingThumbnail = ({ videoUrl }: { videoUrl: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
