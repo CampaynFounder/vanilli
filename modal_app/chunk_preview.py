@@ -496,18 +496,22 @@ def api():
                     y_master_short = y_master[:max_corr_length]
                     y_video_short = y_video[:max_corr_length]
                     
-                    print(f"[chunk-preview] Computing cross-correlation (master: {len(y_master_short)/sr_master:.2f}s, video: {len(y_video_short)/sr_video:.2f}s)...")
+                    print(f"[chunk-preview] Computing cross-correlation (video, master) - reverse order...")
+                    print(f"[chunk-preview]   → Master: {len(y_master_short)/sr_master:.2f}s, Video: {len(y_video_short)/sr_video:.2f}s")
                     
-                    # Compute cross-correlation
-                    correlation = signal.correlate(y_master_short, y_video_short, mode='full')
+                    # Compute cross-correlation in REVERSE order: (video, master)
+                    # This should give correct sign for sync_offset
+                    correlation = signal.correlate(y_video_short, y_master_short, mode='full')
                     
                     # Find peak correlation (best match point)
                     peak_index = np.argmax(np.abs(correlation))
-                    center_index = len(y_video_short) - 1
+                    center_index = len(y_master_short) - 1
                     offset_samples = peak_index - center_index
                     offset_seconds = offset_samples / sr_master
                     
-                    print(f"[chunk-preview] Cross-correlation peak at index {peak_index}, offset: {offset_seconds:.3f}s")
+                    print(f"[chunk-preview] Cross-correlation peak at index {peak_index} (center={center_index})")
+                    print(f"[chunk-preview] Raw offset: {offset_samples} samples = {offset_seconds:.3f}s")
+                    print(f"[chunk-preview] Interpreted sync_offset: {offset_seconds:.3f}s")
                     
                     return offset_seconds
                 

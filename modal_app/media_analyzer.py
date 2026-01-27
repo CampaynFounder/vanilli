@@ -170,35 +170,43 @@ def analyze_media(
             y_master_short = y_master[:max_corr_length]
             y_video_short = y_video[:max_corr_length]
             
-            print(f"[analyzer] Computing cross-correlation (master: {len(y_master_short)/sr_master:.2f}s, video: {len(y_video_short)/sr_video:.2f}s)...")
+            print(f"[analyzer] Computing cross-correlation (video, master) - reverse order...")
+            print(f"[analyzer]   → Master: {len(y_master_short)/sr_master:.2f}s, Video: {len(y_video_short)/sr_video:.2f}s")
             
-            # Compute cross-correlation
-            # This finds where video audio best matches master audio
-            # Use 'full' mode to detect both positive and negative offsets
-            print(f"[analyzer] Starting cross-correlation computation...")
-            correlation = signal.correlate(y_master_short, y_video_short, mode='full')
+            # Compute cross-correlation in REVERSE order: (video, master)
+            # This finds where master audio best matches video audio
+            # By correlating (video, master), positive offset should mean video has dead space
+            print(f"[analyzer] Starting cross-correlation computation (video, master)...")
+            correlation = signal.correlate(y_video_short, y_master_short, mode='full')
             print(f"[analyzer] Cross-correlation completed, finding peak...")
             
             # Find peak correlation (best match point)
             peak_index = np.argmax(np.abs(correlation))
             
             # Convert peak index to time offset
-            # correlation is 'full' mode, so indices range from -len(video) to +len(master)
-            # Center is at len(video_short) - 1
-            center_index = len(y_video_short) - 1
+            # correlation is 'full' mode: correlate(video, master)
+            # Indices range from -len(master) to +len(video)
+            # Center is at len(master_short) - 1
+            center_index = len(y_master_short) - 1
             offset_samples = peak_index - center_index
             offset_seconds = offset_samples / sr_master
             
             print(f"[analyzer] Cross-correlation peak at index {peak_index} (center={center_index})")
-            print(f"[analyzer] Offset: {offset_samples} samples = {offset_seconds:.3f}s")
+            print(f"[analyzer] Raw offset: {offset_samples} samples = {offset_seconds:.3f}s")
             
-            # Interpret offset:
-            # Positive offset_samples means video audio is shifted RIGHT relative to master
-            # This means: master audio at 0s matches video audio at +offset_seconds
+            # Interpret offset when correlating (video, master):
+            # Positive offset_samples means master audio is shifted RIGHT relative to video
+            # This means: video audio at 0s matches master audio at +offset_seconds
             # So music starts at +offset_seconds in the video (dead space before music)
             # Therefore: sync_offset = offset_seconds (positive = music starts later in video)
             
             sync_offset = offset_seconds
+            print(f"[analyzer] Interpreted sync_offset: {sync_offset:.3f}s")
+            if sync_offset > 0:
+                print(f"[analyzer]   → Music starts {sync_offset:.3f}s INTO the video (dead space at start)")
+            elif sync_offset < 0:
+                print(f"[analyzer]   → Negative offset detected: {sync_offset:.3f}s")
+                print(f"[analyzer]   → This might mean video starts before master, or sign needs adjustment")
             
             # Also compute correlation strength for confidence
             max_corr_value = correlation[peak_index]
