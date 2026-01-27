@@ -91,6 +91,7 @@ def process_video_impl(data: Optional[dict] = None):
         kling_path = base / "kling.mp4"
         synced_path = base / "synced.mp4"
         final_path = base / "final.mp4"
+        watermark_path = base / "watermark.png"
 
         def download(u: str, p: Path):
             r = requests.get(u, timeout=120)
@@ -102,6 +103,15 @@ def process_video_impl(data: Optional[dict] = None):
             download(target_url, target_path)
             if audio_url:
                 download(audio_url, audio_path)
+            # Download watermark if needed for trial users
+            if is_trial:
+                watermark_url = os.environ.get("VANNILLI_WATERMARK_URL") or "https://vannilli.xaino.io/logo/watermark.png"
+                try:
+                    download(watermark_url, watermark_path)
+                    print(f"[vannilli] Watermark downloaded from {watermark_url}")
+                except Exception as e:
+                    print(f"[vannilli] Warning: Failed to download watermark from {watermark_url}: {e}. Using text watermark fallback.")
+                    watermark_path = None
         except Exception as e:
             _fail(supabase, generation_id, "Download failed. Please check your files and try again.")
             return {"ok": False, "error": "Download failed. Please check your files and try again."}
@@ -350,11 +360,31 @@ def process_video_impl(data: Optional[dict] = None):
 
         # Only watermark: VANNILLI logo, for trial users only
         if is_trial:
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(synced_path), "-vf", "drawtext=text='VANNILLI.io':x=(w-text_w)/2:y=h-50:fontsize=24:fontcolor=white@0.7", "-c:a", "copy", str(final_path)],
-                check=True,
-                capture_output=True,
-            )
+            if watermark_path and watermark_path.exists():
+                # Use image watermark overlay (bottom-right corner, 20px padding)
+                _run_ffmpeg(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", str(synced_path),
+                        "-i", str(watermark_path),
+                        "-filter_complex", "[1:v]scale=iw*0.15:-1[wm];[0:v][wm]overlay=W-w-20:H-h-20:format=auto",
+                        "-c:a", "copy",
+                        str(final_path)
+                    ],
+                    "watermark-image"
+                )
+            else:
+                # Fallback to text watermark if image download failed
+                _run_ffmpeg(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", str(synced_path),
+                        "-vf", "drawtext=text='VANNILLI.io':x=(w-text_w)/2:y=h-50:fontsize=24:fontcolor=white@0.7",
+                        "-c:a", "copy",
+                        str(final_path)
+                    ],
+                    "watermark-text"
+                )
         else:
             final_path = synced_path
 
