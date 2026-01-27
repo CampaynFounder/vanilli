@@ -69,7 +69,7 @@ def extract_audio_from_mp4(audio_path: Path, output_path: Path):
 @app.function(
     image=img,
     secrets=[modal.Secret.from_name("vannilli-secrets")],
-    timeout=300,  # 5 minutes max
+    timeout=600,  # 10 minutes max (cross-correlation can take time for large files)
 )
 def analyze_media(
     job_id: Optional[str],
@@ -164,8 +164,9 @@ def analyze_media(
             if sr_master != sr_video:
                 raise ValueError(f"Sample rates don't match: master={sr_master}, video={sr_video}")
             
-            # Use shorter length for correlation (first 30 seconds should be enough)
-            max_corr_length = min(len(y_master), len(y_video), int(30 * sr_master))
+            # Use shorter length for correlation (first 15 seconds should be enough for sync offset)
+            # This is much faster and sufficient to find when music starts
+            max_corr_length = min(len(y_master), len(y_video), int(15 * sr_master))
             y_master_short = y_master[:max_corr_length]
             y_video_short = y_video[:max_corr_length]
             
@@ -173,16 +174,20 @@ def analyze_media(
             
             # Compute cross-correlation
             # This finds where video audio best matches master audio
-            correlation = signal.correlate(y_master_short, y_video_short, mode='full')
+            # Use 'valid' mode for faster computation (only where arrays fully overlap)
+            print(f"[analyzer] Starting cross-correlation computation...")
+            correlation = signal.correlate(y_master_short, y_video_short, mode='valid')
+            print(f"[analyzer] Cross-correlation completed, finding peak...")
             
             # Find peak correlation (best match point)
             peak_index = np.argmax(np.abs(correlation))
             
             # Convert peak index to time offset
-            # correlation is 'full' mode, so indices range from -len(video) to +len(master)
-            # Center is at len(video_short) - 1
-            center_index = len(y_video_short) - 1
-            offset_samples = peak_index - center_index
+            # With 'valid' mode, correlation length = len(master) - len(video) + 1
+            # Peak at index 0 means video at 0s matches master at 0s
+            # Peak at index N means video at 0s matches master at N samples
+            # So offset_samples = peak_index (video is shifted right by this amount)
+            offset_samples = peak_index
             offset_seconds = offset_samples / sr_master
             
             print(f"[analyzer] Cross-correlation peak at index {peak_index} (center={center_index})")
