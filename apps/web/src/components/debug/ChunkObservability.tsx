@@ -536,17 +536,10 @@ export function ChunkObservability() {
 
       setUploadingFiles(false);
 
-      // Validate we have the required calculated values
-      if (calculatedSyncOffset === null || calculatedChunkDuration === null) {
-        throw new Error('Sync offset and chunk duration must be calculated first. Use "Analyze & Generate Chunk Previews" button.');
-      }
-
-      // Call the helper function with calculated values
+      // Call the helper function - Modal will calculate tempo/sync automatically
       await generateChunkPreviewsWithValues(
         videoSignedUrl,
-        audioSignedUrl,
-        calculatedSyncOffset!,
-        calculatedChunkDuration!
+        audioSignedUrl
       );
 
       // Clean up temp files (async, don't wait)
