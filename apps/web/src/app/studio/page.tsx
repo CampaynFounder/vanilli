@@ -952,6 +952,7 @@ function StudioPage() {
                       [videoPreview, ...imagePreviews, audioPreview].forEach((u) => u && URL.revokeObjectURL(u));
                       setTrackingVideo(null); setTargetImages([]); setAudioTrack(null);
                       setPrompt('');
+                      setUserBpm('');
                       setVideoDuration(null); setAudioDuration(null); setDurationValidation(null);
                       setVideoPreview(null); setImagePreviews([]); setAudioPreview(null);
                       setIsGenerating(false); setGenerationProgress(0); setCurrentStep('idle');
