@@ -365,13 +365,35 @@ def process_job_with_chunks(
                 if not chunk_url:
                     raise Exception(f"Failed to create signed URL for chunk {i+1}")
                 
+                # Calculate timing information for observability
+                video_chunk_start_time = i * chunk_duration
+                audio_start_time = (i * chunk_duration) + (sync_offset or 0.0)
+                image_index = i % len(target_images)
+                current_image = target_images[image_index]
+                
+                # Log chunk details before calling Kling
+                kling_requested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
+                print(f"  - Video chunk start: {video_chunk_start_time:.3f}s")
+                print(f"  - Audio start: {audio_start_time:.3f}s (sync_offset: {sync_offset or 0.0:.3f}s)")
+                print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
+                print(f"  - Video chunk URL: {chunk_url[:80]}...")
+                print(f"  - Chunk duration: {chunk_duration:.3f}s")
+                
                 # Call Kling
-                current_image = target_images[i % len(target_images)]
                 task_id = kling_client.generate(chunk_url, current_image, prompt)
+                kling_completed_at = None
                 status, kling_video_url = kling_client.poll_status(task_id)
+                kling_completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 
                 if status != "succeed" or not kling_video_url:
                     raise Exception(f"Kling generation failed for chunk {i+1}")
+                
+                print(f"[worker] Chunk {i+1}/{num_chunks} Kling completed:")
+                print(f"  - Task ID: {task_id}")
+                print(f"  - Kling video URL: {kling_video_url[:80]}...")
+                print(f"  - Requested at: {kling_requested_at}")
+                print(f"  - Completed at: {kling_completed_at}")
                 
                 # Download Kling output
                 kling_output_path = chunks_dir / f"kling_chunk_{i:03d}.mp4"
@@ -379,11 +401,10 @@ def process_job_with_chunks(
                 r.raise_for_status()
                 kling_output_path.write_bytes(r.content)
                 
-                # Extract audio slice
-                audio_start = (i * chunk_duration) + (sync_offset or 0.0)
+                # Extract audio slice (audio_start_time already calculated above for observability)
                 audio_slice_path = chunks_dir / f"audio_chunk_{i:03d}.wav"
                 subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(master_audio_path), "-ss", str(audio_start), "-t", str(chunk_duration),
+                    ["ffmpeg", "-y", "-i", str(master_audio_path), "-ss", str(audio_start_time), "-t", str(chunk_duration),
                      "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_slice_path)],
                     check=True, capture_output=True
                 )
@@ -408,14 +429,27 @@ def process_job_with_chunks(
                     signed_chunk_url = signed_chunk_url[0] if signed_chunk_url else {}
                 chunk_video_url = (signed_chunk_url.get("signedUrl") or signed_chunk_url.get("signed_url")) if isinstance(signed_chunk_url, dict) else None
                 
-                # Update chunk record
+                # Update chunk record with full observability data
                 if chunk_id:
-                    supabase.table("video_chunks").update({
+                    update_data = {
                         "status": "COMPLETED",
                         "video_url": chunk_video_url or chunk_output_key,
                         "credits_charged": int(chunk_duration),  # Charge for successful chunk
                         "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }).eq("id", chunk_id).execute()
+                        # Observability fields
+                        "image_url": current_image,
+                        "image_index": image_index,
+                        "video_chunk_url": chunk_url,
+                        "video_chunk_start_time": video_chunk_start_time,
+                        "audio_start_time": audio_start_time,
+                        "sync_offset": sync_offset or 0.0,
+                        "chunk_duration": chunk_duration,
+                        "kling_task_id": task_id,
+                        "kling_requested_at": kling_requested_at,
+                        "kling_completed_at": kling_completed_at,
+                        "kling_video_url": kling_video_url,
+                    }
+                    supabase.table("video_chunks").update(update_data).eq("id", chunk_id).execute()
                 
                 final_segments.append(segment_path)
                 
@@ -433,10 +467,45 @@ def process_job_with_chunks(
                 error_msg = str(e)[:500]
                 print(f"[worker] Chunk {i+1}/{num_chunks} failed: {error_msg}")
                 if chunk_id:
-                    supabase.table("video_chunks").update({
-                        "status": "FAILED",
-                        "error_message": error_msg,
-                    }).eq("id", chunk_id).execute()
+                    # Try to capture observability data even on failure
+                    # (some fields may not be set if error occurred early)
+                    try:
+                        video_chunk_start_time = i * chunk_duration
+                        audio_start_time = (i * chunk_duration) + (sync_offset or 0.0)
+                        image_index = i % len(target_images)
+                        current_image = target_images[image_index] if target_images else None
+                        
+                        update_data = {
+                            "status": "FAILED",
+                            "error_message": error_msg,
+                            # Include any observability data we have
+                            "video_chunk_start_time": video_chunk_start_time,
+                            "audio_start_time": audio_start_time,
+                            "sync_offset": sync_offset or 0.0,
+                            "chunk_duration": chunk_duration,
+                            "image_index": image_index,
+                            "image_url": current_image,
+                        }
+                        # Only include fields that were set before the error
+                        if 'chunk_url' in locals():
+                            update_data["video_chunk_url"] = chunk_url
+                        if 'task_id' in locals():
+                            update_data["kling_task_id"] = task_id
+                        if 'kling_requested_at' in locals():
+                            update_data["kling_requested_at"] = kling_requested_at
+                        if 'kling_completed_at' in locals():
+                            update_data["kling_completed_at"] = kling_completed_at
+                        if 'kling_video_url' in locals():
+                            update_data["kling_video_url"] = kling_video_url
+                            
+                        supabase.table("video_chunks").update(update_data).eq("id", chunk_id).execute()
+                    except Exception as update_error:
+                        # Fallback: just update status and error
+                        print(f"[worker] Failed to update observability data for failed chunk: {update_error}")
+                        supabase.table("video_chunks").update({
+                            "status": "FAILED",
+                            "error_message": error_msg,
+                        }).eq("id", chunk_id).execute()
                 # Continue processing other chunks
                 continue
         
@@ -446,13 +515,18 @@ def process_job_with_chunks(
         
         # Calculate total credits charged (only for successful chunks)
         # Query completed chunks from database
-        chunks_query = supabase.table("video_chunks").select("credits_charged, status").eq("job_id", job_id).execute()
-        chunks_data = chunks_query.data if chunks_query.data else []
-        total_credits_charged = sum(
-            chunk.get("credits_charged", 0) 
-            for chunk in chunks_data
-            if chunk.get("status") == "COMPLETED"
-        )
+        try:
+            chunks_query = supabase.table("video_chunks").select("credits_charged, status").eq("job_id", job_id).execute()
+            chunks_data = chunks_query.data if chunks_query.data else []
+            total_credits_charged = sum(
+                chunk.get("credits_charged", 0) 
+                for chunk in chunks_data
+                if chunk.get("status") == "COMPLETED"
+            )
+        except Exception as calc_error:
+            # Fallback: calculate from chunk_duration * number of successful chunks
+            print(f"[worker] Error calculating credits from database: {calc_error}. Using fallback calculation.")
+            total_credits_charged = len(final_segments) * int(chunk_duration) if chunk_duration else 0
         
         # Update generation with actual credits charged
         if generation_id:

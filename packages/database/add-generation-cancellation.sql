@@ -8,6 +8,20 @@ ALTER TABLE generations DROP CONSTRAINT IF EXISTS generations_status_check;
 ALTER TABLE generations ADD CONSTRAINT generations_status_check 
   CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled'));
 
+-- Update current_stage CHECK constraint to include 'cancelled' (if column exists)
+-- This ensures the constraint allows 'cancelled' as a valid stage
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'generations' AND column_name = 'current_stage'
+  ) THEN
+    ALTER TABLE generations DROP CONSTRAINT IF EXISTS generations_current_stage_check;
+    ALTER TABLE generations ADD CONSTRAINT generations_current_stage_check
+      CHECK (current_stage IN ('pending', 'analyzing', 'processing_chunks', 'stitching', 'finalizing', 'completed', 'failed', 'cancelled'));
+  END IF;
+END $$;
+
 -- Add cancelled_at timestamp
 ALTER TABLE generations ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
 
@@ -54,6 +68,7 @@ BEGIN
   END IF;
   
   -- Update generation to cancelled
+  -- Note: current_stage constraint must include 'cancelled' (updated in migration above)
   UPDATE generations
   SET 
     status = 'cancelled',
