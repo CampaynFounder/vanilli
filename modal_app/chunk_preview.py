@@ -272,33 +272,44 @@ def api():
         image_urls = data.get("image_urls", [])  # Optional array of image URLs
         
         # If using media_analyzer format (job_id, video, audio), fetch sync_offset/chunk_duration from DB
+        # But only if job_id is a valid UUID (not a temporary ID like "temp_...")
         if job_id and (sync_offset is None or chunk_duration is None):
-            print(f"[chunk-preview] Received media_analyzer format, fetching analysis from DB for job_id: {job_id}")
-            try:
-                from supabase import create_client
-                supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-                supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-                supabase = create_client(supabase_url, supabase_key)
-                
-                job_data = supabase.table("video_jobs").select("sync_offset, chunk_duration, generation_id").eq("id", job_id).single().execute()
-                if job_data.data:
-                    if sync_offset is None:
-                        sync_offset = job_data.data.get("sync_offset")
-                    if chunk_duration is None:
-                        chunk_duration = job_data.data.get("chunk_duration")
-                    if not generation_id:
-                        generation_id = job_data.data.get("generation_id")
-                else:
+            # Check if job_id looks like a valid UUID (not a temporary ID)
+            import re
+            uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+            is_valid_uuid = bool(uuid_pattern.match(job_id))
+            is_temp_id = job_id.startswith("temp_")
+            
+            if is_valid_uuid and not is_temp_id:
+                print(f"[chunk-preview] Received media_analyzer format, fetching analysis from DB for job_id: {job_id}")
+                try:
+                    from supabase import create_client
+                    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+                    supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+                    supabase = create_client(supabase_url, supabase_key)
+                    
+                    job_data = supabase.table("video_jobs").select("sync_offset, chunk_duration, generation_id").eq("id", job_id).single().execute()
+                    if job_data.data:
+                        if sync_offset is None:
+                            sync_offset = job_data.data.get("sync_offset")
+                        if chunk_duration is None:
+                            chunk_duration = job_data.data.get("chunk_duration")
+                        if not generation_id:
+                            generation_id = job_data.data.get("generation_id")
+                    else:
+                        return JSONResponse(
+                            {"error": f"Job {job_id} not found in database"},
+                            status_code=404
+                        )
+                except Exception as e:
+                    print(f"[chunk-preview] Error fetching job data: {e}")
                     return JSONResponse(
-                        {"error": f"Job {job_id} not found in database"},
-                        status_code=404
+                        {"error": f"Failed to fetch job data: {str(e)}"},
+                        status_code=500
                     )
-            except Exception as e:
-                print(f"[chunk-preview] Error fetching job data: {e}")
-                return JSONResponse(
-                    {"error": f"Failed to fetch job data: {str(e)}"},
-                    status_code=500
-                )
+            else:
+                # Temporary job_id - skip DB lookup, require sync_offset/chunk_duration to be provided
+                print(f"[chunk-preview] Temporary job_id detected ({job_id}), skipping DB lookup. sync_offset and chunk_duration must be provided directly.")
         
         # Validate required fields (allow 0 for sync_offset, but not None)
         missing_fields = []
