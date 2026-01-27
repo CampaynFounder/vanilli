@@ -476,11 +476,12 @@ def process_job_with_chunks(
                 # With positive sync_offset: all audio is shifted right by sync_offset
                 # Chunk 0: Delay audio by sync_offset to align with music start in video
                 # Chunk 1+: Audio already shifted in master audio, no delay needed (aligns naturally)
+                print(f"[worker] Muxing chunk {i+1}: Kling video + audio slice")
                 if i == 0 and sync_offset and sync_offset > 0:
                     # Chunk 0: Delay audio by sync_offset to align with when music starts in video
                     print(f"[worker] Chunk 0: Delaying audio by {sync_offset:.3f}s to align with music start")
                     delay_ms = int(sync_offset * 1000)
-                    subprocess.run(
+                    result = subprocess.run(
                         ["ffmpeg", "-y",
                          "-i", str(kling_output_path),  # Video from Kling
                          "-i", str(audio_slice_path),   # Audio slice (0 to chunk_duration from master)
@@ -490,18 +491,25 @@ def process_job_with_chunks(
                          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                          "-movflags", "+faststart",
                          "-shortest", str(segment_path)],
-                        check=True, capture_output=True
+                        check=True, capture_output=True, text=True
                     )
+                    print(f"[worker] Chunk 0 muxing completed (audio delayed by {sync_offset:.3f}s)")
                 else:
                     # Subsequent chunks: Audio already shifted in master audio (e.g., chunk 1 at 6s, chunk 2 at 14s)
                     # No delay needed, aligns naturally with video
-                    subprocess.run(
+                    result = subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
                          "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
                          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
                          "-shortest", str(segment_path)],
-                        check=True, capture_output=True
+                        check=True, capture_output=True, text=True
                     )
+                    print(f"[worker] Chunk {i+1} muxing completed (audio aligned naturally)")
+                
+                # Verify muxed segment exists and has content
+                if not segment_path.exists() or segment_path.stat().st_size == 0:
+                    raise Exception(f"Muxed segment {i+1} is missing or empty")
+                print(f"[worker] Muxed segment {i+1} size: {segment_path.stat().st_size / 1024 / 1024:.2f} MB")
                 
                 # Upload individual chunk for preview/download
                 chunk_output_key = f"{OUTPUTS_PREFIX}/{generation_id or job_id}/chunk_{i:03d}.mp4"
@@ -528,7 +536,6 @@ def process_job_with_chunks(
                         "audio_start_time": audio_start_time,
                         "sync_offset": sync_offset or 0.0,  # Offset when music starts in video
                         "chunk_duration": chunk_duration,  # Duration of this chunk (used to calculate end times in views)
-                        "chunk_duration": chunk_duration,
                         "kling_task_id": task_id,
                         "kling_requested_at": kling_requested_at,
                         "kling_completed_at": kling_completed_at,
