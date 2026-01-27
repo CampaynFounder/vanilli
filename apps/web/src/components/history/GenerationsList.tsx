@@ -357,7 +357,6 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   // Live video scrubbing for pending/processing status
                   <VideoScrubbingThumbnail 
                     videoUrl={generation.video_jobs.user_video_url}
-                    alt={displayName}
                   />
                 ) : generation.thumbnail_r2_path && (generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') ? (
                   // Static thumbnail for completed/failed/cancelled
