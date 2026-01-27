@@ -64,7 +64,6 @@ export function ChunkObservability() {
   const [chunks, setChunks] = useState<ChunkInfo[]>([]);
   
   // UI state
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chunkPreviews, setChunkPreviews] = useState<ChunkPreviewResult | null>(null);
   const [generatingPreviews, setGeneratingPreviews] = useState(false);
@@ -166,42 +165,6 @@ export function ChunkObservability() {
     };
   };
 
-  const analyzeAudio = async () => {
-    if (!audioFile) {
-      setError('Please upload an audio file first');
-      return;
-    }
-
-    setAnalyzing(true);
-    setError(null);
-
-    try {
-      // For now, we'll use manual BPM input since browser-based tempo detection
-      // requires complex audio analysis libraries. The user can input BPM manually
-      // or we can show instructions for using external tools.
-      
-      // Use manual BPM input
-      if (manualBpm) {
-        const bpmValue = parseFloat(manualBpm);
-        if (isNaN(bpmValue) || bpmValue < 60 || bpmValue > 200) {
-          setError('BPM must be between 60 and 200');
-          setAnalyzing(false);
-          return;
-        }
-        
-        const analysis = calculateChunkDurationFromBpm(bpmValue);
-        setTempoAnalysis(analysis);
-        setAnalyzing(false);
-      } else {
-        // Show instructions for manual BPM input
-        setError('Please enter BPM manually or use a tool like Audacity to detect tempo');
-        setAnalyzing(false);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze audio');
-      setAnalyzing(false);
-    }
-  };
 
 
   const analyzeMediaWithModal = async () => {
