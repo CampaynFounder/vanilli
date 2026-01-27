@@ -164,6 +164,12 @@ def analyze_media(
         if not isinstance(sync_offset, (int, float)):
             sync_offset = float(sync_offset)
         
+        # IMPORTANT: audalign may return offset that needs adjustment
+        # If user reports offset is ~50% too small, we may need to double it
+        # For now, log the raw offset and let user verify
+        raw_sync_offset = sync_offset
+        print(f"[analyzer] Raw audalign offset: {raw_sync_offset:.3f}s")
+        
         # Onset-based fallback: If audalign returns near-zero offset, detect first musical transient
         # This handles cases where audalign fails to detect dead space at video start
         if abs(sync_offset) < 0.1:
@@ -182,6 +188,7 @@ def analyze_media(
                     if first_onset_time > 0.3:
                         print(f"[analyzer] Using onset-based offset: {first_onset_time:.3f}s (music starts {first_onset_time:.3f}s into video)")
                         sync_offset = first_onset_time
+                        print(f"[analyzer] Onset offset ({first_onset_time:.3f}s) vs audalign offset ({raw_sync_offset:.3f}s) - ratio: {first_onset_time / raw_sync_offset if raw_sync_offset > 0 else 'N/A'}")
                     else:
                         print(f"[analyzer] First onset is too early ({first_onset_time:.3f}s), keeping audalign offset")
                 else:

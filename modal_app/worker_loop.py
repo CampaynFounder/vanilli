@@ -392,27 +392,34 @@ def process_job_with_chunks(
                 # Pattern: Each chunk audio starts where previous chunk audio ended
                 # Chunk 0: Audio 0 to chunk_duration (delayed by sync_offset when muxing)
                 # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
-                # Chunk 2+: Audio starts where previous chunk audio ended (sequential)
+                # Audio timing calculation with sync_offset
+                # sync_offset = when music starts in video (positive = dead space at start)
+                # Chunk 0: Audio from 0s in master, delayed by sync_offset when muxing
+                # Chunk 1+: Audio already shifted in master to align with video timeline
                 if sync_offset and sync_offset > 0:
                     if i == 0:
                         # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
                         audio_start_time = 0
+                        print(f"[worker] Chunk 0 audio: starts at 0s in master, will be delayed by {sync_offset:.3f}s when muxing")
                     elif i == 1:
-                        # Chunk 1: Starts at (chunk_duration - sync_offset) = (8 - 2) = 6s
-                        # This is where chunk 0 audio effectively ends after accounting for offset
+                        # Chunk 1: Audio needs to align with video chunk 1 (8-16s in video timeline)
+                        # Chunk 0: audio extracted from 0 to chunk_duration, delayed by sync_offset
+                        #   → In final video, chunk 0 audio plays from sync_offset to (sync_offset + chunk_duration)
+                        # Chunk 1 video: 8-16s
+                        # Chunk 1 audio: needs to start at 8s in video timeline
+                        #   → In master audio, 8s video = (8 - sync_offset) in master = (chunk_duration - sync_offset) in master
+                        #   → So extract from (chunk_duration - sync_offset) in master
                         audio_start_time = chunk_duration - sync_offset
+                        print(f"[worker] Chunk 1 audio: starts at {audio_start_time:.3f}s in master")
+                        print(f"[worker]   → Video chunk 1: {chunk_duration:.3f}s to {2*chunk_duration:.3f}s")
+                        print(f"[worker]   → Audio chunk 1: {audio_start_time:.3f}s to {audio_start_time + chunk_duration:.3f}s in master")
+                        print(f"[worker]   → This should align: video 8s = master {audio_start_time:.3f}s + sync_offset {sync_offset:.3f}s = {audio_start_time + sync_offset:.3f}s (should equal {chunk_duration:.3f}s)")
                     else:
-                        # Chunk 2+: Start where previous chunk audio ended
-                        # Previous chunk (i-1) audio start = chunk_duration - sync_offset (if i-1 == 1) or calculated recursively
-                        # For i=2: prev_start = chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
-                        # For i>2: prev_start = (i-1) * chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
-                        if i == 2:
-                            prev_audio_start = chunk_duration - sync_offset
-                            prev_audio_end = prev_audio_start + chunk_duration
-                            audio_start_time = prev_audio_end
-                        else:
-                            # i > 2: Use formula (i * chunk_duration) - sync_offset
-                            audio_start_time = (i * chunk_duration) - sync_offset
+                        # Chunk 2+: Continue sequential pattern
+                        # Chunk i video: (i * chunk_duration) to ((i+1) * chunk_duration)
+                        # Chunk i audio in master: ((i * chunk_duration) - sync_offset) to (((i+1) * chunk_duration) - sync_offset)
+                        audio_start_time = (i * chunk_duration) - sync_offset
+                        print(f"[worker] Chunk {i} audio: starts at {audio_start_time:.3f}s in master (({i} * {chunk_duration:.3f}) - {sync_offset:.3f})")
                     audio_duration = video_chunk_actual_duration
                 else:
                     # No sync offset: audio chunks match video chunks exactly
