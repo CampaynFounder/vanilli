@@ -139,7 +139,6 @@ def process_video_impl(data: Optional[dict] = None):
             alignment = audalign.target_align(
                 str(audio_path),  # master audio (target)
                 str(tracking_audio_path),  # video audio (to align)
-                technique="correlation",
             )
             global_offset = alignment.get("offset", 0.0)
             if not isinstance(global_offset, (int, float)):

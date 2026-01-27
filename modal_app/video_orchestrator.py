@@ -172,11 +172,10 @@ class VideoProductionOrchestrator:
                 capture_output=True,
             )
             
-            # Use audalign correlation technique
+            # Use audalign to find sync offset
             alignment = audalign.target_align(
                 str(master_audio_path),
                 str(tmp_video_audio_path),
-                technique="correlation",
             )
             
             # audalign returns offset in seconds
