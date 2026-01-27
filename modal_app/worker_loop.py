@@ -480,10 +480,13 @@ def process_job_with_chunks(
                 if i == 0 and sync_offset and sync_offset > 0:
                     print(f"[worker] Chunk 0: Trimming {sync_offset:.3f}s from front of Kling video to remove dead space")
                     kling_trimmed_path = chunks_dir / f"kling_chunk_{i:03d}_trimmed.mp4"
+                    # Trim video: skip first sync_offset seconds, extract up to chunk_duration
+                    # This removes dead space and ensures video matches audio duration
                     subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path),
                          "-ss", str(sync_offset),  # Skip dead space at start
-                         "-c", "copy",  # Fast copy, no re-encode
+                         "-t", str(video_chunk_actual_duration),  # Extract exactly chunk_duration
+                         "-c", "copy",  # Fast copy, no re-encode (if possible)
                          str(kling_trimmed_path)],
                         check=True, capture_output=True, text=True
                     )
