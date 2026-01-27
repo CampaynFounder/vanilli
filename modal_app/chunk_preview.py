@@ -254,26 +254,30 @@ def api():
         """
         try:
             data = await req.json()
+            print(f"[chunk-preview] Received request with keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
         except Exception as e:
+            print(f"[chunk-preview] Error parsing JSON: {e}")
             return JSONResponse(
                 {"error": f"Invalid JSON: {str(e)}"},
                 status_code=400
             )
         
         # Only accept video_url, audio_url, and optional image_urls
-        video_url = data.get("video_url")
-        audio_url = data.get("audio_url")
-        image_urls = data.get("image_urls", [])  # Optional array of image URLs
+        video_url = data.get("video_url") if isinstance(data, dict) else None
+        audio_url = data.get("audio_url") if isinstance(data, dict) else None
+        image_urls = data.get("image_urls", []) if isinstance(data, dict) else []  # Optional array of image URLs
         
         # Validate required fields
         if not video_url:
+            print(f"[chunk-preview] Missing video_url. Received data: {data}")
             return JSONResponse(
-                {"error": "Missing required field: video_url"},
+                {"error": "Missing required field: video_url", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
                 status_code=400
             )
         if not audio_url:
+            print(f"[chunk-preview] Missing audio_url. Received data: {data}")
             return JSONResponse(
-                {"error": "Missing required field: audio_url"},
+                {"error": "Missing required field: audio_url", "received_keys": list(data.keys()) if isinstance(data, dict) else "not a dict"},
                 status_code=400
             )
         

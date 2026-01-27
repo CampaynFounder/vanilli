@@ -314,6 +314,14 @@ export function ChunkObservability() {
         throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
       }
 
+      // Validate signed URLs before sending
+      if (!videoSignedUrl) {
+        throw new Error('Video signed URL is missing');
+      }
+      if (!audioSignedUrl) {
+        throw new Error('Audio signed URL is missing');
+      }
+
       // Only send video_url, audio_url, and optional image_urls
       // The Modal function will automatically calculate tempo, sync_offset, and chunk_duration
       const requestBody = {
@@ -326,6 +334,9 @@ export function ChunkObservability() {
         video_url: videoSignedUrl.substring(0, 50) + '...',
         audio_url: audioSignedUrl.substring(0, 50) + '...',
         image_urls_count: imageUrls?.length || 0,
+        request_body_keys: Object.keys(requestBody),
+        video_url_present: !!requestBody.video_url,
+        audio_url_present: !!requestBody.audio_url,
       });
       
       const response = await fetch(modalUrl, {
