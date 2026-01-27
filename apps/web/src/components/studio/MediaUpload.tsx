@@ -3,8 +3,6 @@
 import { useState, useRef } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
 
-const VIDEO_MAX_SECONDS = 9;
-
 function validateVideoDuration(file: File): Promise<number> {
   const url = URL.createObjectURL(file);
   return new Promise((resolve, reject) => {
@@ -32,6 +30,8 @@ interface MediaUploadProps {
   onDuration?: (seconds: number) => void;
   preview?: string | null;
   icon: React.ReactNode;
+  /** Optional: max video duration in seconds (for display only, validation happens in parent) */
+  maxVideoSeconds?: number;
 }
 
 export function MediaUpload({
@@ -43,6 +43,7 @@ export function MediaUpload({
   onDuration,
   preview,
   icon,
+  maxVideoSeconds,
 }: MediaUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -59,11 +60,8 @@ export function MediaUpload({
     validateVideoDuration(file)
       .then((d) => {
         setValidatingVideo(false);
-        if (d > VIDEO_MAX_SECONDS) {
-          setVideoError(`Video must be ${VIDEO_MAX_SECONDS} seconds or less (yours is ${d.toFixed(1)}s).`);
-          clearFileInput();
-          return;
-        }
+        // Remove hard limit check - let parent component handle tier-based validation
+        // Just validate that video can be loaded and pass duration to parent
         onFileSelect(file);
         onDuration?.(d);
       })
@@ -208,7 +206,7 @@ export function MediaUpload({
               Click to upload or drag and drop
             </p>
             <p className="text-sm text-slate-400">
-              {type === 'video' && 'MP4, MOV, or WebM (3–9s, max 500MB)'}
+              {type === 'video' && (maxVideoSeconds ? `MP4, MOV, or WebM (3–${maxVideoSeconds}s, max 500MB)` : 'MP4, MOV, or WebM (max 500MB)')}
               {type === 'image' && 'JPG, PNG, or WebP (max 10MB)'}
               {type === 'audio' && 'WAV, MP3, or MP4 (max 50MB)'}
             </p>
