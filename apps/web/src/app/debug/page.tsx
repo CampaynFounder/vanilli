@@ -20,13 +20,6 @@ export default function DebugPage() {
   const [videoApiLoading, setVideoApiLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Chunk observability state
-  const [chunkVideoUrl, setChunkVideoUrl] = useState('');
-  const [chunkAudioUrl, setChunkAudioUrl] = useState('');
-  const [chunkImages, setChunkImages] = useState<string[]>(['']);
-  const [chunkSyncOffset, setChunkSyncOffset] = useState(0);
-  const [chunkDuration, setChunkDuration] = useState(8.5);
-
   const handleGenerateJwt = async () => {
     if (!testVideoApiUrl) return;
     setVideoApiLoading(true);
@@ -176,110 +169,7 @@ export default function DebugPage() {
 
         {/* Chunk Observability Section */}
         <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-4">Chunk Observability</h2>
-          <p className="text-sm text-slate-400 mb-4">
-            Test chunk calculations and synchronization before sending to Kling. This helps verify that chunks are correctly grouped and synced without burning credits.
-          </p>
-
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium mb-1">Video URL</label>
-              <input
-                type="text"
-                value={chunkVideoUrl}
-                onChange={(e) => setChunkVideoUrl(e.target.value)}
-                placeholder="https://your-supabase-url.supabase.co/storage/v1/object/public/..."
-                className="w-full px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Audio URL</label>
-              <input
-                type="text"
-                value={chunkAudioUrl}
-                onChange={(e) => setChunkAudioUrl(e.target.value)}
-                placeholder="https://your-supabase-url.supabase.co/storage/v1/object/public/..."
-                className="w-full px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Sync Offset (seconds)</label>
-                <input
-                  type="number"
-                  value={chunkSyncOffset}
-                  onChange={(e) => setChunkSyncOffset(parseFloat(e.target.value) || 0)}
-                  step="0.001"
-                  className="w-full px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-                />
-                <p className="text-xs text-slate-500 mt-1">Audio alignment offset</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Chunk Duration (seconds)</label>
-                <input
-                  type="number"
-                  value={chunkDuration}
-                  onChange={(e) => setChunkDuration(parseFloat(e.target.value) || 8.5)}
-                  step="0.1"
-                  min="0.1"
-                  max="9"
-                  className="w-full px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-                />
-                <p className="text-xs text-slate-500 mt-1">Tempo-based chunk duration</p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Target Images ({chunkImages.length})
-              </label>
-              <div className="space-y-2">
-                {chunkImages.map((url, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={url}
-                      onChange={(e) => {
-                        const newImages = [...chunkImages];
-                        newImages[idx] = e.target.value;
-                        setChunkImages(newImages);
-                      }}
-                      placeholder={`Image ${idx + 1} URL`}
-                      className="flex-1 px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-                    />
-                    {chunkImages.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChunkImages(chunkImages.filter((_, i) => i !== idx));
-                        }}
-                        className="px-3 py-2 bg-red-900/50 hover:bg-red-900/70 rounded text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setChunkImages([...chunkImages, ''])}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm"
-                >
-                  + Add Image
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <ChunkObservability
-            videoUrl={chunkVideoUrl}
-            audioUrl={chunkAudioUrl}
-            images={chunkImages.filter((url) => url.trim() !== '')}
-            syncOffset={chunkSyncOffset}
-            chunkDuration={chunkDuration}
-          />
+          <ChunkObservability />
         </div>
       </div>
     </div>
