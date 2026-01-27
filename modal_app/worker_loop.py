@@ -126,6 +126,14 @@ def worker_loop():
         
         print(f"[worker] Starting video processing (images: {len(target_images)}, sync_offset: {sync_offset}, chunk_duration: {chunk_duration})...")
         
+        # Update generation status to processing
+        if generation_id:
+            supabase.table("generations").update({
+                "status": "processing",
+                "current_stage": "analyzing" if (user_tier == "demo" or user_tier == "industry") else "processing",
+                "progress_percentage": 5,
+            }).eq("id", generation_id).execute()
+        
         # Process with chunk-level tracking for DEMO/Industry tiers
         use_chunk_tracking = (user_tier == "demo" or user_tier == "industry") and chunk_duration is not None
         
