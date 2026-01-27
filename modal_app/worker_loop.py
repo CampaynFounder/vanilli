@@ -394,32 +394,39 @@ def process_job_with_chunks(
                 # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
                 # Audio timing calculation with sync_offset
                 # sync_offset = when music starts in video (positive = dead space at start)
+                # 
+                # Pattern: Each chunk audio starts where previous chunk audio ended in master audio
                 # Chunk 0: Audio from 0s in master, delayed by sync_offset when muxing
-                # Chunk 1+: Audio already shifted in master to align with video timeline
+                # Chunk 1+: Audio continues sequentially from where previous chunk ended, no delay
                 if sync_offset and sync_offset > 0:
                     if i == 0:
                         # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
+                        # Audio extracted: 0 to chunk_duration in master
+                        # After delay: plays from sync_offset to (sync_offset + chunk_duration) in final video
                         audio_start_time = 0
                         print(f"[worker] Chunk 0 audio: starts at 0s in master, will be delayed by {sync_offset:.3f}s when muxing")
-                    elif i == 1:
-                        # Chunk 1: Audio needs to align with video chunk 1 (8-16s in video timeline)
-                        # Chunk 0: audio extracted from 0 to chunk_duration, delayed by sync_offset
-                        #   → In final video, chunk 0 audio plays from sync_offset to (sync_offset + chunk_duration)
-                        # Chunk 1 video: 8-16s
-                        # Chunk 1 audio: needs to start at 8s in video timeline
-                        #   → In master audio, 8s video = (8 - sync_offset) in master = (chunk_duration - sync_offset) in master
-                        #   → So extract from (chunk_duration - sync_offset) in master
-                        audio_start_time = chunk_duration - sync_offset
-                        print(f"[worker] Chunk 1 audio: starts at {audio_start_time:.3f}s in master")
-                        print(f"[worker]   → Video chunk 1: {chunk_duration:.3f}s to {2*chunk_duration:.3f}s")
-                        print(f"[worker]   → Audio chunk 1: {audio_start_time:.3f}s to {audio_start_time + chunk_duration:.3f}s in master")
-                        print(f"[worker]   → This should align: video 8s = master {audio_start_time:.3f}s + sync_offset {sync_offset:.3f}s = {audio_start_time + sync_offset:.3f}s (should equal {chunk_duration:.3f}s)")
+                        print(f"[worker]   → Audio extracted: 0s to {chunk_duration:.3f}s in master")
+                        print(f"[worker]   → After delay: plays {sync_offset:.3f}s to {sync_offset + chunk_duration:.3f}s in final video")
                     else:
-                        # Chunk 2+: Continue sequential pattern
-                        # Chunk i video: (i * chunk_duration) to ((i+1) * chunk_duration)
-                        # Chunk i audio in master: ((i * chunk_duration) - sync_offset) to (((i+1) * chunk_duration) - sync_offset)
-                        audio_start_time = (i * chunk_duration) - sync_offset
-                        print(f"[worker] Chunk {i} audio: starts at {audio_start_time:.3f}s in master (({i} * {chunk_duration:.3f}) - {sync_offset:.3f})")
+                        # Chunk 1+: Start where previous chunk audio ended in master
+                        # Previous chunk (i-1) audio: 
+                        #   - If i-1 == 0: extracted from 0 to chunk_duration, so ends at chunk_duration
+                        #   - If i-1 > 0: extracted from prev_start to (prev_start + chunk_duration), so ends at (prev_start + chunk_duration)
+                        # Current chunk should start where previous ended
+                        if i == 1:
+                            # Chunk 1: starts where chunk 0 ended = chunk_duration
+                            prev_audio_end = chunk_duration
+                        else:
+                            # Chunk 2+: starts where chunk (i-1) ended
+                            # Chunk (i-1) started at: ((i-1) * chunk_duration) (sequential from chunk 0)
+                            # Chunk (i-1) ended at: ((i-1) * chunk_duration) + chunk_duration = i * chunk_duration
+                            prev_audio_end = i * chunk_duration
+                        
+                        audio_start_time = prev_audio_end
+                        print(f"[worker] Chunk {i} audio: starts at {audio_start_time:.3f}s in master (where chunk {i-1} ended)")
+                        print(f"[worker]   → Video chunk {i}: {i * chunk_duration:.3f}s to {(i+1) * chunk_duration:.3f}s")
+                        print(f"[worker]   → Audio chunk {i}: {audio_start_time:.3f}s to {audio_start_time + chunk_duration:.3f}s in master")
+                        print(f"[worker]   → No delay: plays {i * chunk_duration:.3f}s to {(i+1) * chunk_duration:.3f}s in final video")
                     audio_duration = video_chunk_actual_duration
                 else:
                     # No sync offset: audio chunks match video chunks exactly
