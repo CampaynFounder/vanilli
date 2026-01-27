@@ -383,20 +383,36 @@ def process_job_with_chunks(
                 # sync_offset represents when music starts in the video
                 # Positive offset = music starts X seconds into video (dead space at start)
                 video_chunk_start_time = i * chunk_duration
-                # Audio timing: chunk starts at video_chunk_start_time, but we need to account for offset
-                # If offset is positive (music starts later in video), audio chunk starts at video_chunk_start_time + offset
-                audio_start_time = video_chunk_start_time + (sync_offset or 0.0)
+                video_chunk_end_time = min(video_chunk_start_time + chunk_duration, duration)
+                video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
+                
+                # Audio timing: For chunk 0, if sync_offset > 0, audio only covers the music portion
+                # (not the dead space at the start). For subsequent chunks, audio continues normally.
+                if i == 0 and sync_offset and sync_offset > 0:
+                    # Chunk 0: Audio starts at sync_offset, duration is chunk_duration minus the dead space
+                    audio_start_time = sync_offset
+                    audio_duration = video_chunk_actual_duration - sync_offset
+                    # Ensure we don't have negative duration
+                    if audio_duration <= 0:
+                        audio_duration = video_chunk_actual_duration
+                        audio_start_time = 0
+                else:
+                    # Subsequent chunks: Audio starts at video_chunk_start_time + sync_offset
+                    audio_start_time = video_chunk_start_time + (sync_offset or 0.0)
+                    audio_duration = video_chunk_actual_duration
+                
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
                 
                 # Log chunk details before calling Kling
                 kling_requested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
-                print(f"  - Video chunk start: {video_chunk_start_time:.3f}s")
-                print(f"  - Audio start: {audio_start_time:.3f}s (sync_offset: {sync_offset:.3f}s - music starts {sync_offset:.3f}s into video)")
+                print(f"  - Video chunk: {video_chunk_start_time:.3f}s to {video_chunk_end_time:.3f}s (duration: {video_chunk_actual_duration:.3f}s)")
+                print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s)")
+                if i == 0 and sync_offset and sync_offset > 0:
+                    print(f"  - Chunk 0: Audio excludes {sync_offset:.3f}s dead space at video start")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
-                print(f"  - Chunk duration: {chunk_duration:.3f}s")
                 
                 # Call Kling
                 task_id = kling_client.generate(chunk_url, current_image, prompt)
@@ -419,10 +435,10 @@ def process_job_with_chunks(
                 r.raise_for_status()
                 kling_output_path.write_bytes(r.content)
                 
-                # Extract audio slice (audio_start_time already calculated above for observability)
+                # Extract audio slice (audio_start_time and audio_duration already calculated above)
                 audio_slice_path = chunks_dir / f"audio_chunk_{i:03d}.wav"
                 subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(master_audio_path), "-ss", str(audio_start_time), "-t", str(chunk_duration),
+                    ["ffmpeg", "-y", "-i", str(master_audio_path), "-ss", str(audio_start_time), "-t", str(audio_duration),
                      "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_slice_path)],
                     check=True, capture_output=True
                 )
@@ -432,16 +448,17 @@ def process_job_with_chunks(
                 # Positive offset = music starts X seconds into video, so delay audio by X seconds
                 segment_path = chunks_dir / f"segment_{i:03d}.mp4"
                 
-                if sync_offset and sync_offset > 0:
-                    # Positive offset: music starts X seconds into video
-                    # Delay audio by X seconds so it aligns with when music starts
-                    # Use adelay filter: adelay=delays|delays (in milliseconds, per channel)
-                    print(f"[worker] Applying sync_offset {sync_offset:.3f}s: delaying audio to align with music start in video")
+                # Mux video + audio
+                # For chunk 0 with positive sync_offset: audio already excludes dead space, so we delay it to align
+                # For subsequent chunks: audio continues normally, no delay needed
+                if i == 0 and sync_offset and sync_offset > 0:
+                    # Chunk 0: Delay audio by sync_offset to align with when music starts in video
+                    print(f"[worker] Chunk 0: Delaying audio by {sync_offset:.3f}s to align with music start")
                     delay_ms = int(sync_offset * 1000)
                     subprocess.run(
                         ["ffmpeg", "-y",
                          "-i", str(kling_output_path),  # Video from Kling
-                         "-i", str(audio_slice_path),   # Audio slice
+                         "-i", str(audio_slice_path),   # Audio slice (already trimmed to exclude dead space)
                          "-filter_complex", f"[1:a]adelay={delay_ms}|{delay_ms}[a]",
                          "-map", "0:v:0", "-map", "[a]",
                          "-c:v", "libx264", "-preset", "veryfast",
@@ -451,7 +468,7 @@ def process_job_with_chunks(
                         check=True, capture_output=True
                     )
                 else:
-                    # No offset or negative offset: audio starts immediately
+                    # Subsequent chunks or no offset: audio aligns naturally
                     subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
                          "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
@@ -482,7 +499,11 @@ def process_job_with_chunks(
                         "image_index": image_index,
                         "video_chunk_url": chunk_url,
                         "video_chunk_start_time": video_chunk_start_time,
+                        "video_chunk_end_time": video_chunk_end_time,
+                        "video_chunk_duration": video_chunk_actual_duration,
                         "audio_start_time": audio_start_time,
+                        "audio_end_time": audio_start_time + audio_duration,
+                        "audio_duration": audio_duration,
                         "sync_offset": sync_offset or 0.0,  # Offset when music starts in video
                         "chunk_duration": chunk_duration,
                         "kling_task_id": task_id,
