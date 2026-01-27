@@ -38,13 +38,11 @@ export function ChunkObservability() {
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
   const [syncOffset, setSyncOffset] = useState<number>(0);
-  const [bpm, setBpm] = useState<number | null>(null);
   const [tempoAnalysis, setTempoAnalysis] = useState<TempoAnalysis | null>(null);
   const [chunks, setChunks] = useState<ChunkInfo[]>([]);
   
   // Manual inputs
   const [manualBpm, setManualBpm] = useState<string>('');
-  const [useManualBpm, setUseManualBpm] = useState(false);
   
   // UI state
   const [loading, setLoading] = useState(false);
@@ -86,7 +84,6 @@ export function ChunkObservability() {
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     setAudioDuration(null);
-    setBpm(null);
     setTempoAnalysis(null);
     setChunks([]);
   };
@@ -112,7 +109,6 @@ export function ChunkObservability() {
 
   // Calculate tempo-based chunk duration (same logic as media_analyzer.py)
   const calculateChunkDurationFromBpm = (bpmValue: number): TempoAnalysis => {
-    const beatsPerSecond = bpmValue / 60.0;
     const secondsPerBeat = 60.0 / bpmValue;
     
     // 4/4 time: 4 beats per measure
@@ -157,8 +153,8 @@ export function ChunkObservability() {
       // requires complex audio analysis libraries. The user can input BPM manually
       // or we can show instructions for using external tools.
       
-      // If manual BPM is provided, use it
-      if (useManualBpm && manualBpm) {
+      // Use manual BPM input
+      if (manualBpm) {
         const bpmValue = parseFloat(manualBpm);
         if (isNaN(bpmValue) || bpmValue < 60 || bpmValue > 200) {
           setError('BPM must be between 60 and 200');
@@ -166,7 +162,6 @@ export function ChunkObservability() {
           return;
         }
         
-        setBpm(bpmValue);
         const analysis = calculateChunkDurationFromBpm(bpmValue);
         setTempoAnalysis(analysis);
         setAnalyzing(false);
