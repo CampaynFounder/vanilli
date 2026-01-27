@@ -58,11 +58,19 @@ function StudioPage() {
   const creditsRemaining = user?.creditsRemaining ?? 0;
   const userTier = user?.tier || 'free';
   
-  // Get max duration based on tier
+  // Get max duration based on tier and credits
+  // For DEMO and Industry: allow up to credit limit (capped at tier max)
+  // For others: fixed 9 seconds
   const getMaxDuration = () => {
-    if (userTier === 'demo') return 20;
-    if (userTier === 'industry') return 90;
-    return 9; // open_mic, artist, label
+    if (userTier === 'demo') {
+      // DEMO tier: up to credits available, capped at 20 seconds
+      return Math.min(creditsRemaining, 20);
+    }
+    if (userTier === 'industry') {
+      // Industry tier: up to credits available, capped at 90 seconds
+      return Math.min(creditsRemaining, 90);
+    }
+    return 9; // open_mic, artist, label - fixed 9 seconds
   };
   
   // Handle checkout success - refresh user data to get updated credits
