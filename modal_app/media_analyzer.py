@@ -209,7 +209,7 @@ def analyze_media(
     timeout=300,  # 5 minutes max (analysis can take time for long videos)
     cpu=2,  # 2 CPUs for librosa/audalign processing
     memory=4096,  # 4GB RAM (librosa can be memory-intensive)
-    concurrency_limit=5,  # Max 5 concurrent analysis requests
+    max_containers=5,  # Max 5 concurrent analysis requests (updated from concurrency_limit)
 )
 @modal.asgi_app()
 def api():

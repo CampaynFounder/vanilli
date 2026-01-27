@@ -226,15 +226,94 @@ function StudioPage() {
         if (ue) throw new Error(`Upload ${path} failed: ${ue.message}`);
       };
 
-      // Upload files
+      // Helper to generate thumbnail from image
+      const generateImageThumbnail = async (file: File): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxSize = 200;
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            } else {
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = URL.createObjectURL(file);
+        });
+      };
+      
+      // Helper to generate thumbnail from video
+      const generateVideoThumbnail = async (file: File): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadedmetadata = () => {
+            video.currentTime = 0.1; // Seek to first frame
+          };
+          video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            } else {
+              resolve(null);
+            }
+          };
+          video.onerror = () => resolve(null);
+          video.src = URL.createObjectURL(file);
+        });
+      };
+      
+      // Upload files and generate thumbnails
       await up(`${base}/tracking.mp4`, trackingVideo);
+      const videoThumbnail = await generateVideoThumbnail(trackingVideo);
+      let videoThumbnailPath: string | null = null;
+      if (videoThumbnail) {
+        const thumbPath = `${base}/tracking_thumb.jpg`;
+        await up(thumbPath, new File([videoThumbnail], 'thumb.jpg', { type: 'image/jpeg' }));
+        videoThumbnailPath = thumbPath;
+      }
+      
       const imageUrls: string[] = [];
+      let primaryImageThumbnailPath: string | null = null;
       for (let i = 0; i < targetImages.length; i++) {
         const ext = targetImages[i].name.split('.').pop() || 'jpg';
         const path = `${base}/target_${i}.${ext}`;
         await up(path, targetImages[i]);
         const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
         if (signed?.signedUrl) imageUrls.push(signed.signedUrl);
+        
+        // Generate thumbnail for first image (primary thumbnail)
+        if (i === 0) {
+          const imgThumbnail = await generateImageThumbnail(targetImages[i]);
+          if (imgThumbnail) {
+            const thumbPath = `${base}/target_${i}_thumb.jpg`;
+            await up(thumbPath, new File([imgThumbnail], 'thumb.jpg', { type: 'image/jpeg' }));
+            primaryImageThumbnailPath = thumbPath;
+          }
+        }
       }
       
       let audioSignedUrl: string | null = null;
@@ -401,9 +480,17 @@ function StudioPage() {
           .single();
         if (pe || !proj?.id) throw new Error(pe?.message || 'Failed to create project');
 
+        // Generate thumbnail for legacy flow too
+        const thumbnailPath = primaryImageThumbnailPath || videoThumbnailPath;
+        
         const { data: gen, error: ge } = await supabase
           .from('generations')
-          .insert({ project_id: proj.id, cost_credits: genSecs, status: 'pending' })
+          .insert({ 
+            project_id: proj.id, 
+            cost_credits: genSecs, 
+            status: 'pending',
+            thumbnail_r2_path: thumbnailPath, // Store thumbnail path
+          })
           .select('id')
           .single();
         if (ge || !gen?.id) throw new Error(ge?.message || 'Failed to create generation');

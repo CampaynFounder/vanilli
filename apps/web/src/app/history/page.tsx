@@ -41,17 +41,27 @@ function HistoryPage() {
       try {
         if (activeTab === 'generations') {
           // Get all generations for user: both with projects (legacy) and without (queue system)
-          const { data: g } = await supabase
+          // Query generations linked via projects OR video_jobs
+          const { data: g1 } = await supabase
             .from('generations')
-            .select(`
-              *,
-              projects(user_id,track_name,bpm,bars),
-              video_jobs(user_id, user_video_url, target_images, prompt)
-            `)
-            .or(`projects.user_id.eq.${uid},video_jobs.user_id.eq.${uid}`)
-            .order('created_at', { ascending: false })
-            .limit(50);
-          setGenerations((g || []) as Generation[]);
+            .select('*, projects!inner(user_id,track_name,bpm,bars)')
+            .eq('projects.user_id', uid);
+          
+          const { data: g2 } = await supabase
+            .from('generations')
+            .select('*, video_jobs!inner(user_id,user_video_url,target_images,prompt)')
+            .eq('video_jobs.user_id', uid)
+            .is('project_id', null); // Only get queue system generations (no project)
+          
+          // Merge and deduplicate by generation id
+          const allGens = [...(g1 || []), ...(g2 || [])];
+          const uniqueGens = Array.from(
+            new Map(allGens.map(g => [g.id, g])).values()
+          ).sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ).slice(0, 50);
+          
+          setGenerations(uniqueGens as Generation[]);
         } else if (activeTab === 'projects') {
           const { data: p } = await supabase.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50);
           setProjects((p || []) as Project[]);
@@ -129,17 +139,27 @@ function HistoryPage() {
                     if (!session?.user?.id) return;
                     const uid = session.user.id;
                     try {
-                      const { data: g } = await supabase
+                      // Query generations linked via projects OR video_jobs
+                      const { data: g1 } = await supabase
                         .from('generations')
-                        .select(`
-                          *,
-                          projects(user_id,track_name,bpm,bars),
-                          video_jobs(user_id, user_video_url, target_images, prompt)
-                        `)
-                        .or(`projects.user_id.eq.${uid},video_jobs.user_id.eq.${uid}`)
-                        .order('created_at', { ascending: false })
-                        .limit(50);
-                      setGenerations((g || []) as Generation[]);
+                        .select('*, projects!inner(user_id,track_name,bpm,bars)')
+                        .eq('projects.user_id', uid);
+                      
+                      const { data: g2 } = await supabase
+                        .from('generations')
+                        .select('*, video_jobs!inner(user_id,user_video_url,target_images,prompt)')
+                        .eq('video_jobs.user_id', uid)
+                        .is('project_id', null); // Only get queue system generations (no project)
+                      
+                      // Merge and deduplicate by generation id
+                      const allGens = [...(g1 || []), ...(g2 || [])];
+                      const uniqueGens = Array.from(
+                        new Map(allGens.map(g => [g.id, g])).values()
+                      ).sort((a, b) => 
+                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                      ).slice(0, 50);
+                      
+                      setGenerations(uniqueGens as Generation[]);
                     } catch (e) { console.error(e); }
                   };
                   fetchData();
