@@ -500,10 +500,29 @@ def process_job_with_chunks(
                 # This way both audio and video start at 0, no delay needed
                 if i == 0 and sync_offset and sync_offset > 0:
                     print(f"[worker] Chunk 0: Trimming {sync_offset:.3f}s from front of Kling video to remove dead space")
+                    print(f"[worker] Chunk 0: Kling video duration: checking...")
+                    
+                    # Check Kling video duration first
+                    try:
+                        kling_duration_result = subprocess.run(
+                            ["ffprobe", "-v", "error", "-show_entries", "format=duration", 
+                             "-of", "default=noprint_wrappers=1:nokey=1", str(kling_output_path)],
+                            capture_output=True, text=True, check=True
+                        )
+                        kling_duration = float(kling_duration_result.stdout.strip())
+                        print(f"[worker] Chunk 0: Kling video duration: {kling_duration:.3f}s")
+                        
+                        # Verify we have enough video to trim
+                        if kling_duration < sync_offset + video_chunk_actual_duration:
+                            raise Exception(f"Chunk 0: Kling video too short ({kling_duration:.3f}s) for trimming. Need at least {sync_offset + video_chunk_actual_duration:.3f}s (sync_offset {sync_offset:.3f}s + chunk duration {video_chunk_actual_duration:.3f}s)")
+                    except Exception as duration_error:
+                        print(f"[worker] Chunk 0: Warning - could not check Kling video duration: {duration_error}")
+                    
                     kling_trimmed_path = chunks_dir / f"kling_chunk_{i:03d}_trimmed.mp4"
                     # Trim video: skip first sync_offset seconds, extract up to chunk_duration
                     # This removes dead space and ensures video matches audio duration
-                    subprocess.run(
+                    print(f"[worker] Chunk 0: Running FFmpeg trim: -ss {sync_offset:.3f}s -t {video_chunk_actual_duration:.3f}s")
+                    trim_result = subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path),
                          "-ss", str(sync_offset),  # Skip dead space at start
                          "-t", str(video_chunk_actual_duration),  # Extract exactly chunk_duration
@@ -511,6 +530,12 @@ def process_job_with_chunks(
                          str(kling_trimmed_path)],
                         check=True, capture_output=True, text=True
                     )
+                    # Log FFmpeg output for debugging
+                    if trim_result.stdout:
+                        print(f"[worker] Chunk 0: FFmpeg trim stdout: {trim_result.stdout[:500]}")
+                    if trim_result.stderr:
+                        print(f"[worker] Chunk 0: FFmpeg trim stderr: {trim_result.stderr[:500]}")
+                    
                     # Verify trimmed video exists
                     if not kling_trimmed_path.exists() or kling_trimmed_path.stat().st_size == 0:
                         raise Exception(f"Chunk 0 video trimming failed - file missing or empty")
