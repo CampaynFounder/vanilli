@@ -964,15 +964,19 @@ export function ChunkObservability() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          // Programmatic download to avoid navigation
+                          e.stopPropagation();
+                          // Programmatic download to avoid navigation - stays on same page
                           const link = document.createElement('a');
                           link.href = preview.video_chunk_url;
                           link.download = `chunk_${preview.chunk_index + 1}_video.mp4`;
-                          link.target = '_blank';
-                          link.rel = 'noopener noreferrer';
+                          // No target - download happens without navigation
+                          link.style.display = 'none';
                           document.body.appendChild(link);
                           link.click();
-                          document.body.removeChild(link);
+                          // Clean up after a short delay
+                          setTimeout(() => {
+                            document.body.removeChild(link);
+                          }, 100);
                         }}
                         className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center cursor-pointer"
                       >
@@ -981,15 +985,19 @@ export function ChunkObservability() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          // Programmatic download to avoid navigation
+                          e.stopPropagation();
+                          // Programmatic download to avoid navigation - stays on same page
                           const link = document.createElement('a');
                           link.href = preview.audio_chunk_url;
                           link.download = `chunk_${preview.chunk_index + 1}_audio.wav`;
-                          link.target = '_blank';
-                          link.rel = 'noopener noreferrer';
+                          // No target - download happens without navigation
+                          link.style.display = 'none';
                           document.body.appendChild(link);
                           link.click();
-                          document.body.removeChild(link);
+                          // Clean up after a short delay
+                          setTimeout(() => {
+                            document.body.removeChild(link);
+                          }, 100);
                         }}
                         className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center cursor-pointer"
                       >
@@ -1000,7 +1008,7 @@ export function ChunkObservability() {
                       Chunk {preview.chunk_index + 1}: Video + Audio{preview.image_url ? ` + Image ${(preview.image_index ?? 0) + 1}` : ''} should align perfectly
                     </div>
                     <div className="mt-1 text-xs text-blue-400">
-                      💡 Downloads open in new tab - debug page stays active
+                      💡 Downloads happen in background - debug page stays active
                     </div>
                   </div>
                 );
