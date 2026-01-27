@@ -271,27 +271,31 @@ export function ChunkObservability() {
 
       console.log('Uploading files for analysis...');
       
-      // Upload video
-      const videoArrayBuffer = await videoFile.arrayBuffer();
+      // Upload video (use File directly, not ArrayBuffer)
       const { error: videoError } = await supabase.storage
         .from('vannilli')
-        .upload(videoPath, videoArrayBuffer, {
+        .upload(videoPath, videoFile, {
           contentType: 'video/mp4',
           upsert: true,
         });
 
-      if (videoError) throw new Error(`Failed to upload video: ${videoError.message}`);
+      if (videoError) {
+        console.error('Video upload error:', videoError);
+        throw new Error(`Failed to upload video: ${videoError.message}`);
+      }
 
-      // Upload audio
-      const audioArrayBuffer = await audioFile.arrayBuffer();
+      // Upload audio (use File directly, not ArrayBuffer)
       const { error: audioError } = await supabase.storage
         .from('vannilli')
-        .upload(audioPath, audioArrayBuffer, {
+        .upload(audioPath, audioFile, {
           contentType: audioFile.type || 'audio/mpeg',
           upsert: true,
         });
 
-      if (audioError) throw new Error(`Failed to upload audio: ${audioError.message}`);
+      if (audioError) {
+        console.error('Audio upload error:', audioError);
+        throw new Error(`Failed to upload audio: ${audioError.message}`);
+      }
 
       // Get signed URLs
       const { data: videoSigned, error: videoSignedError } = await supabase.storage
@@ -403,27 +407,31 @@ export function ChunkObservability() {
 
       console.log('Uploading files to Supabase...');
       
-      // Upload video
-      const videoArrayBuffer = await videoFile.arrayBuffer();
+      // Upload video (use File directly, not ArrayBuffer)
       const { error: videoError } = await supabase.storage
         .from('vannilli')
-        .upload(videoPath, videoArrayBuffer, {
+        .upload(videoPath, videoFile, {
           contentType: 'video/mp4',
           upsert: true,
         });
 
-      if (videoError) throw new Error(`Failed to upload video: ${videoError.message}`);
+      if (videoError) {
+        console.error('Video upload error:', videoError);
+        throw new Error(`Failed to upload video: ${videoError.message}`);
+      }
 
-      // Upload audio
-      const audioArrayBuffer = await audioFile.arrayBuffer();
+      // Upload audio (use File directly, not ArrayBuffer)
       const { error: audioError } = await supabase.storage
         .from('vannilli')
-        .upload(audioPath, audioArrayBuffer, {
+        .upload(audioPath, audioFile, {
           contentType: audioFile.type || 'audio/mpeg',
           upsert: true,
         });
 
-      if (audioError) throw new Error(`Failed to upload audio: ${audioError.message}`);
+      if (audioError) {
+        console.error('Audio upload error:', audioError);
+        throw new Error(`Failed to upload audio: ${audioError.message}`);
+      }
 
       // Get signed URLs
       const { data: videoSigned, error: videoSignedError } = await supabase.storage
