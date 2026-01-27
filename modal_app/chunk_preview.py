@@ -148,48 +148,77 @@ def generate_chunk_previews(
                 check=True, capture_output=True
             )
             
-            # Upload video chunk (use upsert to handle duplicates)
+            # Upload video chunk
+            # Use unique path to avoid conflicts, but if it still exists, try update
             video_storage_path = f"{storage_prefix}/video_chunk_{i:03d}.mp4"
             with open(video_chunk_path, "rb") as f:
+                video_data = f.read()
                 try:
                     supabase.storage.from_(BUCKET).upload(
                         video_storage_path, 
-                        f.read(), 
-                        file_options={"content-type": "video/mp4", "upsert": "true"}
+                        video_data, 
+                        file_options={"content-type": "video/mp4"}
                     )
                 except Exception as upload_error:
-                    # If upload fails, try update (file might already exist)
-                    f.seek(0)  # Reset file pointer
-                    try:
-                        supabase.storage.from_(BUCKET).update(
-                            video_storage_path,
-                            f.read(),
-                            file_options={"content-type": "video/mp4"}
-                        )
-                    except Exception:
-                        # If both fail, re-raise the original error
+                    # Check if it's a duplicate error (409)
+                    error_str = str(upload_error)
+                    if "409" in error_str or "Duplicate" in error_str or "already exists" in error_str:
+                        # File exists, try to update it
+                        try:
+                            supabase.storage.from_(BUCKET).update(
+                                video_storage_path,
+                                video_data,
+                                file_options={"content-type": "video/mp4"}
+                            )
+                        except Exception as update_error:
+                            print(f"[chunk-preview] Warning: Could not update video chunk {i+1}, trying to continue: {update_error}")
+                            # Try to delete and re-upload
+                            try:
+                                supabase.storage.from_(BUCKET).remove([video_storage_path])
+                                supabase.storage.from_(BUCKET).upload(
+                                    video_storage_path,
+                                    video_data,
+                                    file_options={"content-type": "video/mp4"}
+                                )
+                            except Exception:
+                                raise upload_error
+                    else:
                         raise upload_error
             
-            # Upload audio chunk (use upsert to handle duplicates)
+            # Upload audio chunk
             audio_storage_path = f"{storage_prefix}/audio_chunk_{i:03d}.wav"
             with open(audio_chunk_path, "rb") as f:
+                audio_data = f.read()
                 try:
                     supabase.storage.from_(BUCKET).upload(
                         audio_storage_path,
-                        f.read(),
-                        file_options={"content-type": "audio/wav", "upsert": "true"}
+                        audio_data,
+                        file_options={"content-type": "audio/wav"}
                     )
                 except Exception as upload_error:
-                    # If upload fails, try update (file might already exist)
-                    f.seek(0)  # Reset file pointer
-                    try:
-                        supabase.storage.from_(BUCKET).update(
-                            audio_storage_path,
-                            f.read(),
-                            file_options={"content-type": "audio/wav"}
-                        )
-                    except Exception:
-                        # If both fail, re-raise the original error
+                    # Check if it's a duplicate error (409)
+                    error_str = str(upload_error)
+                    if "409" in error_str or "Duplicate" in error_str or "already exists" in error_str:
+                        # File exists, try to update it
+                        try:
+                            supabase.storage.from_(BUCKET).update(
+                                audio_storage_path,
+                                audio_data,
+                                file_options={"content-type": "audio/wav"}
+                            )
+                        except Exception as update_error:
+                            print(f"[chunk-preview] Warning: Could not update audio chunk {i+1}, trying to continue: {update_error}")
+                            # Try to delete and re-upload
+                            try:
+                                supabase.storage.from_(BUCKET).remove([audio_storage_path])
+                                supabase.storage.from_(BUCKET).upload(
+                                    audio_storage_path,
+                                    audio_data,
+                                    file_options={"content-type": "audio/wav"}
+                                )
+                            except Exception:
+                                raise upload_error
+                    else:
                         raise upload_error
             
             # Get signed URLs (valid for 1 hour)
