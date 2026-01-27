@@ -474,8 +474,8 @@ export function ChunkObservability() {
       return;
     }
 
-    if (!tempoAnalysis || syncOffset === null || syncOffset === undefined) {
-      setError('Please calculate tempo and set sync offset first');
+    if (calculatedSyncOffset === null || calculatedChunkDuration === null) {
+      setError('Please use "Analyze & Generate Chunk Previews" button first to calculate tempo and sync offset');
       return;
     }
 
@@ -551,12 +551,12 @@ export function ChunkObservability() {
         throw new Error('Sync offset and chunk duration must be calculated first. Use "Analyze & Generate Chunk Previews" button.');
       }
 
-      // Call the helper function with explicit values
+      // Call the helper function with calculated values
       await generateChunkPreviewsWithValues(
         videoSignedUrl,
         audioSignedUrl,
-        calculatedSyncOffset,
-        calculatedChunkDuration
+        calculatedSyncOffset!,
+        calculatedChunkDuration!
       );
 
       // Clean up temp files (async, don't wait)
