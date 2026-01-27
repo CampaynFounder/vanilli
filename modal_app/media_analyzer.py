@@ -95,6 +95,17 @@ def analyze_media(
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     supabase = create_client(supabase_url, supabase_key)
     
+    # Get generation_id from job and update progress
+    job_data = supabase.table("video_jobs").select("generation_id").eq("id", job_id).single().execute()
+    generation_id = job_data.data.get("generation_id") if job_data.data else None
+    
+    # Update generation: analysis starting (5%)
+    if generation_id:
+        supabase.table("generations").update({
+            "progress_percentage": 5,
+            "current_stage": "analyzing",
+        }).eq("id", generation_id).execute()
+    
     with tempfile.TemporaryDirectory() as d:
         base = Path(d)
         video_path = base / "video.mp4"
@@ -166,6 +177,10 @@ def analyze_media(
         
         print(f"[analyzer] BPM: {bpm:.2f}, Measures per chunk: {measures_per_chunk}, Chunk duration: {chunk_duration:.2f}s")
         
+        # Get generation_id from job
+        job_data = supabase.table("video_jobs").select("generation_id").eq("id", job_id).single().execute()
+        generation_id = job_data.data.get("generation_id") if job_data.data else None
+        
         # Update video_jobs with analysis results
         supabase.table("video_jobs").update({
             "sync_offset": sync_offset,
@@ -174,6 +189,13 @@ def analyze_media(
             "analysis_status": "ANALYZED",
             "status": "ANALYZED",
         }).eq("id", job_id).execute()
+        
+        # Update generation progress: analysis complete (10%)
+        if generation_id:
+            supabase.table("generations").update({
+                "progress_percentage": 10,
+                "current_stage": "analyzing",
+            }).eq("id", generation_id).execute()
         
         return {
             "sync_offset": sync_offset,
