@@ -225,11 +225,55 @@ def analyze_media(
             print(f"[analyzer] Audalign full alignment result: {alignment}")
             print(f"[analyzer] Audalign alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
             
-            audalign_sync_offset = alignment.get("offset", 0.0)
-            if not isinstance(audalign_sync_offset, (int, float)):
-                audalign_sync_offset = float(audalign_sync_offset)
+            # audalign.target_align() structure:
+            # - First arg (master audio) is the TARGET
+            # - Second arg (video audio dir) contains files to align AGAINST the target
+            # - Result: {target_file: offset, source_file: offset, match_info: {...}}
+            # - The offset for the target file (master audio) tells us when video audio matches it
+            # - If master audio offset is 6.64s, it means video audio at 0s matches master audio at 6.64s
+            # - So music starts 6.64s into the video (dead space at start)
             
-            print(f"[analyzer] Audalign sync offset: {audalign_sync_offset:.3f}s")
+            # Extract offset from match_info if available (more reliable)
+            audalign_sync_offset = None
+            if isinstance(alignment, dict) and "match_info" in alignment:
+                match_info = alignment["match_info"]
+                # Look for offset_seconds in match_info
+                for target_file, target_info in match_info.items():
+                    if isinstance(target_info, dict) and "match_info" in target_info:
+                        for source_file, source_info in target_info["match_info"].items():
+                            if isinstance(source_info, dict) and "offset_seconds" in source_info:
+                                offsets = source_info["offset_seconds"]
+                                if offsets and len(offsets) > 0:
+                                    # Use first offset (most confident match)
+                                    audalign_sync_offset = float(offsets[0])
+                                    print(f"[analyzer] Extracted offset from match_info: {audalign_sync_offset:.3f}s (from {len(offsets)} matches)")
+                                    break
+                        if audalign_sync_offset is not None:
+                            break
+            
+            # Fallback to top-level offset if match_info extraction failed
+            if audalign_sync_offset is None:
+                # Check if alignment has direct offset values
+                # Structure: {target_file: offset, source_file: offset}
+                master_audio_key = None
+                for key in alignment.keys():
+                    if "audio" in key.lower() and "video" not in key.lower():
+                        master_audio_key = key
+                        break
+                
+                if master_audio_key and master_audio_key in alignment:
+                    audalign_sync_offset = alignment[master_audio_key]
+                    if not isinstance(audalign_sync_offset, (int, float)):
+                        audalign_sync_offset = float(audalign_sync_offset)
+                    print(f"[analyzer] Extracted offset from top-level key '{master_audio_key}': {audalign_sync_offset:.3f}s")
+                else:
+                    # Last resort: try "offset" key
+                    audalign_sync_offset = alignment.get("offset", 0.0)
+                    if not isinstance(audalign_sync_offset, (int, float)):
+                        audalign_sync_offset = float(audalign_sync_offset)
+                    print(f"[analyzer] Using fallback offset key: {audalign_sync_offset:.3f}s")
+            
+            print(f"[analyzer] Audalign sync offset (final): {audalign_sync_offset:.3f}s")
             print(f"[analyzer] Manual vs Audalign: {manual_sync_offset:.3f}s vs {audalign_sync_offset:.3f}s (diff: {abs(manual_sync_offset - audalign_sync_offset):.3f}s)")
             if abs(manual_sync_offset) > 0.01 and abs(audalign_sync_offset) > 0.01:
                 ratio = manual_sync_offset / audalign_sync_offset
