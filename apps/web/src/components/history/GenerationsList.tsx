@@ -44,7 +44,7 @@ const statusConfig: Record<'pending' | 'processing' | 'completed' | 'failed' | '
   cancelled: { label: 'Cancelled', color: 'bg-orange-500/20 text-orange-300 border-orange-500/30' },
 };
 
-export function GenerationsList({ generations }: GenerationsListProps) {
+export function GenerationsList({ generations, userId, onRefresh }: GenerationsListProps) {
   const [downloadId, setDownloadId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null);
