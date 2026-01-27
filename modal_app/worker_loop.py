@@ -768,15 +768,26 @@ def process_job_with_chunks(
                 "current_stage": "finalizing",
             }).eq("id", generation_id).execute()
         
-        # IMPORTANT: Copy final video to a persistent location before temp directory is deleted
-        # The temp directory will be cleaned up when this function returns
-        import shutil
-        persistent_final_path = work_path / "final_persistent.mp4"
-        shutil.copy2(str(final_path), str(persistent_final_path))
+        # Verify final video exists and has content
+        if not final_path.exists():
+            raise Exception(f"Final video file does not exist: {final_path}")
+        if final_path.stat().st_size == 0:
+            raise Exception(f"Final video file is empty: {final_path}")
         
-        # Verify the copy exists and has content
-        if not persistent_final_path.exists() or persistent_final_path.stat().st_size == 0:
-            raise Exception(f"Failed to create persistent final video copy - file missing or empty")
-        print(f"[worker] Final video copied to persistent location: {persistent_final_path.stat().st_size / 1024 / 1024:.2f} MB")
+        print(f"[worker] Final video created: {final_path}, size: {final_path.stat().st_size / 1024 / 1024:.2f} MB")
+        
+        # IMPORTANT: Read file contents into memory before temp directory is deleted
+        # The temp directory will be cleaned up when this function returns
+        final_video_bytes = final_path.read_bytes()
+        print(f"[worker] Final video loaded into memory: {len(final_video_bytes) / 1024 / 1024:.2f} MB")
+        
+        # Create a temporary file in a persistent location (outside temp directory)
+        import tempfile as tf
+        persistent_temp = tf.NamedTemporaryFile(delete=False, suffix='.mp4')
+        persistent_temp.write(final_video_bytes)
+        persistent_temp.close()
+        persistent_final_path = Path(persistent_temp.name)
+        
+        print(f"[worker] Final video saved to persistent location: {persistent_final_path}")
         
         return persistent_final_path
