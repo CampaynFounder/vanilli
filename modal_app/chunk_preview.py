@@ -98,42 +98,12 @@ def generate_chunk_previews(
             )
             audio_raw_path = audio_wav_path
         
-        # Apply Smart Trim based on sync_offset polarity
-        # This eliminates dead air by trimming the appropriate input file
-        print(f"[chunk-preview] Applying Smart Trim with sync_offset: {sync_offset:.3f}s")
-        
-        # Threshold for "near zero" - avoid unnecessary processing for tiny offsets
-        SMART_TRIM_THRESHOLD = 0.1  # 100ms
-        
-        if abs(sync_offset) < SMART_TRIM_THRESHOLD:
-            # Near zero offset - no trimming needed
-            print(f"[chunk-preview] Offset is near zero ({sync_offset:.3f}s), skipping trim")
-            video_path = video_raw_path
-            audio_path = audio_raw_path
-        elif sync_offset > 0:
-            # CASE A: Positive offset - Dead air in video
-            # Trim the video start to remove dead air, audio starts at 0
-            print(f"[chunk-preview] Trimming {sync_offset:.3f}s from VIDEO start (removing dead air)")
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(video_raw_path),
-                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-perfect cut
-                 "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
-                 str(video_path)],
-                check=True, capture_output=True
-            )
-            audio_path = audio_raw_path
-        else:
-            # CASE B: Negative offset - Mid-song performance
-            # Trim the audio start, video starts at 0
-            trim_val = abs(sync_offset)
-            print(f"[chunk-preview] Trimming {trim_val:.3f}s from AUDIO start (matching mid-song)")
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(trim_val), "-i", str(audio_raw_path),
-                 "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
-                 str(audio_path)],
-                check=True, capture_output=True
-            )
-            video_path = video_raw_path
+        # DO NOT trim video/audio - keep full files for preview
+        # The sync_offset is only used to calculate where to extract audio chunks from master
+        # In production, chunk 0 video is trimmed by sync_offset, but for preview we show original chunks
+        print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s (used for audio chunk timing, not for trimming)")
+        video_path = video_raw_path
+        audio_path = audio_raw_path
         
         # Get durations
         result = subprocess.run(
@@ -179,37 +149,24 @@ def generate_chunk_previews(
             print(f"[chunk-preview] Processing chunk {i+1}/{num_chunks}...")
             
             # Calculate timing with sync_offset
-            # sync_offset shifts all audio chunks to the right by sync_offset in the video timeline
+            # Video chunks: sequential, starting at 0
             video_start_time = i * chunk_duration
             video_end_time = min(video_start_time + chunk_duration, video_duration)
             video_chunk_actual_duration = video_end_time - video_start_time
             
-            # Audio timing: All chunks are shifted by sync_offset
-            # Pattern: Each chunk audio starts where previous chunk audio ended
-            # Chunk 0: Audio 0 to chunk_duration (delayed by sync_offset when muxing)
-            # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
-            # Chunk 2: Audio starts at end of chunk 1 audio, continues for chunk_duration
-            # etc.
+            # Audio timing: Match production logic in worker_loop.py
+            # Chunk 0: Audio starts at 0 in master (video will be trimmed by sync_offset in production)
+            # Chunk 1+: Audio starts where previous chunk audio ended in master
             if sync_offset and sync_offset > 0:
                 if i == 0:
-                    # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
+                    # Chunk 0: Audio extracted from 0 to chunk_duration
+                    # In production, video is trimmed by sync_offset, so both start at 0
                     audio_start_time = 0
-                elif i == 1:
-                    # Chunk 1: Starts at (chunk_duration - sync_offset) = (8 - 2) = 6s
-                    # This is where chunk 0 audio effectively ends after accounting for offset
-                    audio_start_time = chunk_duration - sync_offset
                 else:
-                    # Chunk 2+: Start where previous chunk audio ended
-                    # Previous chunk (i-1) audio start = chunk_duration - sync_offset (if i-1 == 1) or calculated recursively
-                    # For i=2: prev_start = chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
-                    # For i>2: prev_start = (i-1) * chunk_duration - sync_offset, prev_end = prev_start + chunk_duration
-                    if i == 2:
-                        prev_audio_start = chunk_duration - sync_offset
-                        prev_audio_end = prev_audio_start + chunk_duration
-                        audio_start_time = prev_audio_end
-                    else:
-                        # i > 2: Use formula (i * chunk_duration) - sync_offset
-                        audio_start_time = (i * chunk_duration) - sync_offset
+                    # Chunk 1+: Start where previous chunk audio ended in master
+                    # If chunk 0 extracts 0-8s, chunk 1 starts at 8s
+                    prev_audio_end = i * chunk_duration
+                    audio_start_time = prev_audio_end
             else:
                 # No sync offset: audio chunks match video chunks exactly
                 audio_start_time = i * chunk_duration
