@@ -352,9 +352,13 @@ def generate_chunk_previews(
 @modal.asgi_app()
 def api():
     """FastAPI endpoint for chunk preview generation."""
-    from fastapi import FastAPI, Request, HTTPException
-    from fastapi.responses import JSONResponse
-    from starlette.middleware.cors import CORSMiddleware
+    # Import at function level (inside function to avoid deploy-time import errors)
+    try:
+        from fastapi import FastAPI, Request, HTTPException
+        from fastapi.responses import JSONResponse
+        from starlette.middleware.cors import CORSMiddleware
+    except ImportError as e:
+        raise ImportError(f"Failed to import FastAPI dependencies. Make sure fastapi and starlette are in pip_install. Error: {e}")
     
     web = FastAPI(
         title="VANNILLI Chunk Preview",
