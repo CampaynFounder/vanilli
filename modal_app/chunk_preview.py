@@ -10,11 +10,11 @@ import modal
 
 app = modal.App("vannilli-chunk-preview")
 
-# Same image as worker
+# Same image as worker, but with FastAPI for web endpoint
 img = (
     modal.Image.debian_slim()
     .apt_install("ffmpeg")
-    .pip_install("requests", "supabase")
+    .pip_install("requests", "supabase", "fastapi", "starlette")
     .add_local_dir(Path(__file__).parent, remote_path="/root/modal_app")
 )
 
