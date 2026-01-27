@@ -9,9 +9,9 @@ import modal
 
 app = modal.App("vannilli-media-analyzer")
 
-# Image with librosa, audalign, and ffmpeg
+# Image with librosa, audalign, scipy, and ffmpeg
 img = modal.Image.debian_slim().apt_install("ffmpeg").pip_install(
-    "librosa", "audalign", "numpy", "supabase", "requests", "fastapi", "starlette"
+    "librosa", "audalign", "numpy", "scipy", "supabase", "requests", "fastapi", "starlette"
 )
 
 
@@ -140,45 +140,109 @@ def analyze_media(
         print("[analyzer] Extracting audio from video...")
         extract_audio_from_video(video_path, video_audio_path)
         
-        # 1. Calculate sync offset using audalign
-        # audalign.target_align() expects: (target_file, directory_to_align_against)
-        # We need to create a temp directory with the video audio file
-        print("[analyzer] Calculating sync offset with audalign...")
+        # 1. Calculate sync offset using manual cross-correlation (primary method)
+        # This gives us full control and understanding of the calculation
+        print("[analyzer] Calculating sync offset using cross-correlation...")
+        
+        def calculate_sync_offset_manual(master_audio_path, video_audio_path):
+            """Manually calculate sync offset using cross-correlation.
+            
+            Returns:
+                sync_offset: Positive means music starts LATER in video (dead space at start)
+                            This is when music starts in video relative to master audio at 0s
+            """
+            import numpy as np
+            from scipy import signal
+            
+            # Load both audio files at same sample rate
+            print("[analyzer] Loading audio files for cross-correlation...")
+            y_master, sr_master = librosa.load(str(master_audio_path), sr=22050)
+            y_video, sr_video = librosa.load(str(video_audio_path), sr=22050)
+            
+            # Ensure same sample rate
+            if sr_master != sr_video:
+                raise ValueError(f"Sample rates don't match: master={sr_master}, video={sr_video}")
+            
+            # Use shorter length for correlation (first 30 seconds should be enough)
+            max_corr_length = min(len(y_master), len(y_video), int(30 * sr_master))
+            y_master_short = y_master[:max_corr_length]
+            y_video_short = y_video[:max_corr_length]
+            
+            print(f"[analyzer] Computing cross-correlation (master: {len(y_master_short)/sr_master:.2f}s, video: {len(y_video_short)/sr_video:.2f}s)...")
+            
+            # Compute cross-correlation
+            # This finds where video audio best matches master audio
+            correlation = signal.correlate(y_master_short, y_video_short, mode='full')
+            
+            # Find peak correlation (best match point)
+            peak_index = np.argmax(np.abs(correlation))
+            
+            # Convert peak index to time offset
+            # correlation is 'full' mode, so indices range from -len(video) to +len(master)
+            # Center is at len(video_short) - 1
+            center_index = len(y_video_short) - 1
+            offset_samples = peak_index - center_index
+            offset_seconds = offset_samples / sr_master
+            
+            print(f"[analyzer] Cross-correlation peak at index {peak_index} (center={center_index})")
+            print(f"[analyzer] Offset: {offset_samples} samples = {offset_seconds:.3f}s")
+            
+            # Interpret offset:
+            # Positive offset_samples means video audio is shifted RIGHT relative to master
+            # This means: master audio at 0s matches video audio at +offset_seconds
+            # So music starts at +offset_seconds in the video (dead space before music)
+            # Therefore: sync_offset = offset_seconds (positive = music starts later in video)
+            
+            sync_offset = offset_seconds
+            
+            # Also compute correlation strength for confidence
+            max_corr_value = correlation[peak_index]
+            norm_corr = max_corr_value / (np.linalg.norm(y_master_short) * np.linalg.norm(y_video_short))
+            print(f"[analyzer] Correlation strength: {norm_corr:.4f} (1.0 = perfect match)")
+            
+            return sync_offset, norm_corr
+        
+        # Calculate manual offset
+        manual_sync_offset, correlation_strength = calculate_sync_offset_manual(audio_path, video_audio_path)
+        print(f"[analyzer] Manual sync offset (cross-correlation): {manual_sync_offset:.3f}s")
+        
+        # 2. Also get audalign result for comparison
+        print("[analyzer] Calculating sync offset with audalign for comparison...")
         video_audio_dir = base / "video_audio_dir"
         video_audio_dir.mkdir(exist_ok=True)
-        # Copy video audio to the directory with a known name
-        video_audio_in_dir = video_audio_dir / "video_audio.wav"
         import shutil
+        video_audio_in_dir = video_audio_dir / "video_audio.wav"
         shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
         
-        alignment = audalign.target_align(
-            str(audio_path),  # master audio (target file)
-            str(video_audio_dir),  # directory containing video audio to align
-        )
+        try:
+            alignment = audalign.target_align(
+                str(audio_path),  # master audio (target file)
+                str(video_audio_dir),  # directory containing video audio to align
+            )
+            
+            # Debug: Print full alignment result to understand structure
+            print(f"[analyzer] Audalign full alignment result: {alignment}")
+            print(f"[analyzer] Audalign alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
+            
+            audalign_sync_offset = alignment.get("offset", 0.0)
+            if not isinstance(audalign_sync_offset, (int, float)):
+                audalign_sync_offset = float(audalign_sync_offset)
+            
+            print(f"[analyzer] Audalign sync offset: {audalign_sync_offset:.3f}s")
+            print(f"[analyzer] Manual vs Audalign: {manual_sync_offset:.3f}s vs {audalign_sync_offset:.3f}s (diff: {abs(manual_sync_offset - audalign_sync_offset):.3f}s)")
+            if abs(manual_sync_offset) > 0.01 and abs(audalign_sync_offset) > 0.01:
+                ratio = manual_sync_offset / audalign_sync_offset
+                print(f"[analyzer] Ratio (manual/audalign): {ratio:.2f}x")
+        except Exception as e:
+            print(f"[analyzer] Audalign failed: {e}, using manual calculation only")
+            audalign_sync_offset = None
         
-        # Debug: Print full alignment result to understand structure
-        print(f"[analyzer] Full alignment result: {alignment}")
-        print(f"[analyzer] Alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
+        # Use manual calculation as primary (we understand and control it)
+        sync_offset = manual_sync_offset
+        raw_sync_offset = audalign_sync_offset if audalign_sync_offset is not None else manual_sync_offset
         
-        sync_offset = alignment.get("offset", 0.0)
-        if not isinstance(sync_offset, (int, float)):
-            sync_offset = float(sync_offset)
-        
-        # IMPORTANT: audalign may return offset that needs adjustment
-        # User reports offset is ~50% too small (audio comes in too early)
-        # This suggests audalign might return half the actual offset
-        # Apply correction: double the offset if it's positive
-        raw_sync_offset = sync_offset
-        if sync_offset > 0:
-            # If offset is positive and user reports it's ~50% too small, double it
-            # This is a temporary fix - we should verify with logs first
-            sync_offset = sync_offset * 2.0
-            print(f"[analyzer] Raw audalign offset: {raw_sync_offset:.3f}s → Doubled to {sync_offset:.3f}s (user reported ~50% too small)")
-        else:
-            print(f"[analyzer] Raw audalign offset: {raw_sync_offset:.3f}s (no adjustment needed for negative/zero offset)")
-        
-        # Onset-based fallback: If audalign returns near-zero offset, detect first musical transient
-        # This handles cases where audalign fails to detect dead space at video start
+        # Onset-based fallback: If manual calculation returns near-zero offset, detect first musical transient
+        # This handles cases where cross-correlation fails to detect dead space at video start
         if abs(sync_offset) < 0.1:
             print(f"[analyzer] Audalign returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
             try:
