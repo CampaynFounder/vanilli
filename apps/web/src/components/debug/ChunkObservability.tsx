@@ -310,8 +310,9 @@ export function ChunkObservability() {
         throw new Error('Failed to create signed URLs');
       }
 
-      const videoSignedUrl = videoSigned?.signedUrl || videoSigned?.signed_url;
-      const audioSignedUrl = audioSigned?.signedUrl || audioSigned?.signed_url;
+      // Handle different response formats
+      const videoSignedUrl = (videoSigned as any)?.signedUrl || (videoSigned as any)?.signed_url;
+      const audioSignedUrl = (audioSigned as any)?.signedUrl || (audioSigned as any)?.signed_url;
 
       if (!videoSignedUrl || !audioSignedUrl) {
         throw new Error('Failed to get signed URLs');
