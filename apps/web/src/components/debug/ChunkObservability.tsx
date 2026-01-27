@@ -368,14 +368,38 @@ export function ChunkObservability() {
         const analysis = calculateChunkDurationFromBpm(bpm);
         setTempoAnalysis(analysis);
         
-        // Auto-calculate chunks
-        setTimeout(() => {
-          calculateChunks();
-          // Then generate previews
-          setTimeout(() => {
-            generateChunkPreviews();
-          }, 1000);
-        }, 500);
+        // Auto-calculate chunks first
+        const numChunks = Math.ceil(videoDuration! / analysis.chunkDuration);
+        const calculatedChunks: ChunkInfo[] = [];
+        for (let i = 0; i < numChunks; i++) {
+          const videoStartTime = i * analysis.chunkDuration;
+          const videoEndTime = Math.min(videoStartTime + analysis.chunkDuration, videoDuration!);
+          const audioStartTime = videoStartTime + calculatedSyncOffset;
+          const audioEndTime = audioStartTime + analysis.chunkDuration;
+          const imageIndex = imageFiles.length > 0 ? i % imageFiles.length : null;
+          const imageUrl = imageIndex !== null ? imageUrls[imageIndex] : null;
+          calculatedChunks.push({
+            chunkIndex: i,
+            videoStartTime,
+            videoEndTime,
+            audioStartTime,
+            audioEndTime,
+            imageIndex,
+            imageUrl,
+            syncOffset: calculatedSyncOffset,
+            chunkDuration: analysis.chunkDuration,
+          });
+        }
+        setChunks(calculatedChunks);
+        
+        // Then generate previews directly with the values we have (don't wait for state)
+        // Re-upload files and generate previews
+        await generateChunkPreviewsWithValues(
+          videoSignedUrl,
+          audioSignedUrl,
+          calculatedSyncOffset,
+          analysis.chunkDuration
+        );
       } else {
         throw new Error('Analysis did not return expected values');
       }
@@ -390,13 +414,64 @@ export function ChunkObservability() {
     }
   };
 
+  const generateChunkPreviewsWithValues = async (
+    videoSignedUrl: string,
+    audioSignedUrl: string,
+    syncOffsetValue: number,
+    chunkDurationValue: number
+  ) => {
+    setGeneratingPreviews(true);
+    setError(null);
+
+    try {
+      // Call Modal function to generate chunk previews
+      const modalUrl = process.env.NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL || '';
+      
+      if (!modalUrl) {
+        throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
+      }
+
+      console.log('Calling Modal to generate chunk previews...', {
+        video_url: videoSignedUrl.substring(0, 50) + '...',
+        audio_url: audioSignedUrl.substring(0, 50) + '...',
+        sync_offset: syncOffsetValue,
+        chunk_duration: chunkDurationValue,
+      });
+      
+      const response = await fetch(modalUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_url: videoSignedUrl,
+          audio_url: audioSignedUrl,
+          sync_offset: syncOffsetValue,
+          chunk_duration: chunkDurationValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setChunkPreviews(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate chunk previews');
+    } finally {
+      setGeneratingPreviews(false);
+    }
+  };
+
   const generateChunkPreviews = async () => {
     if (!videoFile || !audioFile || !videoUrl || !audioUrl) {
       setError('Please upload video and audio files first');
       return;
     }
 
-    if (!tempoAnalysis || !syncOffset) {
+    if (!tempoAnalysis || syncOffset === null || syncOffset === undefined) {
       setError('Please calculate tempo and set sync offset first');
       return;
     }
@@ -468,35 +543,13 @@ export function ChunkObservability() {
 
       setUploadingFiles(false);
 
-      // Call Modal function to generate chunk previews
-      const modalUrl = process.env.NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL || '';
-      
-      if (!modalUrl) {
-        throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
-      }
-
-      console.log('Calling Modal to generate chunk previews...');
-      
-      const response = await fetch(modalUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          video_url: videoSignedUrl,
-          audio_url: audioSignedUrl,
-          sync_offset: syncOffset,
-          chunk_duration: tempoAnalysis.chunkDuration,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      setChunkPreviews(result);
+      // Call the helper function with explicit values
+      await generateChunkPreviewsWithValues(
+        videoSignedUrl,
+        audioSignedUrl,
+        syncOffset,
+        tempoAnalysis.chunkDuration
+      );
 
       // Clean up temp files (async, don't wait)
       supabase.storage.from('vannilli').remove([videoPath, audioPath]).catch(console.error);
