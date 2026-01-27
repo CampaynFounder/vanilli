@@ -208,17 +208,23 @@ def analyze_media(
         print(f"[analyzer] Manual sync offset (cross-correlation): {manual_sync_offset:.3f}s")
         
         # 2. Also get audalign result for comparison
+        # IMPORTANT: Video audio is the TARGET (reference point)
+        # We want to find when music starts in the video (dead space at start)
+        # Master audio will be aligned to match the video audio
         print("[analyzer] Calculating sync offset with audalign for comparison...")
-        video_audio_dir = base / "video_audio_dir"
-        video_audio_dir.mkdir(exist_ok=True)
+        master_audio_dir = base / "master_audio_dir"
+        master_audio_dir.mkdir(exist_ok=True)
         import shutil
-        video_audio_in_dir = video_audio_dir / "video_audio.wav"
-        shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+        master_audio_in_dir = master_audio_dir / "master_audio.wav"
+        shutil.copy2(str(audio_path), str(master_audio_in_dir))
         
         try:
+            # Video audio is the TARGET (we want to match master audio to video)
+            # Result: master audio at X seconds matches video audio at 0 seconds
+            # This means: music starts X seconds into the video (dead space before music)
             alignment = audalign.target_align(
-                str(audio_path),  # master audio (target file)
-                str(video_audio_dir),  # directory containing video audio to align
+                str(video_audio_path),  # video audio (TARGET - reference point)
+                str(master_audio_dir),  # directory containing master audio to align
             )
             
             # Debug: Print full alignment result to understand structure
@@ -226,27 +232,35 @@ def analyze_media(
             print(f"[analyzer] Audalign alignment keys: {list(alignment.keys()) if isinstance(alignment, dict) else 'not a dict'}")
             
             # audalign.target_align() structure:
-            # - First arg (master audio) is the TARGET
-            # - Second arg (video audio dir) contains files to align AGAINST the target
+            # - First arg (video audio) is the TARGET (reference point)
+            # - Second arg (master audio dir) contains files to align AGAINST the target
             # - Result: {target_file: offset, source_file: offset, match_info: {...}}
-            # - The offset for the target file (master audio) tells us when video audio matches it
-            # - If master audio offset is 6.64s, it means video audio at 0s matches master audio at 6.64s
+            # - The offset for the source file (master audio) tells us when it matches video audio
+            # - If master audio offset is 6.64s, it means master audio at 6.64s matches video audio at 0s
             # - So music starts 6.64s into the video (dead space at start)
+            # - sync_offset = offset of master audio (positive = music starts later in video)
             
             # Extract offset from match_info if available (more reliable)
+            # Structure: match_info[target_file][match_info][source_file][offset_seconds]
+            # Target = video_audio.wav, Source = master_audio.wav
             audalign_sync_offset = None
             if isinstance(alignment, dict) and "match_info" in alignment:
                 match_info = alignment["match_info"]
                 # Look for offset_seconds in match_info
+                # Target file (video audio) will have match_info for source files (master audio)
                 for target_file, target_info in match_info.items():
                     if isinstance(target_info, dict) and "match_info" in target_info:
+                        # Source files (master audio) are in target_info["match_info"]
                         for source_file, source_info in target_info["match_info"].items():
                             if isinstance(source_info, dict) and "offset_seconds" in source_info:
                                 offsets = source_info["offset_seconds"]
                                 if offsets and len(offsets) > 0:
                                     # Use first offset (most confident match)
+                                    # This is when master audio matches video audio at 0s
                                     audalign_sync_offset = float(offsets[0])
                                     print(f"[analyzer] Extracted offset from match_info: {audalign_sync_offset:.3f}s (from {len(offsets)} matches)")
+                                    print(f"[analyzer]   → Master audio at {audalign_sync_offset:.3f}s matches video audio at 0s")
+                                    print(f"[analyzer]   → Music starts {audalign_sync_offset:.3f}s into video (dead space at start)")
                                     break
                         if audalign_sync_offset is not None:
                             break
@@ -255,9 +269,10 @@ def analyze_media(
             if audalign_sync_offset is None:
                 # Check if alignment has direct offset values
                 # Structure: {target_file: offset, source_file: offset}
+                # Source file (master audio) offset is what we want
                 master_audio_key = None
                 for key in alignment.keys():
-                    if "audio" in key.lower() and "video" not in key.lower():
+                    if "audio" in key.lower() and "video" not in key.lower() and "master" in key.lower():
                         master_audio_key = key
                         break
                 

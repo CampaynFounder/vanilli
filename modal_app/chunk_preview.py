@@ -499,14 +499,17 @@ def api():
                 print(f"[chunk-preview] Manual sync offset (cross-correlation): {manual_sync_offset:.3f}s")
                 
                 # Also get audalign result for comparison
+                # IMPORTANT: Video audio is the TARGET (reference point)
+                # We want to find when music starts in the video (dead space at start)
                 try:
-                    video_audio_dir = base / "video_audio_dir"
-                    video_audio_dir.mkdir(exist_ok=True)
+                    master_audio_dir = base / "master_audio_dir"
+                    master_audio_dir.mkdir(exist_ok=True)
                     import shutil
-                    video_audio_in_dir = video_audio_dir / "video_audio.wav"
-                    shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+                    master_audio_in_dir = master_audio_dir / "master_audio.wav"
+                    shutil.copy2(str(audio_path), str(master_audio_in_dir))
                     
-                    alignment = audalign.target_align(str(audio_path), str(video_audio_dir))
+                    # Video audio is the TARGET (we want to match master audio to video)
+                    alignment = audalign.target_align(str(video_audio_path), str(master_audio_dir))
                     audalign_sync_offset = alignment.get("offset", 0.0)
                     if not isinstance(audalign_sync_offset, (int, float)):
                         audalign_sync_offset = float(audalign_sync_offset)
