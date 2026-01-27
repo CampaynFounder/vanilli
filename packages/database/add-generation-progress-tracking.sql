@@ -13,7 +13,7 @@ ALTER TABLE generations ADD COLUMN IF NOT EXISTS estimated_completion_at TIMESTA
 
 -- Add current_processing_stage (for display purposes)
 ALTER TABLE generations ADD COLUMN IF NOT EXISTS current_stage TEXT 
-  CHECK (current_stage IN ('pending', 'analyzing', 'processing_chunks', 'stitching', 'finalizing', 'completed', 'failed'));
+  CHECK (current_stage IN ('pending', 'analyzing', 'processing_chunks', 'stitching', 'finalizing', 'completed', 'failed', 'cancelled'));
 
 -- Add started_at timestamp (when processing actually started)
 ALTER TABLE generations ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;

@@ -110,7 +110,23 @@ function HistoryPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'generations' && <GenerationsList generations={generations} />}
+            {activeTab === 'generations' && (
+              <GenerationsList 
+                generations={generations} 
+                userId={session?.user?.id}
+                onRefresh={() => {
+                  const fetchData = async () => {
+                    if (!session?.user?.id) return;
+                    const uid = session.user.id;
+                    try {
+                      const { data: g } = await supabase.from('generations').select('*, projects!inner(user_id,track_name,bpm,bars)').eq('projects.user_id', uid).order('created_at', { ascending: false }).limit(50);
+                      setGenerations((g || []) as Generation[]);
+                    } catch (e) { console.error(e); }
+                  };
+                  fetchData();
+                }}
+              />
+            )}
             
             {activeTab === 'projects' && (
               <div className="space-y-4">

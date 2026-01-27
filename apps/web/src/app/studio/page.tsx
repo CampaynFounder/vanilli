@@ -48,11 +48,40 @@ function StudioPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<'idle' | 'preparing' | 'lipsync' | 'syncing' | 'watermark' | 'finalizing' | 'complete'>('idle');
-  const [generationStatus, setGenerationStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
+  const [generationStatus, setGenerationStatus] = useState<'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'>('pending');
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
+  
+  // Cancel generation handler
+  const handleCancelGeneration = async () => {
+    if (!generationId || !user?.id) return;
+    
+    try {
+      const { error } = await supabase.rpc('cancel_generation', {
+        generation_uuid: generationId,
+        user_uuid: user.id,
+      });
+      
+      if (error) {
+        console.error('[studio] Cancel error:', error);
+        setGenerationError('Failed to cancel generation. Please try again.');
+        return;
+      }
+      
+      // Update local state
+      setGenerationStatus('cancelled');
+      setIsGenerating(false);
+      setGenerationProgress(0);
+      setCurrentStep('idle');
+      setEstimatedTimeRemaining(null);
+      refreshUser(); // Refresh credits
+    } catch (e) {
+      console.error('[studio] Cancel exception:', e);
+      setGenerationError('Failed to cancel generation. Please try again.');
+    }
+  };
 
   // Client-side: Tier-based duration limits. Audio optional. If audio provided, must match video length. 1 credit = 1 second.
   const DURATION_MATCH_TOLERANCE = 0.5;
@@ -447,6 +476,14 @@ function StudioPage() {
               return;
             }
             
+            if (row.status === 'cancelled') {
+              setGenerationStatus('cancelled');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(null);
+              refreshUser(); // Refresh credits
+              return;
+            }
+            
             setTimeout(poll, 3000);
           } catch (e) {
             console.error('[studio] Poll error:', e);
@@ -665,6 +702,7 @@ function StudioPage() {
               progress={generationProgress}
               videoUrl={videoUrl}
               estimatedTimeRemaining={estimatedTimeRemaining}
+              onCancelClick={generationStatus === 'processing' ? handleCancelGeneration : undefined}
               onDownloadClick={
                 generationId
                   ? async () => {

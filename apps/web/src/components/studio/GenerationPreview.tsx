@@ -5,7 +5,7 @@ import { NoiseTexture } from '../ui/NoiseTexture';
 import { ProgressRing } from '../ui/ProgressRing';
 
 interface GenerationPreviewProps {
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   placeholderImage?: string;
   /** When provided, the completed-state Download button calls this (e.g. to fetch /api/download and open URL). */
@@ -14,6 +14,8 @@ interface GenerationPreviewProps {
   onCreateAnother?: () => void;
   /** Signed URL for the completed video (for preview/playback). */
   videoUrl?: string | Promise<string | null> | null;
+  /** When provided, processing state shows a cancel button. */
+  onCancelClick?: () => void;
 }
 
 export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl, estimatedTimeRemaining }: GenerationPreviewProps & { estimatedTimeRemaining?: number | null }) {
@@ -85,6 +87,14 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
             ) : (
               <p className="text-xs text-slate-400 mt-1">This usually takes 60-90 seconds</p>
             )}
+            {onCancelClick && (
+              <button
+                onClick={onCancelClick}
+                className="mt-4 px-4 py-2 bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-all"
+              >
+                Cancel Generation
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -147,6 +157,28 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <div className="relative aspect-video bg-slate-900 rounded-3xl overflow-hidden glass-card border-2 border-yellow-500/30">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center p-6">
+            <div className="text-6xl mb-4">⏹️</div>
+            <p className="text-2xl font-bold text-white mb-2">Generation Cancelled</p>
+            <p className="text-sm text-slate-400">No credits were deducted</p>
+            {onCreateAnother && (
+              <button
+                onClick={onCreateAnother}
+                className="mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all"
+              >
+                Create another
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

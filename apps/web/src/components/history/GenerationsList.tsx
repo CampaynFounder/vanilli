@@ -8,7 +8,7 @@ import { sanitizeForUser } from '@/lib/utils';
 export interface Generation {
   id: string;
   internal_task_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   cost_credits: number;
   created_at: string;
   completed_at?: string;
@@ -32,6 +32,8 @@ interface VideoChunk {
 
 interface GenerationsListProps {
   generations: Generation[];
+  userId?: string;
+  onRefresh?: () => void;
 }
 
 const statusConfig = {
@@ -182,9 +184,39 @@ export function GenerationsList({ generations }: GenerationsListProps) {
                     {downloadId === generation.id ? 'Preparing...' : 'Download Final'}
                   </button>
                 )}
+                {generation.status === 'processing' && userId && (
+                  <button
+                    onClick={async () => {
+                      if (!userId) return;
+                      try {
+                        const { error } = await supabase.rpc('cancel_generation', {
+                          generation_uuid: generation.id,
+                          user_uuid: userId,
+                        });
+                        if (error) {
+                          console.error('[history] Cancel error:', error);
+                          alert('Failed to cancel generation. Please try again.');
+                        } else {
+                          if (onRefresh) onRefresh();
+                        }
+                      } catch (e) {
+                        console.error('[history] Cancel exception:', e);
+                        alert('Failed to cancel generation. Please try again.');
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all"
+                  >
+                    Cancel
+                  </button>
+                )}
                 {generation.status === 'failed' && generation.error_message && (
                   <p className="text-xs text-red-400 max-w-xs text-right">
                     {sanitizeForUser(generation.error_message)}
+                  </p>
+                )}
+                {generation.status === 'cancelled' && (
+                  <p className="text-xs text-orange-400 max-w-xs text-right">
+                    Cancelled by user
                   </p>
                 )}
               </div>

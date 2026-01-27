@@ -102,6 +102,14 @@ def worker_loop():
     
     print(f"[worker] Processing job {job_id} (tier: {user_tier}, generation: {generation_id}, analysis: {analysis_status})")
     
+    # Check if generation was cancelled
+    if generation_id:
+        gen_check = supabase.table("generations").select("status").eq("id", generation_id).single().execute()
+        if gen_check.data and gen_check.data.get("status") == "cancelled":
+            print(f"[worker] Generation {generation_id} was cancelled. Skipping job {job_id}.")
+            queue_manager.mark_job_failed(job_id, "Cancelled by user")
+            return
+    
     # If job needs analysis, skip (analyzer service handles it)
     if analysis_status != "ANALYZED" and (user_tier == "demo" or user_tier == "industry"):
         print(f"[worker] Job {job_id} needs analysis first. Skipping.")
@@ -297,6 +305,20 @@ def process_job_with_chunks(
         
         # Process each chunk
         for i in range(num_chunks):
+            # Check if generation was cancelled before processing each chunk
+            if generation_id:
+                gen_check = supabase.table("generations").select("status").eq("id", generation_id).single().execute()
+                if gen_check.data and gen_check.data.get("status") == "cancelled":
+                    print(f"[worker] Generation {generation_id} was cancelled. Stopping chunk processing.")
+                    # Mark remaining chunks as failed
+                    for j in range(i, num_chunks):
+                        if chunk_records[j] and chunk_records[j].get("id"):
+                            supabase.table("video_chunks").update({
+                                "status": "FAILED",
+                                "error_message": "Cancelled by user",
+                            }).eq("id", chunk_records[j]["id"]).execute()
+                    raise Exception("Generation cancelled by user")
+            
             chunk_id = chunk_records[i]["id"] if chunk_records[i] else None
             print(f"[worker] Processing chunk {i+1}/{num_chunks}...")
             
