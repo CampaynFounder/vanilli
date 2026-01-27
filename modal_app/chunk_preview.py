@@ -165,13 +165,27 @@ def generate_chunk_previews(
         for i in range(num_chunks):
             print(f"[chunk-preview] Processing chunk {i+1}/{num_chunks}...")
             
-            # Calculate timing
-            # After Smart Trim, both video and audio start at 0, so timing is aligned
+            # Calculate timing with sync_offset
+            # sync_offset shifts all audio chunks to the right by sync_offset in the video timeline
             video_start_time = i * chunk_duration
             video_end_time = min(video_start_time + chunk_duration, video_duration)
-            # Audio timing matches video timing after Smart Trim (no offset needed)
-            audio_start_time = video_start_time
-            audio_end_time = video_end_time
+            video_chunk_actual_duration = video_end_time - video_start_time
+            
+            # Audio timing: All chunks are shifted by sync_offset
+            # Chunk 0: Audio starts at 0 in master audio, will be delayed by sync_offset when muxing
+            # Chunk 1+: Audio starts at (i * chunk_duration - sync_offset) in master audio
+            if sync_offset and sync_offset > 0:
+                if i == 0:
+                    # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
+                    audio_start_time = 0
+                else:
+                    # Subsequent chunks: Shifted by sync_offset (e.g., chunk 1 at 8s video = 6s audio)
+                    audio_start_time = (i * chunk_duration) - sync_offset
+            else:
+                # No sync offset: audio chunks match video chunks exactly
+                audio_start_time = i * chunk_duration
+            
+            audio_end_time = audio_start_time + video_chunk_actual_duration
             
             # Extract video chunk
             video_chunk_path = chunks_dir / f"video_chunk_{i:03d}.mp4"
@@ -185,13 +199,16 @@ def generate_chunk_previews(
             audio_chunk_path = chunks_dir / f"audio_chunk_{i:03d}.wav"
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(audio_path), "-ss", str(audio_start_time), 
-                 "-t", str(chunk_duration), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_chunk_path)],
+                 "-t", str(video_chunk_actual_duration), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_chunk_path)],
                 check=True, capture_output=True
             )
+            
+            print(f"[chunk-preview] Chunk {i+1}: Video {video_start_time:.3f}s-{video_end_time:.3f}s, Audio {audio_start_time:.3f}s-{audio_end_time:.3f}s in master")
             
             # Upload video chunk
             # Use unique path to avoid conflicts, but if it still exists, try update
             video_storage_path = f"{storage_prefix}/video_chunk_{i:03d}.mp4"
+            print(f"[chunk-preview] Uploading video chunk {i+1} to: {video_storage_path}")
             with open(video_chunk_path, "rb") as f:
                 video_data = f.read()
                 try:
@@ -228,6 +245,7 @@ def generate_chunk_previews(
             
             # Upload audio chunk
             audio_storage_path = f"{storage_prefix}/audio_chunk_{i:03d}.wav"
+            print(f"[chunk-preview] Uploading audio chunk {i+1} to: {audio_storage_path}")
             with open(audio_chunk_path, "rb") as f:
                 audio_data = f.read()
                 try:
@@ -277,6 +295,11 @@ def generate_chunk_previews(
             
             if not video_chunk_url or not audio_chunk_url:
                 raise Exception(f"Failed to create signed URLs for chunk {i+1}")
+            
+            # Debug: Verify URLs are correct
+            print(f"[chunk-preview] Chunk {i+1} URLs created:")
+            print(f"  - Video URL: {video_chunk_url[:80]}... (should be .mp4)")
+            print(f"  - Audio URL: {audio_chunk_url[:80]}... (should be .wav)")
             
             # Get image URL for this chunk (rotate through images if provided)
             image_url = None
