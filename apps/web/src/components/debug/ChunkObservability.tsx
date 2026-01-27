@@ -694,11 +694,47 @@ export function ChunkObservability() {
                     <>
                       {calculatedSyncOffset >= 0 ? '+' : ''}{calculatedSyncOffset.toFixed(3)}s
                       <span className="text-xs text-slate-500 ml-2">
-                        ({calculatedSyncOffset >= 0 ? 'audio ahead' : 'audio behind'})
+                        ({calculatedSyncOffset >= 0 ? 'music starts into video' : 'video matches mid-song'})
                       </span>
                     </>
                   ) : 'Calculating...'}
                 </div>
+                {chunkPreviews?.analysis?.onset_detection && (
+                  <div className="mt-2 text-xs">
+                    <div className="text-slate-400 mb-1">Onset Detection:</div>
+                    {chunkPreviews.analysis.onset_detection.used ? (
+                      <div className="text-green-400 space-y-1">
+                        <div>✓ Used onset-based offset</div>
+                        <div className="text-slate-500 ml-2">
+                          Audalign: {chunkPreviews.analysis.onset_detection.audalign_offset.toFixed(3)}s
+                        </div>
+                        <div className="text-slate-500 ml-2">
+                          First onset: {chunkPreviews.analysis.onset_detection.first_onset_time?.toFixed(3)}s
+                        </div>
+                        <div className="text-slate-500 ml-2 text-xs">
+                          {chunkPreviews.analysis.onset_detection.reason}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-slate-500 space-y-1">
+                        <div>Using audalign offset</div>
+                        {chunkPreviews.analysis.onset_detection.first_onset_time !== null && (
+                          <div className="text-xs ml-2">
+                            First onset: {chunkPreviews.analysis.onset_detection.first_onset_time.toFixed(3)}s
+                            {chunkPreviews.analysis.onset_detection.reason && (
+                              <span className="ml-1">({chunkPreviews.analysis.onset_detection.reason})</span>
+                            )}
+                          </div>
+                        )}
+                        {chunkPreviews.analysis.onset_detection.reason && (
+                          <div className="text-xs ml-2 text-slate-600">
+                            {chunkPreviews.analysis.onset_detection.reason}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <span className="text-slate-400">Chunk Duration:</span>
