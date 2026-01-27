@@ -456,8 +456,9 @@ def process_job_with_chunks(
                 segment_path = chunks_dir / f"segment_{i:03d}.mp4"
                 
                 # Mux video + audio
-                # For chunk 0 with positive sync_offset: audio already excludes dead space, so we delay it to align
-                # For subsequent chunks: audio continues normally, no delay needed
+                # With positive sync_offset: all audio is shifted right by sync_offset
+                # Chunk 0: Delay audio by sync_offset to align with music start in video
+                # Chunk 1+: Audio already shifted in master audio, no delay needed (aligns naturally)
                 if i == 0 and sync_offset and sync_offset > 0:
                     # Chunk 0: Delay audio by sync_offset to align with when music starts in video
                     print(f"[worker] Chunk 0: Delaying audio by {sync_offset:.3f}s to align with music start")
@@ -465,7 +466,7 @@ def process_job_with_chunks(
                     subprocess.run(
                         ["ffmpeg", "-y",
                          "-i", str(kling_output_path),  # Video from Kling
-                         "-i", str(audio_slice_path),   # Audio slice (already trimmed to exclude dead space)
+                         "-i", str(audio_slice_path),   # Audio slice (0 to chunk_duration from master)
                          "-filter_complex", f"[1:a]adelay={delay_ms}|{delay_ms}[a]",
                          "-map", "0:v:0", "-map", "[a]",
                          "-c:v", "libx264", "-preset", "veryfast",
@@ -475,7 +476,8 @@ def process_job_with_chunks(
                         check=True, capture_output=True
                     )
                 else:
-                    # Subsequent chunks or no offset: audio aligns naturally
+                    # Subsequent chunks: Audio already shifted in master audio (e.g., chunk 1 at 6s, chunk 2 at 14s)
+                    # No delay needed, aligns naturally with video
                     subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
                          "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
