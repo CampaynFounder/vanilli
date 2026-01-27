@@ -259,23 +259,57 @@ def api():
                 status_code=400
             )
         
-        video_url = data.get("video_url")
-        audio_url = data.get("audio_url")
+        # Support both formats: chunk_preview format and media_analyzer format (for backwards compatibility)
+        # chunk_preview format: video_url, audio_url, sync_offset, chunk_duration
+        # media_analyzer format: job_id, video, audio (needs to fetch sync_offset/chunk_duration from DB)
+        
+        video_url = data.get("video_url") or data.get("video")
+        audio_url = data.get("audio_url") or data.get("audio")
         sync_offset = data.get("sync_offset")
         chunk_duration = data.get("chunk_duration")
         generation_id = data.get("generation_id")
+        job_id = data.get("job_id")
         image_urls = data.get("image_urls", [])  # Optional array of image URLs
+        
+        # If using media_analyzer format (job_id, video, audio), fetch sync_offset/chunk_duration from DB
+        if job_id and (sync_offset is None or chunk_duration is None):
+            print(f"[chunk-preview] Received media_analyzer format, fetching analysis from DB for job_id: {job_id}")
+            try:
+                from supabase import create_client
+                supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+                supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+                supabase = create_client(supabase_url, supabase_key)
+                
+                job_data = supabase.table("video_jobs").select("sync_offset, chunk_duration, generation_id").eq("id", job_id).single().execute()
+                if job_data.data:
+                    if sync_offset is None:
+                        sync_offset = job_data.data.get("sync_offset")
+                    if chunk_duration is None:
+                        chunk_duration = job_data.data.get("chunk_duration")
+                    if not generation_id:
+                        generation_id = job_data.data.get("generation_id")
+                else:
+                    return JSONResponse(
+                        {"error": f"Job {job_id} not found in database"},
+                        status_code=404
+                    )
+            except Exception as e:
+                print(f"[chunk-preview] Error fetching job data: {e}")
+                return JSONResponse(
+                    {"error": f"Failed to fetch job data: {str(e)}"},
+                    status_code=500
+                )
         
         # Validate required fields (allow 0 for sync_offset, but not None)
         missing_fields = []
         if not video_url:
-            missing_fields.append("video_url")
+            missing_fields.append("video_url or video")
         if not audio_url:
-            missing_fields.append("audio_url")
+            missing_fields.append("audio_url or audio")
         if sync_offset is None:
-            missing_fields.append("sync_offset")
+            missing_fields.append("sync_offset (or job_id to fetch from DB)")
         if chunk_duration is None or chunk_duration <= 0:
-            missing_fields.append("chunk_duration")
+            missing_fields.append("chunk_duration (or job_id to fetch from DB)")
         
         if missing_fields:
             print(f"[chunk-preview] Missing fields: {missing_fields}, received data: {list(data.keys())}")
