@@ -400,13 +400,15 @@ def process_job_with_chunks(
                 # Chunk 1+: Audio continues sequentially from where previous chunk ended, no delay
                 if sync_offset and sync_offset > 0:
                     if i == 0:
-                        # Chunk 0: Start at 0 in master audio, delay by sync_offset when muxing
+                        # Chunk 0: Start at 0 in master audio, video will be trimmed to remove dead space
                         # Audio extracted: 0 to chunk_duration in master
-                        # After delay: plays from sync_offset to (sync_offset + chunk_duration) in final video
+                        # Video trimmed: removes first sync_offset seconds (dead space)
+                        # Both start at 0 in final video - perfectly aligned
                         audio_start_time = 0
-                        print(f"[worker] Chunk 0 audio: starts at 0s in master, will be delayed by {sync_offset:.3f}s when muxing")
+                        print(f"[worker] Chunk 0 audio: starts at 0s in master")
                         print(f"[worker]   → Audio extracted: 0s to {chunk_duration:.3f}s in master")
-                        print(f"[worker]   → After delay: plays {sync_offset:.3f}s to {sync_offset + chunk_duration:.3f}s in final video")
+                        print(f"[worker]   → Video will be trimmed: removes first {sync_offset:.3f}s (dead space)")
+                        print(f"[worker]   → Both start at 0s in final video - perfectly aligned")
                     else:
                         # Chunk 1+: Start where previous chunk audio ended in master
                         # Previous chunk (i-1) audio: 
@@ -473,6 +475,24 @@ def process_job_with_chunks(
                 r.raise_for_status()
                 kling_output_path.write_bytes(r.content)
                 
+                # For chunk 0: Trim dead space from front of Kling video to align with audio
+                # This way both audio and video start at 0, no delay needed
+                if i == 0 and sync_offset and sync_offset > 0:
+                    print(f"[worker] Chunk 0: Trimming {sync_offset:.3f}s from front of Kling video to remove dead space")
+                    kling_trimmed_path = chunks_dir / f"kling_chunk_{i:03d}_trimmed.mp4"
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(kling_output_path),
+                         "-ss", str(sync_offset),  # Skip dead space at start
+                         "-c", "copy",  # Fast copy, no re-encode
+                         str(kling_trimmed_path)],
+                        check=True, capture_output=True, text=True
+                    )
+                    # Verify trimmed video exists
+                    if not kling_trimmed_path.exists() or kling_trimmed_path.stat().st_size == 0:
+                        raise Exception(f"Chunk 0 video trimming failed - file missing or empty")
+                    print(f"[worker] Chunk 0: Trimmed video size: {kling_trimmed_path.stat().st_size / 1024 / 1024:.2f} MB")
+                    kling_output_path = kling_trimmed_path  # Use trimmed video for muxing
+                
                 # Extract audio slice (audio_start_time and audio_duration already calculated above)
                 audio_slice_path = chunks_dir / f"audio_chunk_{i:03d}.wav"
                 print(f"[worker] Extracting audio slice {i+1}: start={audio_start_time:.3f}s, duration={audio_duration:.3f}s from master audio")
@@ -492,22 +512,18 @@ def process_job_with_chunks(
                 segment_path = chunks_dir / f"segment_{i:03d}.mp4"
                 
                 # Mux video + audio
-                # With positive sync_offset: all audio is shifted right by sync_offset
-                # Chunk 0: Delay audio by sync_offset to align with music start in video
-                # Chunk 1+: Audio already shifted in master audio, no delay needed (aligns naturally)
+                # Chunk 0: Video is trimmed to remove dead space, audio starts at 0, both align at 0
+                # Chunk 1+: Audio continues sequentially, no delay needed
                 print(f"[worker] Muxing chunk {i+1}: Kling video + audio slice")
                 if i == 0 and sync_offset and sync_offset > 0:
-                    # Chunk 0: Delay audio by sync_offset to align with when music starts in video
-                    # The audio slice starts at 0s in master audio, we delay it by sync_offset when muxing
-                    print(f"[worker] Chunk 0: Delaying audio by {sync_offset:.3f}s to align with music start")
-                    delay_ms = int(sync_offset * 1000)
-                    print(f"[worker] Chunk 0: Using adelay filter with {delay_ms}ms delay for both channels")
+                    # Chunk 0: Video was trimmed to remove dead space, audio starts at 0
+                    # Both now start at 0, no delay needed - simple muxing
+                    print(f"[worker] Chunk 0: Video trimmed, audio at 0s - both align at start (no delay needed)")
                     result = subprocess.run(
                         ["ffmpeg", "-y",
-                         "-i", str(kling_output_path),  # Video from Kling (starts at 0s, includes dead space)
+                         "-i", str(kling_output_path),  # Video from Kling (trimmed, starts at music)
                          "-i", str(audio_slice_path),   # Audio slice (0 to chunk_duration from master)
-                         "-filter_complex", f"[1:a]adelay={delay_ms}|{delay_ms}[a]",
-                         "-map", "0:v:0", "-map", "[a]",
+                         "-map", "0:v:0", "-map", "1:a:0",
                          "-c:v", "libx264", "-preset", "veryfast",
                          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                          "-movflags", "+faststart",
@@ -519,9 +535,9 @@ def process_job_with_chunks(
                         print(f"[worker] FFmpeg output: {result.stdout[:500]}")
                     if result.stderr:
                         print(f"[worker] FFmpeg stderr: {result.stderr[:500]}")
-                    print(f"[worker] Chunk 0 muxing completed (audio delayed by {sync_offset:.3f}s = {delay_ms}ms)")
+                    print(f"[worker] Chunk 0 muxing completed (video trimmed, audio at 0s - both aligned)")
                 else:
-                    # Subsequent chunks: Audio already shifted in master audio (e.g., chunk 1 at 6s, chunk 2 at 14s)
+                    # Subsequent chunks: Audio continues sequentially from where previous chunk ended
                     # No delay needed, aligns naturally with video
                     result = subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
