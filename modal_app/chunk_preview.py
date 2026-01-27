@@ -212,16 +212,21 @@ def api():
         version="1.0.0",
     )
     
-    # CORS middleware
-    allowed_origins = os.environ.get("CORS_ORIGINS", "*").split(",") if os.environ.get("CORS_ORIGINS") else ["*"]
+    # CORS middleware - allow all origins for debug/testing
+    # In production, you can restrict this via CORS_ORIGINS env var
     web.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["POST", "OPTIONS"],
+        allow_origins=["*"],  # Allow all origins for debug page
+        allow_credentials=False,  # Must be False when allow_origins=["*"]
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
         max_age=3600,
     )
+    
+    @web.options("/")
+    async def options_handler():
+        """Handle OPTIONS preflight requests."""
+        return JSONResponse({}, status_code=200)
     
     @web.post("/")
     async def generate_previews(req: Request):
