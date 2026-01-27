@@ -387,13 +387,20 @@ def process_job_with_chunks(
                 video_chunk_end_time = min(video_chunk_start_time + chunk_duration, duration)
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
-                # Audio timing: Master audio starts at 0
-                # All chunks: Extract full chunk_duration from master audio starting at i * chunk_duration
-                # Chunk 0: Audio starts at 0 in master audio (full chunk_duration)
-                # Subsequent chunks: Audio continues sequentially (i * chunk_duration)
-                # When muxing chunk 0: Delay audio by sync_offset to align with music start in video
-                audio_start_time = i * chunk_duration  # Sequential in master audio (0 for chunk 0)
-                audio_duration = video_chunk_actual_duration  # Full chunk duration
+                # Audio timing: Each audio chunk is shorter by sync_offset because music portion is smaller
+                # Chunk 0: Audio is (chunk_duration - sync_offset) seconds, starts at 0 in master audio
+                # Chunk 1: Audio is (chunk_duration - sync_offset) seconds, starts at (chunk_duration - sync_offset) in master audio
+                # Chunk 2: Audio is (chunk_duration - sync_offset) seconds, starts at 2*(chunk_duration - sync_offset) in master audio
+                # etc.
+                if sync_offset and sync_offset > 0:
+                    # Each audio chunk is shorter by sync_offset
+                    audio_duration = video_chunk_actual_duration - sync_offset
+                    # Audio chunks are sequential, each starting where the previous ended
+                    audio_start_time = i * (chunk_duration - sync_offset)
+                else:
+                    # No sync offset: audio chunks match video chunks exactly
+                    audio_start_time = i * chunk_duration
+                    audio_duration = video_chunk_actual_duration
                 
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
@@ -403,8 +410,11 @@ def process_job_with_chunks(
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk: {video_chunk_start_time:.3f}s to {video_chunk_end_time:.3f}s (duration: {video_chunk_actual_duration:.3f}s)")
                 print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s) in master audio")
-                if i == 0 and sync_offset and sync_offset > 0:
-                    print(f"  - Chunk 0: Audio will be delayed by {sync_offset:.3f}s when muxing to align with music start in video")
+                if sync_offset and sync_offset > 0:
+                    if i == 0:
+                        print(f"  - Chunk 0: Audio is {audio_duration:.3f}s (video {video_chunk_actual_duration:.3f}s - sync_offset {sync_offset:.3f}s), will be delayed by {sync_offset:.3f}s when muxing")
+                    else:
+                        print(f"  - Chunk {i}: Audio is {audio_duration:.3f}s (video {video_chunk_actual_duration:.3f}s - sync_offset {sync_offset:.3f}s), continues from previous chunk")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
