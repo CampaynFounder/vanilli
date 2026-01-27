@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChunkObservability } from '@/components/debug/ChunkObservability';
+import { AnalysisValidator } from '@/components/debug/AnalysisValidator';
 
 export default function DebugPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -165,6 +166,11 @@ export default function DebugPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Analysis Validator Section */}
+        <div className="mt-8">
+          <AnalysisValidator />
         </div>
 
         {/* Chunk Observability Section */}
