@@ -511,10 +511,13 @@ def process_job_with_chunks(
                     raise Exception(f"Muxed segment {i+1} is missing or empty")
                 print(f"[worker] Muxed segment {i+1} size: {segment_path.stat().st_size / 1024 / 1024:.2f} MB")
                 
-                # Upload individual chunk for preview/download
+                # Upload muxed chunk to Supabase (this is the final processed video with audio aligned)
+                # IMPORTANT: This is the VANNILLI-processed video, NOT the raw Kling output
                 chunk_output_key = f"{OUTPUTS_PREFIX}/{generation_id or job_id}/chunk_{i:03d}.mp4"
+                print(f"[worker] Uploading muxed chunk {i+1} to Supabase: {chunk_output_key}")
                 with open(segment_path, "rb") as f:
                     supabase.storage.from_(BUCKET).upload(chunk_output_key, f.read(), file_options={"content-type": "video/mp4"})
+                print(f"[worker] Chunk {i+1} uploaded successfully to Supabase Storage")
                 
                 # Create signed URL for the muxed video (NOT the Kling URL)
                 # This is the final processed video with audio aligned by VANNILLI's engine
@@ -535,6 +538,8 @@ def process_job_with_chunks(
                 if chunk_id:
                     update_data = {
                         "status": "COMPLETED",
+                        # video_url must be the muxed Supabase URL, NOT the Kling URL
+                        # This is the final processed video with audio aligned by VANNILLI's engine
                         "video_url": chunk_video_url or chunk_output_key,
                         "credits_charged": int(chunk_duration),  # Charge for successful chunk
                         "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
