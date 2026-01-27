@@ -516,10 +516,19 @@ def process_job_with_chunks(
                 with open(segment_path, "rb") as f:
                     supabase.storage.from_(BUCKET).upload(chunk_output_key, f.read(), file_options={"content-type": "video/mp4"})
                 
+                # Create signed URL for the muxed video (NOT the Kling URL)
+                # This is the final processed video with audio aligned by VANNILLI's engine
                 signed_chunk_url = supabase.storage.from_(BUCKET).create_signed_url(chunk_output_key, 3600)
                 if isinstance(signed_chunk_url, tuple):
                     signed_chunk_url = signed_chunk_url[0] if signed_chunk_url else {}
                 chunk_video_url = (signed_chunk_url.get("signedUrl") or signed_chunk_url.get("signed_url")) if isinstance(signed_chunk_url, dict) else None
+                
+                if not chunk_video_url:
+                    # Fallback: construct public URL if signed URL creation fails
+                    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+                    chunk_video_url = f"{supabase_url}/storage/v1/object/public/{BUCKET}/{chunk_output_key}"
+                
+                print(f"[worker] Chunk {i+1} final video URL (muxed with audio): {chunk_video_url[:80]}...")
                 
                 # Update chunk record with full observability data
                 # Note: Muxing has completed successfully at this point
@@ -582,8 +591,21 @@ def process_job_with_chunks(
                     # (some fields may not be set if error occurred early)
                     try:
                         video_chunk_start_time = i * chunk_duration
-                        # Audio timing accounts for sync_offset (when music starts in video)
-                        audio_start_time = i * chunk_duration + (sync_offset or 0.0)
+                        # Audio timing: use same logic as successful path
+                        if sync_offset and sync_offset > 0:
+                            if i == 0:
+                                audio_start_time = 0
+                            elif i == 1:
+                                audio_start_time = chunk_duration - sync_offset
+                            else:
+                                if i == 2:
+                                    prev_audio_start = chunk_duration - sync_offset
+                                    prev_audio_end = prev_audio_start + chunk_duration
+                                    audio_start_time = prev_audio_end
+                                else:
+                                    audio_start_time = (i * chunk_duration) - sync_offset
+                        else:
+                            audio_start_time = i * chunk_duration
                         image_index = i % len(target_images)
                         current_image = target_images[image_index] if target_images else None
                         
