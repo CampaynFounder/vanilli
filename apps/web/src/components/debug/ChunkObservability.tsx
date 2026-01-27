@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
+import { supabase } from '@/lib/supabase';
 
 interface ChunkInfo {
   chunkIndex: number;
@@ -21,6 +22,23 @@ interface TempoAnalysis {
   secondsPerMeasure: number;
   measuresPerChunk: number;
   chunkDuration: number;
+}
+
+interface ChunkPreview {
+  chunk_index: number;
+  video_chunk_url: string;
+  audio_chunk_url: string;
+  video_start_time: number;
+  video_end_time: number;
+  audio_start_time: number;
+  audio_end_time: number;
+}
+
+interface ChunkPreviewResult {
+  video_duration: number;
+  audio_duration: number;
+  num_chunks: number;
+  chunks: ChunkPreview[];
 }
 
 export function ChunkObservability() {
@@ -48,6 +66,9 @@ export function ChunkObservability() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [chunkPreviews, setChunkPreviews] = useState<ChunkPreviewResult | null>(null);
+  const [generatingPreviews, setGeneratingPreviews] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -229,6 +250,113 @@ export function ChunkObservability() {
 
     setChunks(calculatedChunks);
     setLoading(false);
+  };
+
+  const generateChunkPreviews = async () => {
+    if (!videoFile || !audioFile || !videoUrl || !audioUrl) {
+      setError('Please upload video and audio files first');
+      return;
+    }
+
+    if (!tempoAnalysis || !syncOffset) {
+      setError('Please calculate tempo and set sync offset first');
+      return;
+    }
+
+    setGeneratingPreviews(true);
+    setUploadingFiles(true);
+    setError(null);
+
+    try {
+      // Upload files to Supabase Storage temporarily
+      const tempId = `temp_${Date.now()}`;
+      const videoPath = `temp_uploads/${tempId}/video.mp4`;
+      const audioPath = `temp_uploads/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
+
+      console.log('Uploading files to Supabase...');
+      
+      // Upload video
+      const videoArrayBuffer = await videoFile.arrayBuffer();
+      const { error: videoError } = await supabase.storage
+        .from('vannilli')
+        .upload(videoPath, videoArrayBuffer, {
+          contentType: 'video/mp4',
+          upsert: true,
+        });
+
+      if (videoError) throw new Error(`Failed to upload video: ${videoError.message}`);
+
+      // Upload audio
+      const audioArrayBuffer = await audioFile.arrayBuffer();
+      const { error: audioError } = await supabase.storage
+        .from('vannilli')
+        .upload(audioPath, audioArrayBuffer, {
+          contentType: audioFile.type || 'audio/mpeg',
+          upsert: true,
+        });
+
+      if (audioError) throw new Error(`Failed to upload audio: ${audioError.message}`);
+
+      // Get signed URLs
+      const { data: videoSigned, error: videoSignedError } = await supabase.storage
+        .from('vannilli')
+        .createSignedUrl(videoPath, 3600);
+
+      const { data: audioSigned, error: audioSignedError } = await supabase.storage
+        .from('vannilli')
+        .createSignedUrl(audioPath, 3600);
+
+      if (videoSignedError || audioSignedError) {
+        throw new Error('Failed to create signed URLs');
+      }
+
+      const videoSignedUrl = videoSigned?.signedUrl || videoSigned?.signed_url;
+      const audioSignedUrl = audioSigned?.signedUrl || audioSigned?.signed_url;
+
+      if (!videoSignedUrl || !audioSignedUrl) {
+        throw new Error('Failed to get signed URLs');
+      }
+
+      setUploadingFiles(false);
+
+      // Call Modal function to generate chunk previews
+      const modalUrl = process.env.NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL || '';
+      
+      if (!modalUrl) {
+        throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
+      }
+
+      console.log('Calling Modal to generate chunk previews...');
+      
+      const response = await fetch(modalUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_url: videoSignedUrl,
+          audio_url: audioSignedUrl,
+          sync_offset: syncOffset,
+          chunk_duration: tempoAnalysis.chunkDuration,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setChunkPreviews(result);
+
+      // Clean up temp files (async, don't wait)
+      supabase.storage.from('vannilli').remove([videoPath, audioPath]).catch(console.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate chunk previews');
+    } finally {
+      setGeneratingPreviews(false);
+      setUploadingFiles(false);
+    }
   };
 
   const validateSync = (chunk: ChunkInfo): { valid: boolean; message: string } => {
@@ -597,6 +725,97 @@ export function ChunkObservability() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Generate Chunk Previews Button */}
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <button
+                onClick={generateChunkPreviews}
+                disabled={generatingPreviews || !videoFile || !audioFile || !tempoAnalysis || chunks.length === 0}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
+              >
+                {uploadingFiles ? 'Uploading files...' : generatingPreviews ? 'Generating Chunk Previews...' : 'Generate Downloadable Chunk Previews'}
+              </button>
+              <p className="text-xs text-slate-500 mt-2">
+                Generate downloadable video and audio chunks to compare synchronization. Download chunk 1 video and chunk 1 audio to verify they match.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Chunk Previews */}
+        {chunkPreviews && (
+          <div className="mt-6 p-4 bg-slate-900/50 rounded border border-slate-700">
+            <h3 className="text-lg font-semibold mb-3">Downloadable Chunk Previews</h3>
+            <div className="mb-3 text-sm text-slate-400 space-y-1">
+              <div>Video Duration: {chunkPreviews.video_duration.toFixed(3)}s</div>
+              <div>Audio Duration: {chunkPreviews.audio_duration.toFixed(3)}s</div>
+              <div>Number of Chunks: {chunkPreviews.num_chunks}</div>
+              {tempoAnalysis && (
+                <div>BPM: {tempoAnalysis.bpm.toFixed(2)}</div>
+              )}
+            </div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              {chunkPreviews.chunks.map((preview) => {
+                const chunk = chunks.find((c) => c.chunkIndex === preview.chunk_index);
+                const syncValid = chunk && Math.abs(chunk.audioStartTime - preview.audio_start_time) < 0.001;
+
+                return (
+                  <div
+                    key={preview.chunk_index}
+                    className={`p-3 rounded border ${
+                      syncValid ? 'bg-green-900/20 border-green-700/50' : 'bg-slate-800 border-slate-700'
+                    }`}
+                  >
+                    <div className="font-semibold mb-2">Chunk {preview.chunk_index + 1}</div>
+                    <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                      <div>
+                        <span className="text-slate-400">Video:</span>
+                        <div className="font-mono text-slate-300">
+                          {preview.video_start_time.toFixed(3)}s → {preview.video_end_time.toFixed(3)}s
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Audio:</span>
+                        <div className="font-mono text-slate-300">
+                          {preview.audio_start_time.toFixed(3)}s → {preview.audio_end_time.toFixed(3)}s
+                        </div>
+                        {chunk && (
+                          <div className="text-xs mt-1">
+                            <span className={syncValid ? 'text-green-400' : 'text-red-400'}>
+                              {syncValid ? '✓ Sync matches' : '⚠ Sync mismatch'}
+                            </span>
+                            {!syncValid && (
+                              <span className="text-red-400 ml-1">
+                                (Expected: {chunk.audioStartTime.toFixed(3)}s, Got: {preview.audio_start_time.toFixed(3)}s)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={preview.video_chunk_url}
+                        download={`chunk_${preview.chunk_index + 1}_video.mp4`}
+                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center"
+                      >
+                        Download Video Chunk {preview.chunk_index + 1}
+                      </a>
+                      <a
+                        href={preview.audio_chunk_url}
+                        download={`chunk_${preview.chunk_index + 1}_audio.wav`}
+                        className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center"
+                      >
+                        Download Audio Chunk {preview.chunk_index + 1}
+                      </a>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500">
+                      Compare: Video chunk {preview.chunk_index + 1} audio offset should match audio chunk {preview.chunk_index + 1} start time
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
