@@ -69,6 +69,7 @@ export function ChunkObservability() {
   const [chunkPreviews, setChunkPreviews] = useState<ChunkPreviewResult | null>(null);
   const [generatingPreviews, setGeneratingPreviews] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [analyzingMedia, setAnalyzingMedia] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -250,6 +251,133 @@ export function ChunkObservability() {
 
     setChunks(calculatedChunks);
     setLoading(false);
+  };
+
+  const analyzeMediaWithModal = async () => {
+    if (!videoFile || !audioFile || !videoUrl || !audioUrl) {
+      setError('Please upload video and audio files first');
+      return;
+    }
+
+    setAnalyzingMedia(true);
+    setUploadingFiles(true);
+    setError(null);
+
+    try {
+      // Upload files to Supabase Storage temporarily
+      const tempId = `temp_${Date.now()}`;
+      const videoPath = `temp_uploads/${tempId}/video.mp4`;
+      const audioPath = `temp_uploads/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
+
+      console.log('Uploading files for analysis...');
+      
+      // Upload video
+      const videoArrayBuffer = await videoFile.arrayBuffer();
+      const { error: videoError } = await supabase.storage
+        .from('vannilli')
+        .upload(videoPath, videoArrayBuffer, {
+          contentType: 'video/mp4',
+          upsert: true,
+        });
+
+      if (videoError) throw new Error(`Failed to upload video: ${videoError.message}`);
+
+      // Upload audio
+      const audioArrayBuffer = await audioFile.arrayBuffer();
+      const { error: audioError } = await supabase.storage
+        .from('vannilli')
+        .upload(audioPath, audioArrayBuffer, {
+          contentType: audioFile.type || 'audio/mpeg',
+          upsert: true,
+        });
+
+      if (audioError) throw new Error(`Failed to upload audio: ${audioError.message}`);
+
+      // Get signed URLs
+      const { data: videoSigned, error: videoSignedError } = await supabase.storage
+        .from('vannilli')
+        .createSignedUrl(videoPath, 3600);
+
+      const { data: audioSigned, error: audioSignedError } = await supabase.storage
+        .from('vannilli')
+        .createSignedUrl(audioPath, 3600);
+
+      if (videoSignedError || audioSignedError) {
+        throw new Error('Failed to create signed URLs');
+      }
+
+      const videoSignedUrl = (videoSigned as any)?.signedUrl || (videoSigned as any)?.signed_url;
+      const audioSignedUrl = (audioSigned as any)?.signedUrl || (audioSigned as any)?.signed_url;
+
+      if (!videoSignedUrl || !audioSignedUrl) {
+        throw new Error('Failed to get signed URLs');
+      }
+
+      setUploadingFiles(false);
+      setAnalyzingMedia(true);
+
+      // Call Modal media_analyzer to get tempo and sync offset
+      const analyzerUrl = process.env.NEXT_PUBLIC_MODAL_MEDIA_ANALYZER_URL || '';
+      
+      if (!analyzerUrl) {
+        throw new Error('Modal media analyzer URL not configured. Set NEXT_PUBLIC_MODAL_MEDIA_ANALYZER_URL');
+      }
+
+      console.log('Calling Modal media analyzer...');
+      
+      const response = await fetch(analyzerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_id: `temp_${tempId}`, // Temporary job ID
+          video: videoSignedUrl,
+          audio: audioSignedUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const analysisResult = await response.json();
+      
+      // Extract results
+      const bpm = analysisResult.bpm;
+      const calculatedSyncOffset = analysisResult.sync_offset;
+      const calculatedChunkDuration = analysisResult.chunk_duration;
+
+      if (bpm && calculatedSyncOffset !== undefined && calculatedChunkDuration) {
+        // Set the calculated values
+        setManualBpm(bpm.toFixed(2));
+        setSyncOffset(calculatedSyncOffset);
+        
+        // Calculate tempo analysis
+        const analysis = calculateChunkDurationFromBpm(bpm);
+        setTempoAnalysis(analysis);
+        
+        // Auto-calculate chunks
+        setTimeout(() => {
+          calculateChunks();
+          // Then generate previews
+          setTimeout(() => {
+            generateChunkPreviews();
+          }, 1000);
+        }, 500);
+      } else {
+        throw new Error('Analysis did not return expected values');
+      }
+
+      // Clean up temp files (async, don't wait)
+      supabase.storage.from('vannilli').remove([videoPath, audioPath]).catch(console.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to analyze media');
+    } finally {
+      setAnalyzingMedia(false);
+      setUploadingFiles(false);
+    }
   };
 
   const generateChunkPreviews = async () => {
@@ -491,6 +619,23 @@ export function ChunkObservability() {
           </div>
         </div>
 
+        {/* Auto-Analyze Button - Main Action */}
+        {videoFile && audioFile && videoDuration !== null && !tempoAnalysis && (
+          <div className="p-4 bg-blue-900/20 border border-blue-700 rounded">
+            <h3 className="text-lg font-semibold mb-2 text-blue-300">Ready to Analyze</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              Click below to automatically calculate tempo (BPM), sync offset, and generate downloadable chunk previews.
+            </p>
+            <button
+              onClick={analyzeMediaWithModal}
+              disabled={analyzingMedia || uploadingFiles}
+              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium"
+            >
+              {uploadingFiles ? 'Uploading files...' : analyzingMedia ? 'Analyzing with Modal...' : 'Analyze & Generate Chunk Previews'}
+            </button>
+          </div>
+        )}
+
         {/* Tempo Analysis */}
         <div className="p-4 bg-slate-900/30 rounded border border-slate-700">
           <h3 className="text-lg font-semibold mb-3">Tempo Analysis</h3>
@@ -511,7 +656,13 @@ export function ChunkObservability() {
                 />
                 <button
                   type="button"
-                  onClick={analyzeAudio}
+                  onClick={async () => {
+                    await analyzeAudio();
+                    // Auto-calculate chunks after tempo is calculated
+                    if (tempoAnalysis && videoDuration !== null && videoFile && audioFile) {
+                      setTimeout(() => calculateChunks(), 100);
+                    }
+                  }}
                   disabled={analyzing || !manualBpm}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded text-sm font-medium"
                 >
@@ -519,7 +670,7 @@ export function ChunkObservability() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Enter BPM manually (60-200). Use tools like Audacity, Rekordbox, or tap tempo to detect.
+                Or enter BPM manually (60-200). Use tools like Audacity, Rekordbox, or tap tempo to detect.
               </p>
             </div>
 
@@ -562,7 +713,14 @@ export function ChunkObservability() {
           <input
             type="number"
             value={syncOffset}
-            onChange={(e) => setSyncOffset(parseFloat(e.target.value) || 0)}
+            onChange={(e) => {
+              const newOffset = parseFloat(e.target.value) || 0;
+              setSyncOffset(newOffset);
+              // Auto-calculate chunks if tempo is already set
+              if (tempoAnalysis && videoDuration !== null && videoFile && audioFile) {
+                setTimeout(() => calculateChunks(), 100);
+              }
+            }}
             step="0.001"
             className="w-full px-3 py-2 bg-slate-900/50 rounded border border-slate-700 text-sm"
           />
@@ -571,14 +729,16 @@ export function ChunkObservability() {
           </p>
         </div>
 
-        {/* Calculate Chunks Button */}
-        <button
-          onClick={calculateChunks}
-          disabled={loading || !videoFile || !audioFile || !tempoAnalysis}
-          className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
-        >
-          {loading ? 'Calculating...' : 'Calculate Chunks'}
-        </button>
+        {/* Calculate Chunks Button - shown when tempo is set but chunks not calculated */}
+        {tempoAnalysis && videoDuration !== null && videoFile && audioFile && chunks.length === 0 && (
+          <button
+            onClick={calculateChunks}
+            disabled={loading}
+            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
+          >
+            {loading ? 'Calculating...' : 'Calculate Chunks'}
+          </button>
+        )}
 
         {error && (
           <div className="p-3 bg-red-900/30 border border-red-700 rounded text-red-300 text-sm">
@@ -729,18 +889,20 @@ export function ChunkObservability() {
             </div>
 
             {/* Generate Chunk Previews Button */}
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <button
-                onClick={generateChunkPreviews}
-                disabled={generatingPreviews || !videoFile || !audioFile || !tempoAnalysis || chunks.length === 0}
-                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
-              >
-                {uploadingFiles ? 'Uploading files...' : generatingPreviews ? 'Generating Chunk Previews...' : 'Generate Downloadable Chunk Previews'}
-              </button>
-              <p className="text-xs text-slate-500 mt-2">
-                Generate downloadable video and audio chunks to compare synchronization. Download chunk 1 video and chunk 1 audio to verify they match.
-              </p>
-            </div>
+            {!chunkPreviews && (
+              <div className="mt-4 pt-4 border-t border-slate-700">
+                <button
+                  onClick={generateChunkPreviews}
+                  disabled={generatingPreviews || !videoFile || !audioFile || !tempoAnalysis || chunks.length === 0}
+                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
+                >
+                  {uploadingFiles ? 'Uploading files...' : generatingPreviews ? 'Generating Chunk Previews...' : 'Generate Downloadable Chunk Previews'}
+                </button>
+                <p className="text-xs text-slate-500 mt-2">
+                  Generate downloadable video and audio chunks to compare synchronization. Download chunk 1 video and chunk 1 audio to verify they match.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
