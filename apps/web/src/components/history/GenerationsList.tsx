@@ -373,10 +373,13 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     {downloadId === generation.id ? 'Preparing...' : 'Download Final'}
                   </button>
                 )}
-                {generation.status === 'processing' && userId && (
+                {(generation.status === 'processing' || generation.status === 'pending') && userId && (
                   <button
                     onClick={async () => {
                       if (!userId) return;
+                      if (!confirm('Are you sure you want to cancel this generation? Credits will not be deducted.')) {
+                        return;
+                      }
                       try {
                         const { error } = await supabase.rpc('cancel_generation', {
                           generation_uuid: generation.id,
