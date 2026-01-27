@@ -525,12 +525,9 @@ def process_job_with_chunks(
                         "image_index": image_index,
                         "video_chunk_url": chunk_url,
                         "video_chunk_start_time": video_chunk_start_time,
-                        "video_chunk_end_time": video_chunk_end_time,
-                        "video_chunk_duration": video_chunk_actual_duration,
                         "audio_start_time": audio_start_time,
-                        "audio_end_time": audio_start_time + audio_duration,
-                        "audio_duration": audio_duration,
                         "sync_offset": sync_offset or 0.0,  # Offset when music starts in video
+                        "chunk_duration": chunk_duration,  # Duration of this chunk (used to calculate end times in views)
                         "chunk_duration": chunk_duration,
                         "kling_task_id": task_id,
                         "kling_requested_at": kling_requested_at,
