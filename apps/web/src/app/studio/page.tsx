@@ -270,7 +270,10 @@ function StudioPage() {
         // Rough estimate: 60-90 seconds per chunk, plus analysis time
         if (videoDuration && videoDuration > 0) {
           const estimatedSecondsPerChunk = 75;
-          const numChunks = Math.ceil(videoDuration / (chunk_duration || 9));
+          // For DEMO/Industry tiers, chunks are typically ~9 seconds (tempo-based)
+          // For lower tiers, it's a single 9-second chunk
+          const defaultChunkDuration = 9;
+          const numChunks = Math.ceil(videoDuration / defaultChunkDuration);
           const estimatedTotalSeconds = 30 + (numChunks * estimatedSecondsPerChunk); // 30s for analysis
           setEstimatedTimeRemaining(estimatedTotalSeconds);
         } else {
