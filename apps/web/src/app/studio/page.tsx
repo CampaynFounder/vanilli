@@ -336,6 +336,14 @@ function StudioPage() {
               return;
             }
             
+            if (row.status === 'cancelled') {
+              setGenerationStatus('cancelled');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(null);
+              refreshUser(); // Refresh credits
+              return;
+            }
+            
             // Continue polling
             setTimeout(poll, 3000);
           } catch (e) {
