@@ -463,19 +463,18 @@ def api():
         
         # Get optional user-provided BPM from request body
         user_bpm = None
-        try:
-            body = await req.json()
-            if "bpm" in body and body["bpm"] is not None:
-                user_bpm = float(body["bpm"])
+        if "bpm" in data and data["bpm"] is not None:
+            try:
+                user_bpm = float(data["bpm"])
                 if user_bpm <= 0 or user_bpm > 300:
                     return JSONResponse(
                         {"error": "BPM must be between 1 and 300"},
                         status_code=400
                     )
                 print(f"[analyzer] Received user-provided BPM: {user_bpm:.2f}")
-        except (ValueError, KeyError, TypeError):
-            # BPM not provided or invalid, will calculate it
-            pass
+            except (ValueError, TypeError):
+                # BPM invalid format, will calculate it
+                print(f"[analyzer] Invalid BPM format: {data.get('bpm')}, will calculate instead")
         
         # Start analysis (async - returns immediately, analysis runs in background)
         try:
