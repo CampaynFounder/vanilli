@@ -80,7 +80,7 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
           <div className="text-center flex flex-col items-center justify-center w-full h-full">
             <ProgressRing progress={Math.max(10, progress)} size={120} />
             <p className="mt-4 text-white font-semibold">Processing your video...</p>
-            {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 ? (
+            {estimatedTimeRemaining != null && estimatedTimeRemaining > 0 ? (
               <p className="text-xs text-slate-400 mt-1">
                 Estimated time remaining: {Math.floor(estimatedTimeRemaining / 60)}:{(estimatedTimeRemaining % 60).toString().padStart(2, '0')}
               </p>
