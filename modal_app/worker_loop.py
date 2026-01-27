@@ -382,23 +382,25 @@ def process_job_with_chunks(
                 # Calculate timing information for observability
                 # sync_offset represents when music starts in the video
                 # Positive offset = music starts X seconds into video (dead space at start)
+                # Master audio starts at 0, no offset needed
                 video_chunk_start_time = i * chunk_duration
                 video_chunk_end_time = min(video_chunk_start_time + chunk_duration, duration)
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
-                # Audio timing: For chunk 0, if sync_offset > 0, audio only covers the music portion
-                # (not the dead space at the start). For subsequent chunks, audio continues normally.
+                # Audio timing: Master audio starts at 0
+                # Chunk 0: Audio starts at sync_offset in master audio (skips dead space)
+                # Subsequent chunks: Audio continues sequentially from master audio (no sync_offset added)
                 if i == 0 and sync_offset and sync_offset > 0:
-                    # Chunk 0: Audio starts at sync_offset, duration is chunk_duration minus the dead space
-                    audio_start_time = sync_offset
+                    # Chunk 0: Audio starts at sync_offset in master audio, duration excludes dead space
+                    audio_start_time = sync_offset  # In master audio
                     audio_duration = video_chunk_actual_duration - sync_offset
                     # Ensure we don't have negative duration
                     if audio_duration <= 0:
                         audio_duration = video_chunk_actual_duration
                         audio_start_time = 0
                 else:
-                    # Subsequent chunks: Audio starts at video_chunk_start_time + sync_offset
-                    audio_start_time = video_chunk_start_time + (sync_offset or 0.0)
+                    # Subsequent chunks: Audio starts at i * chunk_duration in master audio (sequential, no offset)
+                    audio_start_time = i * chunk_duration  # Sequential in master audio
                     audio_duration = video_chunk_actual_duration
                 
                 image_index = i % len(target_images)
