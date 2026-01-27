@@ -310,6 +310,15 @@ def api():
             else:
                 # Temporary job_id - skip DB lookup, require sync_offset/chunk_duration to be provided
                 print(f"[chunk-preview] Temporary job_id detected ({job_id}), skipping DB lookup. sync_offset and chunk_duration must be provided directly.")
+                if sync_offset is None or chunk_duration is None:
+                    return JSONResponse(
+                        {
+                            "error": f"Temporary job_id provided but sync_offset and chunk_duration are required. Please provide: video_url, audio_url, sync_offset, chunk_duration",
+                            "received_fields": list(data.keys()),
+                            "hint": "For temporary job IDs, you must provide sync_offset and chunk_duration directly (cannot fetch from DB)"
+                        },
+                        status_code=400
+                    )
         
         # Validate required fields (allow 0 for sync_offset, but not None)
         missing_fields = []
@@ -318,9 +327,9 @@ def api():
         if not audio_url:
             missing_fields.append("audio_url or audio")
         if sync_offset is None:
-            missing_fields.append("sync_offset (or job_id to fetch from DB)")
+            missing_fields.append("sync_offset (or valid UUID job_id to fetch from DB)")
         if chunk_duration is None or chunk_duration <= 0:
-            missing_fields.append("chunk_duration (or job_id to fetch from DB)")
+            missing_fields.append("chunk_duration (or valid UUID job_id to fetch from DB)")
         
         if missing_fields:
             print(f"[chunk-preview] Missing fields: {missing_fields}, received data: {list(data.keys())}")
