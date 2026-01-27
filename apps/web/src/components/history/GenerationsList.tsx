@@ -64,6 +64,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   const [processingGenerations, setProcessingGenerations] = useState<Set<string>>(new Set());
   const [generationProgress, setGenerationProgress] = useState<Record<string, number>>({});
   const [generationTimeRemaining, setGenerationTimeRemaining] = useState<Record<string, number>>({});
+  const [deletingGenerations, setDeletingGenerations] = useState<Set<string>>(new Set());
   
   // Fetch chunks for generations
   useEffect(() => {
@@ -510,6 +511,49 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   <p className="text-xs text-orange-400 max-w-xs text-right">
                     Cancelled by user
                   </p>
+                )}
+                {/* Delete button for completed, failed, or cancelled generations */}
+                {(generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') && (
+                  <button
+                    onClick={async () => {
+                      if (!userId) return;
+                      const statusLabel = generation.status === 'completed' ? 'completed' : generation.status === 'failed' ? 'failed' : 'cancelled';
+                      if (!confirm(`Are you sure you want to delete this ${statusLabel} generation? This action cannot be undone.`)) {
+                        return;
+                      }
+                      setDeletingGenerations(prev => new Set(prev).add(generation.id));
+                      try {
+                        const { error } = await supabase.rpc('delete_generation', {
+                          generation_uuid: generation.id,
+                          user_uuid: userId,
+                        });
+                        if (error) {
+                          console.error('[history] Delete error:', error);
+                          alert(`Failed to delete generation: ${error.message || 'Unknown error'}`);
+                          setDeletingGenerations(prev => {
+                            const next = new Set(prev);
+                            next.delete(generation.id);
+                            return next;
+                          });
+                        } else {
+                          // Successfully deleted, refresh the list
+                          if (onRefresh) onRefresh();
+                        }
+                      } catch (e) {
+                        console.error('[history] Delete exception:', e);
+                        alert(`Failed to delete generation: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                        setDeletingGenerations(prev => {
+                          const next = new Set(prev);
+                          next.delete(generation.id);
+                          return next;
+                        });
+                      }
+                    }}
+                    disabled={deletingGenerations.has(generation.id)}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-all"
+                  >
+                    {deletingGenerations.has(generation.id) ? 'Deleting...' : 'Delete'}
+                  </button>
                 )}
                   </div>
                 </div>
