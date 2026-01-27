@@ -135,10 +135,19 @@ def analyze_media(
         extract_audio_from_video(video_path, video_audio_path)
         
         # 1. Calculate sync offset using audalign
+        # audalign.target_align() expects: (target_file, directory_to_align_against)
+        # We need to create a temp directory with the video audio file
         print("[analyzer] Calculating sync offset with audalign...")
+        video_audio_dir = base / "video_audio_dir"
+        video_audio_dir.mkdir(exist_ok=True)
+        # Copy video audio to the directory with a known name
+        video_audio_in_dir = video_audio_dir / "video_audio.wav"
+        import shutil
+        shutil.copy2(str(video_audio_path), str(video_audio_in_dir))
+        
         alignment = audalign.target_align(
-            str(audio_path),  # master audio (target)
-            str(video_audio_path),  # video audio (to align)
+            str(audio_path),  # master audio (target file)
+            str(video_audio_dir),  # directory containing video audio to align
         )
         sync_offset = alignment.get("offset", 0.0)
         if not isinstance(sync_offset, (int, float)):

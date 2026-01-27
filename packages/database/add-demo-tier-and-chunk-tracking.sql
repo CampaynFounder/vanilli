@@ -116,7 +116,7 @@ BEGIN
   
   SELECT * INTO v_job
   FROM video_jobs
-  WHERE status = 'PENDING' OR (status = 'ANALYZED' AND analysis_status = 'ANALYZED')
+  WHERE video_jobs.status = 'PENDING' OR (video_jobs.status = 'ANALYZED' AND video_jobs.analysis_status = 'ANALYZED')
   ORDER BY
     CASE WHEN v_demo_enabled AND tier = 'demo' THEN 0 ELSE 1 END,  -- DEMO first if enabled
     is_first_time DESC,  -- True (1) comes before False (0)
