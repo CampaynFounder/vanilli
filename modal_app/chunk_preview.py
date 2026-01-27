@@ -266,9 +266,21 @@ def api():
         generation_id = data.get("generation_id")
         image_urls = data.get("image_urls", [])  # Optional array of image URLs
         
-        if not all([video_url, audio_url, sync_offset is not None, chunk_duration]):
+        # Validate required fields (allow 0 for sync_offset, but not None)
+        missing_fields = []
+        if not video_url:
+            missing_fields.append("video_url")
+        if not audio_url:
+            missing_fields.append("audio_url")
+        if sync_offset is None:
+            missing_fields.append("sync_offset")
+        if chunk_duration is None or chunk_duration <= 0:
+            missing_fields.append("chunk_duration")
+        
+        if missing_fields:
+            print(f"[chunk-preview] Missing fields: {missing_fields}, received data: {list(data.keys())}")
             return JSONResponse(
-                {"error": "Missing required fields: video_url, audio_url, sync_offset, chunk_duration"},
+                {"error": f"Missing required fields: {', '.join(missing_fields)}", "received_fields": list(data.keys())},
                 status_code=400
             )
         
