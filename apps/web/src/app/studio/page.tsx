@@ -54,6 +54,20 @@ function StudioPage() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
   
+  // Real-time countdown timer for estimated time
+  useEffect(() => {
+    if (estimatedTimeRemaining != null && estimatedTimeRemaining > 0 && isGenerating) {
+      const interval = setInterval(() => {
+        setEstimatedTimeRemaining((prev) => {
+          if (prev == null || prev <= 0) return 0;
+          return prev - 1;
+        });
+      }, 1000); // Update every second
+      
+      return () => clearInterval(interval);
+    }
+  }, [estimatedTimeRemaining, isGenerating]);
+  
   // Cancel generation handler
   const handleCancelGeneration = async () => {
     if (!generationId || !user?.id) return;
@@ -295,9 +309,12 @@ function StudioPage() {
               return;
             }
             
-            // Update progress from database
+            // Update progress from database (always update, even if 0)
             if (row.progress_percentage !== null && row.progress_percentage !== undefined) {
               setGenerationProgress(row.progress_percentage);
+            } else if (row.status === 'processing') {
+              // If status is processing but no progress, set minimum visible progress
+              setGenerationProgress((prev) => Math.max(prev, 5));
             }
             
             // Update current stage
@@ -314,12 +331,15 @@ function StudioPage() {
               }
             }
             
-            // Calculate estimated time remaining
+            // Calculate estimated time remaining from database
             if (row.estimated_completion_at) {
               const estimated = new Date(row.estimated_completion_at).getTime();
               const now = Date.now();
               const remaining = Math.max(0, Math.floor((estimated - now) / 1000));
               setEstimatedTimeRemaining(remaining);
+            } else if (row.status === 'processing' && estimatedTimeRemaining == null) {
+              // If processing but no estimate, use fallback
+              setEstimatedTimeRemaining(90);
             }
             
             if (row.status === 'completed') {

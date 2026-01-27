@@ -14,11 +14,20 @@ export interface Generation {
   completed_at?: string;
   error_message?: string;
   final_video_r2_path?: string;
-  projects: {
+  progress_percentage?: number | null;
+  current_stage?: string | null;
+  estimated_completion_at?: string | null;
+  thumbnail_r2_path?: string | null;
+  projects?: {
     track_name: string;
     bpm: number;
     bars: number;
-  };
+  } | null;
+  video_jobs?: {
+    user_video_url?: string;
+    target_images?: string[];
+    prompt?: string | null;
+  } | null;
 }
 
 interface VideoChunk {
@@ -50,6 +59,9 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null);
   const [chunksByGeneration, setChunksByGeneration] = useState<Record<string, VideoChunk[]>>({});
   const [expandedGenerations, setExpandedGenerations] = useState<Set<string>>(new Set());
+  const [processingGenerations, setProcessingGenerations] = useState<Set<string>>(new Set());
+  const [generationProgress, setGenerationProgress] = useState<Record<string, number>>({});
+  const [generationTimeRemaining, setGenerationTimeRemaining] = useState<Record<string, number>>({});
   
   // Fetch chunks for generations
   useEffect(() => {
@@ -71,6 +83,77 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
       fetchChunks();
     }
   }, [generations]);
+  
+  // Poll for progress updates on processing generations
+  useEffect(() => {
+    const processingIds = generations
+      .filter(g => g.status === 'processing' || g.status === 'pending')
+      .map(g => g.id);
+    
+    if (processingIds.length === 0) {
+      setProcessingGenerations(new Set());
+      return;
+    }
+    
+    setProcessingGenerations(new Set(processingIds));
+    
+    const poll = async () => {
+      for (const id of processingIds) {
+        try {
+          const { data } = await supabase
+            .from('generations')
+            .select('progress_percentage, estimated_completion_at, status')
+            .eq('id', id)
+            .single();
+          
+          if (data) {
+            if (data.progress_percentage != null) {
+              setGenerationProgress(prev => ({ ...prev, [id]: data.progress_percentage }));
+            }
+            
+            if (data.estimated_completion_at) {
+              const estimated = new Date(data.estimated_completion_at).getTime();
+              const now = Date.now();
+              const remaining = Math.max(0, Math.floor((estimated - now) / 1000));
+              setGenerationTimeRemaining(prev => ({ ...prev, [id]: remaining }));
+            }
+            
+            // If completed or failed, refresh the list
+            if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+              if (onRefresh) onRefresh();
+            }
+          }
+        } catch (e) {
+          console.error(`[history] Error polling generation ${id}:`, e);
+        }
+      }
+    };
+    
+    poll();
+    const interval = setInterval(poll, 3000); // Poll every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [generations, onRefresh]);
+  
+  // Real-time countdown for processing generations
+  useEffect(() => {
+    const processingIds = Array.from(processingGenerations);
+    if (processingIds.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setGenerationTimeRemaining(prev => {
+        const updated = { ...prev };
+        for (const id of processingIds) {
+          if (updated[id] != null && updated[id] > 0) {
+            updated[id] = updated[id] - 1;
+          }
+        }
+        return updated;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [processingGenerations]);
 
   const handleDownload = async (generation: Generation, chunkIndex?: number) => {
     const downloadKey = chunkIndex !== undefined ? `${generation.id}-chunk-${chunkIndex}` : generation.id;
@@ -150,32 +233,135 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   }
 
+  // Helper to get display name for generation
+  const getGenerationName = (gen: Generation): string => {
+    if (gen.projects?.track_name) {
+      return gen.projects.track_name;
+    }
+    if (gen.video_jobs?.user_video_url) {
+      const url = gen.video_jobs.user_video_url;
+      const filename = url.split('/').pop() || 'Video';
+      return filename.replace(/\.[^/.]+$/, ''); // Remove extension
+    }
+    return 'Untitled Generation';
+  };
+  
+  // Thumbnail component that handles signed URLs
+  const ThumbnailImage = ({ path, alt }: { path: string; alt: string }) => {
+    const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+    
+    useEffect(() => {
+      const loadThumbnail = async () => {
+        try {
+          const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(path, 3600);
+          if (!error && data?.signedUrl) {
+            setThumbnailUrl(data.signedUrl);
+          }
+        } catch (e) {
+          console.error('[history] Error loading thumbnail:', e);
+        }
+      };
+      loadThumbnail();
+    }, [path]);
+    
+    if (!thumbnailUrl) {
+      return <div className="text-2xl">🎬</div>;
+    }
+    
+    return (
+      <img 
+        src={thumbnailUrl}
+        alt={alt}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  };
+
   return (
     <div className="space-y-4">
       {generations.map((generation) => {
         const config = statusConfig[generation.status];
+        const displayName = getGenerationName(generation);
+        const progress = generationProgress[generation.id] ?? generation.progress_percentage ?? 0;
+        const timeRemaining = generationTimeRemaining[generation.id];
+        const isProcessing = generation.status === 'processing' || generation.status === 'pending';
+        
         return (
           <GlassCard key={generation.id} elevated className="card-3d">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-1">
-                  {generation.projects.track_name}
-                </h3>
-                <div className="flex items-center gap-3 text-sm text-slate-400 mb-3">
-                  <span>{generation.projects.bpm} BPM</span>
-                  <span>•</span>
-                  <span>{generation.projects.bars} bars</span>
-                  <span>•</span>
-                  <span>{generation.cost_credits} credits</span>
-                </div>
-                <div className="text-xs text-slate-500">
-                  {new Date(generation.created_at).toLocaleString()}
-                </div>
+            <div className="flex items-start gap-4">
+              {/* Thumbnail */}
+              <div className="flex-shrink-0 w-32 h-20 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center relative">
+                {generation.thumbnail_r2_path ? (
+                  <ThumbnailImage 
+                    path={generation.thumbnail_r2_path} 
+                    alt={displayName}
+                  />
+                ) : isProcessing ? (
+                  <div className="text-4xl">⏳</div>
+                ) : generation.status === 'completed' ? (
+                  <div className="text-4xl">✅</div>
+                ) : (
+                  <div className="text-4xl">🎬</div>
+                )}
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.color}`}>
-                  {config.label}
-                </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-white mb-1 truncate">
+                      {displayName}
+                    </h3>
+                    <div className="flex items-center gap-3 text-sm text-slate-400 mb-2 flex-wrap">
+                      {generation.projects && (
+                        <>
+                          <span>{generation.projects.bpm} BPM</span>
+                          <span>•</span>
+                          <span>{generation.projects.bars} bars</span>
+                          <span>•</span>
+                        </>
+                      )}
+                      <span>{generation.cost_credits} credits</span>
+                      {generation.video_jobs?.prompt && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate max-w-xs" title={generation.video_jobs.prompt}>
+                            {generation.video_jobs.prompt}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Progress bar for processing generations */}
+                    {isProcessing && (
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                          <span>Progress: {progress}%</span>
+                          {timeRemaining != null && timeRemaining > 0 && (
+                            <span>
+                              {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')} remaining
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-2">
+                          <div
+                            className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.max(5, progress)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs text-slate-500">
+                      {new Date(generation.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold border ${config.color}`}>
+                      {config.label}
+                    </div>
                 {generation.status === 'completed' && (
                   <button
                     onClick={() => handleDownload(generation)}
@@ -220,6 +406,8 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     Cancelled by user
                   </p>
                 )}
+                  </div>
+                </div>
               </div>
             </div>
             

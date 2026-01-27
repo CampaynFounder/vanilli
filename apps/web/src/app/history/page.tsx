@@ -40,7 +40,17 @@ function HistoryPage() {
       const uid = session.user.id;
       try {
         if (activeTab === 'generations') {
-          const { data: g } = await supabase.from('generations').select('*, projects!inner(user_id,track_name,bpm,bars)').eq('projects.user_id', uid).order('created_at', { ascending: false }).limit(50);
+          // Get all generations for user: both with projects (legacy) and without (queue system)
+          const { data: g } = await supabase
+            .from('generations')
+            .select(`
+              *,
+              projects(user_id,track_name,bpm,bars),
+              video_jobs(user_id, user_video_url, target_images, prompt)
+            `)
+            .or(`projects.user_id.eq.${uid},video_jobs.user_id.eq.${uid}`)
+            .order('created_at', { ascending: false })
+            .limit(50);
           setGenerations((g || []) as Generation[]);
         } else if (activeTab === 'projects') {
           const { data: p } = await supabase.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50);
@@ -119,7 +129,16 @@ function HistoryPage() {
                     if (!session?.user?.id) return;
                     const uid = session.user.id;
                     try {
-                      const { data: g } = await supabase.from('generations').select('*, projects!inner(user_id,track_name,bpm,bars)').eq('projects.user_id', uid).order('created_at', { ascending: false }).limit(50);
+                      const { data: g } = await supabase
+                        .from('generations')
+                        .select(`
+                          *,
+                          projects(user_id,track_name,bpm,bars),
+                          video_jobs(user_id, user_video_url, target_images, prompt)
+                        `)
+                        .or(`projects.user_id.eq.${uid},video_jobs.user_id.eq.${uid}`)
+                        .order('created_at', { ascending: false })
+                        .limit(50);
                       setGenerations((g || []) as Generation[]);
                     } catch (e) { console.error(e); }
                   };
