@@ -105,25 +105,30 @@ function StudioPage() {
       setDurationValidation({ valid: false, error: `Video must be at most ${maxDuration} seconds for ${userTier} tier` });
       return;
     }
-    // If audio is provided, validate it matches video length
+    // If audio is provided, validate it
     if (audioTrack && audioDuration != null && audioDuration > 0) {
       const audioWhole = Math.floor(audioDuration);
       if (audioWhole < minDuration) {
         setDurationValidation({ valid: false, error: `Audio must be at least ${minDuration} seconds` });
         return;
       }
-      if (audioWhole > maxDuration) {
-        setDurationValidation({ valid: false, error: `Audio must be at most ${maxDuration} seconds` });
-        return;
+      // For DEMO and Industry tiers: audio can be different length (uses global alignment + tempo chunking)
+      // For lower tiers: audio must match video length
+      if (userTier !== 'demo' && userTier !== 'industry') {
+        if (audioWhole > maxDuration) {
+          setDurationValidation({ valid: false, error: `Audio must be at most ${maxDuration} seconds` });
+          return;
+        }
+        const diff = Math.abs(videoDuration - audioDuration);
+        if (diff > DURATION_MATCH_TOLERANCE) {
+          setDurationValidation({
+            valid: false,
+            error: `Video and audio must be the same length (video: ${videoDuration.toFixed(1)}s, audio: ${audioDuration.toFixed(1)}s)`,
+          });
+          return;
+        }
       }
-      const diff = Math.abs(videoDuration - audioDuration);
-      if (diff > DURATION_MATCH_TOLERANCE) {
-        setDurationValidation({
-          valid: false,
-          error: `Video and audio must be the same length (video: ${videoDuration.toFixed(1)}s, audio: ${audioDuration.toFixed(1)}s)`,
-        });
-        return;
-      }
+      // For DEMO/Industry: audio can be longer or shorter, system will align and slice appropriately
     }
     // Billable seconds: whole seconds only (floor). 3.0–3.99 → 3, 4.0–4.99 → 4.
     const genSecs = Math.max(minDuration, Math.min(maxDuration, videoWhole));
