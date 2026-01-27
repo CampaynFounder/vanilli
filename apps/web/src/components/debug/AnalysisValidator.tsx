@@ -27,6 +27,23 @@ interface ChunkData {
   status: string;
 }
 
+interface ChunkPreview {
+  chunk_index: number;
+  video_chunk_url: string;
+  audio_chunk_url: string;
+  video_start_time: number;
+  video_end_time: number;
+  audio_start_time: number;
+  audio_end_time: number;
+}
+
+interface ChunkPreviewResult {
+  video_duration: number;
+  audio_duration: number;
+  num_chunks: number;
+  chunks: ChunkPreview[];
+}
+
 export function AnalysisValidator() {
   const [generationId, setGenerationId] = useState('');
   const [jobId, setJobId] = useState('');
@@ -34,6 +51,8 @@ export function AnalysisValidator() {
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<VideoJobAnalysis | null>(null);
   const [chunks, setChunks] = useState<ChunkData[]>([]);
+  const [chunkPreviews, setChunkPreviews] = useState<ChunkPreviewResult | null>(null);
+  const [generatingPreviews, setGeneratingPreviews] = useState(false);
 
   const fetchAnalysis = async () => {
     if (!generationId && !jobId) {
@@ -98,6 +117,57 @@ export function AnalysisValidator() {
       setError(err instanceof Error ? err.message : 'Failed to fetch analysis');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateChunkPreviews = async () => {
+    if (!analysis || !analysis.user_video_url || !analysis.master_audio_url) {
+      setError('Missing video or audio URL');
+      return;
+    }
+
+    if (analysis.sync_offset === null || analysis.chunk_duration === null) {
+      setError('Sync offset or chunk duration not calculated');
+      return;
+    }
+
+    setGeneratingPreviews(true);
+    setError(null);
+
+    try {
+      // Get Modal URL from environment or construct it
+      // You'll need to set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL in your environment
+      const modalUrl = process.env.NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL || '';
+      
+      if (!modalUrl) {
+        throw new Error('Modal chunk preview URL not configured. Set NEXT_PUBLIC_MODAL_CHUNK_PREVIEW_URL');
+      }
+
+      const response = await fetch(modalUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_url: analysis.user_video_url,
+          audio_url: analysis.master_audio_url,
+          sync_offset: analysis.sync_offset,
+          chunk_duration: analysis.chunk_duration,
+          generation_id: analysis.generation_id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setChunkPreviews(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate chunk previews');
+    } finally {
+      setGeneratingPreviews(false);
     }
   };
 
@@ -296,11 +366,78 @@ export function AnalysisValidator() {
                 </div>
               </div>
             </div>
+
+            {analysis.sync_offset !== null && analysis.chunk_duration !== null && (
+              <div className="mt-4 pt-4 border-t border-slate-700">
+                <button
+                  onClick={generateChunkPreviews}
+                  disabled={generatingPreviews || !analysis.user_video_url || !analysis.master_audio_url}
+                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium"
+                >
+                  {generatingPreviews ? 'Generating Chunk Previews...' : 'Generate Chunk Previews for Download'}
+                </button>
+                <p className="text-xs text-slate-500 mt-2">
+                  Generate downloadable video and audio chunks to compare synchronization
+                </p>
+              </div>
+            )}
           </div>
+
+          {chunkPreviews && (
+            <div className="p-4 bg-slate-900/50 rounded border border-slate-700">
+              <h3 className="text-lg font-semibold mb-3">Chunk Previews (Downloadable)</h3>
+              <div className="mb-3 text-sm text-slate-400">
+                <div>Video Duration: {chunkPreviews.video_duration.toFixed(3)}s</div>
+                <div>Audio Duration: {chunkPreviews.audio_duration.toFixed(3)}s</div>
+                <div>Number of Chunks: {chunkPreviews.num_chunks}</div>
+                {analysis.bpm && <div>BPM: {analysis.bpm.toFixed(2)}</div>}
+              </div>
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {chunkPreviews.chunks.map((preview) => (
+                  <div
+                    key={preview.chunk_index}
+                    className="p-3 rounded border border-slate-700 bg-slate-800"
+                  >
+                    <div className="font-semibold mb-2">Chunk {preview.chunk_index + 1}</div>
+                    <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                      <div>
+                        <span className="text-slate-400">Video:</span>
+                        <div className="font-mono text-slate-300">
+                          {preview.video_start_time.toFixed(3)}s → {preview.video_end_time.toFixed(3)}s
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Audio:</span>
+                        <div className="font-mono text-slate-300">
+                          {preview.audio_start_time.toFixed(3)}s → {preview.audio_end_time.toFixed(3)}s
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={preview.video_chunk_url}
+                        download={`chunk_${preview.chunk_index}_video.mp4`}
+                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center"
+                      >
+                        Download Video Chunk {preview.chunk_index + 1}
+                      </a>
+                      <a
+                        href={preview.audio_chunk_url}
+                        download={`chunk_${preview.chunk_index}_audio.wav`}
+                        className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center"
+                      >
+                        Download Audio Chunk {preview.chunk_index + 1}
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {chunks.length > 0 && (
             <div className="p-4 bg-slate-900/50 rounded border border-slate-700">
-              <h3 className="text-lg font-semibold mb-3">Chunk Details</h3>
+              <h3 className="text-lg font-semibold mb-3">Chunk Details (from Database)</h3>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {chunks.map((chunk) => {
                   const expectedAudioStart = (chunk.video_chunk_start_time || 0) + (analysis.sync_offset || 0);
