@@ -16,7 +16,7 @@ interface GenerationPreviewProps {
   videoUrl?: string | Promise<string | null> | null;
 }
 
-export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl }: GenerationPreviewProps) {
+export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl, estimatedTimeRemaining }: GenerationPreviewProps & { estimatedTimeRemaining?: number | null }) {
   const [showNoise, setShowNoise] = useState(true);
   const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string | null>(null);
 
@@ -77,8 +77,14 @@ export function GenerationPreview({ status, progress, placeholderImage, onDownlo
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="text-center flex flex-col items-center justify-center w-full h-full">
             <ProgressRing progress={Math.max(10, progress)} size={120} />
-            <p className="mt-4 text-white font-semibold">Syncing your performance...</p>
-            <p className="text-xs text-slate-400 mt-1">This usually takes 60-90 seconds</p>
+            <p className="mt-4 text-white font-semibold">Processing your video...</p>
+            {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 ? (
+              <p className="text-xs text-slate-400 mt-1">
+                Estimated time remaining: {Math.floor(estimatedTimeRemaining / 60)}:{(estimatedTimeRemaining % 60).toString().padStart(2, '0')}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400 mt-1">This usually takes 60-90 seconds</p>
+            )}
           </div>
         </div>
       </div>

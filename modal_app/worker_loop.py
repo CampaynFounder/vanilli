@@ -170,10 +170,14 @@ def worker_loop():
         
         # Update generation record if linked
         if generation_id:
+            completed_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             supabase.table("generations").update({
                 "status": "completed",
                 "final_video_r2_path": output_key,
-                "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "completed_at": completed_time,
+                "progress_percentage": 100,
+                "current_stage": "completed",
+                "estimated_completion_at": None,  # Clear estimate when done
             }).eq("id", generation_id).execute()
             
             gen_data = supabase.table("generations").select("project_id").eq("id", generation_id).single().execute()
@@ -268,6 +272,21 @@ def process_job_with_chunks(
         chunks_dir.mkdir(exist_ok=True)
         final_segments = []
         
+        # Calculate estimated completion time (rough estimate: 60-90 seconds per chunk)
+        import datetime
+        estimated_seconds_per_chunk = 75  # Average processing time per chunk
+        estimated_total_seconds = num_chunks * estimated_seconds_per_chunk
+        estimated_completion = datetime.datetime.utcnow() + datetime.timedelta(seconds=estimated_total_seconds)
+        
+        # Update generation: set status to processing and estimated completion
+        if generation_id:
+            supabase.table("generations").update({
+                "status": "processing",
+                "current_stage": "processing_chunks",
+                "progress_percentage": 10,  # Analysis complete, starting chunks
+                "estimated_completion_at": estimated_completion.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }).eq("id", generation_id).execute()
+        
         # Process each chunk
         for i in range(num_chunks):
             chunk_id = chunk_records[i]["id"] if chunk_records[i] else None
@@ -279,6 +298,14 @@ def process_job_with_chunks(
                     supabase.table("video_chunks").update({
                         "status": "PROCESSING"
                     }).eq("id", chunk_id).execute()
+                
+                # Update generation progress: 10% (analysis) + 80% (chunks) + 10% (finalizing)
+                if generation_id:
+                    chunk_progress = 10 + int((i / num_chunks) * 80)
+                    supabase.table("generations").update({
+                        "progress_percentage": chunk_progress,
+                        "current_stage": "processing_chunks",
+                    }).eq("id", generation_id).execute()
                 
                 # Split video chunk
                 start_time = i * chunk_duration
@@ -354,6 +381,15 @@ def process_job_with_chunks(
                     }).eq("id", chunk_id).execute()
                 
                 final_segments.append(segment_path)
+                
+                # Update generation progress after chunk completion
+                if generation_id:
+                    chunk_progress = 10 + int(((i + 1) / num_chunks) * 80)
+                    supabase.table("generations").update({
+                        "progress_percentage": chunk_progress,
+                        "current_stage": "processing_chunks",
+                    }).eq("id", generation_id).execute()
+                
                 print(f"[worker] Chunk {i+1}/{num_chunks} completed successfully")
                 
             except Exception as e:
@@ -384,6 +420,13 @@ def process_job_with_chunks(
                 "cost_credits": total_credits_charged,
             }).eq("id", generation_id).execute()
         
+        # Update generation: stitching stage
+        if generation_id:
+            supabase.table("generations").update({
+                "progress_percentage": 90,
+                "current_stage": "stitching",
+            }).eq("id", generation_id).execute()
+        
         if len(final_segments) > 1:
             concat_file = work_path / "concat_list.txt"
             with open(concat_file, "w") as f:
@@ -398,5 +441,12 @@ def process_job_with_chunks(
             )
         else:
             final_path = final_segments[0]
+        
+        # Update generation: finalizing stage
+        if generation_id:
+            supabase.table("generations").update({
+                "progress_percentage": 95,
+                "current_stage": "finalizing",
+            }).eq("id", generation_id).execute()
         
         return final_path

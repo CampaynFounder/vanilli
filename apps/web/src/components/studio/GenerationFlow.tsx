@@ -40,7 +40,8 @@ export function GenerationFlow({
   hasCredits = true,
   showLinkCard = false,
   getCreditsHref = '/pricing',
-}: GenerationFlowProps) {
+  estimatedTimeRemaining,
+}: GenerationFlowProps & { estimatedTimeRemaining?: number | null }) {
   const steps = [
     { id: 'preparing', label: 'Preparing Your Files', icon: '⬇️' },
     { id: 'lipsync', label: 'Applying VANNILLI Lip-Sync', icon: '🎬' },
@@ -123,6 +124,11 @@ export function GenerationFlow({
                           style={{ width: `${Math.max(10, progress)}%` }}
                         />
                       </div>
+                      {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Estimated time remaining: {Math.floor(estimatedTimeRemaining / 60)}:{(estimatedTimeRemaining % 60).toString().padStart(2, '0')}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

@@ -52,6 +52,7 @@ function StudioPage() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
 
   // Client-side: Tier-based duration limits. Audio optional. If audio provided, must match video length. 1 credit = 1 second.
   const DURATION_MATCH_TOLERANCE = 0.5;
@@ -234,64 +235,88 @@ function StudioPage() {
         setGenerationId(gen.id);
         setCurrentStep('lipsync');
         setGenerationStatus('processing');
-        setGenerationProgress(15); // Start at 15% to ensure visibility
+        setGenerationProgress(5); // Initial progress
         
-        // Poll for completion
+        // Calculate estimated time based on video duration
+        // Rough estimate: 60-90 seconds per chunk, plus analysis time
+        const estimatedSecondsPerChunk = 75;
+        const numChunks = Math.ceil(videoDuration / (chunk_duration || 9));
+        const estimatedTotalSeconds = 30 + (numChunks * estimatedSecondsPerChunk); // 30s for analysis
+        setEstimatedTimeRemaining(estimatedTotalSeconds);
+        
+        // Poll for progress updates (async, non-blocking)
         const poll = async (): Promise<void> => {
-          const { data: row } = await supabase
-            .from('generations')
-            .select('status, error_message, final_video_r2_path')
-            .eq('id', gen.id)
-            .single();
-          
-          if (row?.status === 'completed') {
-            setCurrentStep('complete');
-            setGenerationProgress(100);
-            setGenerationStatus('completed');
-            setIsGenerating(false);
-            if (row.final_video_r2_path) {
-              const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(row.final_video_r2_path, 3600);
-              if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
+          try {
+            const { data: row } = await supabase
+              .from('generations')
+              .select('status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
+              .eq('id', gen.id)
+              .single();
+            
+            if (!row) {
+              setTimeout(poll, 3000);
+              return;
             }
-            refreshUser();
-            return;
-          }
-          if (row?.status === 'failed') {
-            setGenerationStatus('failed');
-            setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
-            setIsGenerating(false);
-            return;
-          }
-          // Update progress based on job status and chunks
-          const { data: jobData } = await supabase
-            .from('video_jobs')
-            .select('status, analysis_status')
-            .eq('id', job.id)
-            .single();
-          
-          const { data: chunks } = await supabase
-            .from('video_chunks')
-            .select('status, credits_charged')
-            .eq('job_id', job.id);
-          
-          const completedChunks = chunks?.filter(c => c.status === 'COMPLETED').length || 0;
-          const totalChunks = chunks?.length || 1;
-          
-          if (jobData?.analysis_status === 'ANALYZED') {
-            setGenerationProgress(20);
-            setCurrentStep('lipsync');
-          } else if (jobData?.status === 'PROCESSING') {
-            // Progress: 15% (analysis) + 70% (processing chunks) + 15% (finalizing)
-            const chunkProgress = totalChunks > 0 ? (completedChunks / totalChunks) * 70 : 0;
-            setGenerationProgress(Math.max(15, Math.min(15 + chunkProgress, 90)));
-            if (completedChunks > 0) {
-              setCurrentStep('syncing');
+            
+            // Update progress from database
+            if (row.progress_percentage !== null && row.progress_percentage !== undefined) {
+              setGenerationProgress(row.progress_percentage);
             }
+            
+            // Update current stage
+            if (row.current_stage) {
+              const stageMap: Record<string, typeof currentStep> = {
+                'analyzing': 'preparing',
+                'processing_chunks': 'lipsync',
+                'stitching': 'syncing',
+                'finalizing': 'finalizing',
+                'completed': 'complete',
+              };
+              if (stageMap[row.current_stage]) {
+                setCurrentStep(stageMap[row.current_stage]);
+              }
+            }
+            
+            // Calculate estimated time remaining
+            if (row.estimated_completion_at) {
+              const estimated = new Date(row.estimated_completion_at).getTime();
+              const now = Date.now();
+              const remaining = Math.max(0, Math.floor((estimated - now) / 1000));
+              setEstimatedTimeRemaining(remaining);
+            }
+            
+            if (row.status === 'completed') {
+              setCurrentStep('complete');
+              setGenerationProgress(100);
+              setGenerationStatus('completed');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(0);
+              if (row.final_video_r2_path) {
+                const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(row.final_video_r2_path, 3600);
+                if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
+              }
+              refreshUser();
+              return;
+            }
+            
+            if (row.status === 'failed') {
+              setGenerationStatus('failed');
+              setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(null);
+              return;
+            }
+            
+            // Continue polling
+            setTimeout(poll, 3000);
+          } catch (e) {
+            console.error('[studio] Poll error:', e);
+            setTimeout(poll, 5000); // Retry with longer delay on error
           }
-          
-          setTimeout(poll, 4000);
         };
-        setTimeout(poll, 3000);
+        
+        // Start polling immediately (async, non-blocking)
+        setTimeout(poll, 2000);
       } else {
         // Legacy flow for lower tiers
         const { data: proj, error: pe } = await supabase
@@ -354,33 +379,81 @@ function StudioPage() {
         const j = await res.json().catch(() => ({}));
         if (!res.ok || !j?.ok) throw new Error(j?.error || `Processing failed: ${res.status}`);
 
-        // 6) Poll generations (legacy flow)
+        // 6) Poll generations (legacy flow) - async, non-blocking
         const poll = async (): Promise<void> => {
-          const { data: row } = await supabase.from('generations').select('status, error_message, final_video_r2_path').eq('id', gid).single();
-          if (row?.status === 'completed') {
-            setCurrentStep('complete');
-            setGenerationProgress(100);
-            setGenerationStatus('completed');
-            setIsGenerating(false);
-            try {
-              const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${gid}/final.mp4`, 3600);
-              if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
-            } catch (e) {
-              console.error('[vannilli] Error creating video URL:', e);
+          try {
+            const { data: row } = await supabase
+              .from('generations')
+              .select('status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
+              .eq('id', gid)
+              .single();
+            
+            if (!row) {
+              setTimeout(poll, 3000);
+              return;
             }
-            refreshUser();
-            return;
+            
+            // Update progress from database
+            if (row.progress_percentage !== null && row.progress_percentage !== undefined) {
+              setGenerationProgress(row.progress_percentage);
+            } else {
+              // Fallback: increment progress if not in database
+              setGenerationProgress((p) => Math.min(p + 5, 90));
+            }
+            
+            // Update current stage
+            if (row.current_stage) {
+              const stageMap: Record<string, typeof currentStep> = {
+                'analyzing': 'preparing',
+                'processing_chunks': 'lipsync',
+                'stitching': 'syncing',
+                'finalizing': 'finalizing',
+                'completed': 'complete',
+              };
+              if (stageMap[row.current_stage]) {
+                setCurrentStep(stageMap[row.current_stage]);
+              }
+            }
+            
+            // Calculate estimated time remaining
+            if (row.estimated_completion_at) {
+              const estimated = new Date(row.estimated_completion_at).getTime();
+              const now = Date.now();
+              const remaining = Math.max(0, Math.floor((estimated - now) / 1000));
+              setEstimatedTimeRemaining(remaining);
+            }
+            
+            if (row.status === 'completed') {
+              setCurrentStep('complete');
+              setGenerationProgress(100);
+              setGenerationStatus('completed');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(0);
+              try {
+                const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(`${OUTPUTS}/${gid}/final.mp4`, 3600);
+                if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
+              } catch (e) {
+                console.error('[vannilli] Error creating video URL:', e);
+              }
+              refreshUser();
+              return;
+            }
+            
+            if (row.status === 'failed') {
+              setGenerationStatus('failed');
+              setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
+              setIsGenerating(false);
+              setEstimatedTimeRemaining(null);
+              return;
+            }
+            
+            setTimeout(poll, 3000);
+          } catch (e) {
+            console.error('[studio] Poll error:', e);
+            setTimeout(poll, 5000); // Retry with longer delay on error
           }
-          if (row?.status === 'failed') {
-            setGenerationStatus('failed');
-            setGenerationError(row?.error_message ? sanitizeForUser(row.error_message) : 'Generation failed');
-            setIsGenerating(false);
-            return;
-          }
-          setGenerationProgress((p) => Math.min(p + 10, 90));
-          setTimeout(poll, 4000);
         };
-        setTimeout(poll, 3000);
+        setTimeout(poll, 2000);
       }
     } catch (e) {
       setGenerationStatus('failed');
@@ -546,6 +619,7 @@ function StudioPage() {
               hasCredits={(user?.creditsRemaining ?? 0) >= 3}
               showLinkCard={false}
               getCreditsHref="/pricing"
+              estimatedTimeRemaining={estimatedTimeRemaining}
             />
 
             {/* How It Works - VANNILLI branded */}
@@ -590,6 +664,7 @@ function StudioPage() {
               status={generationStatus}
               progress={generationProgress}
               videoUrl={videoUrl}
+              estimatedTimeRemaining={estimatedTimeRemaining}
               onDownloadClick={
                 generationId
                   ? async () => {
