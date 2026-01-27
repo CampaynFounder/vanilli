@@ -117,7 +117,11 @@ def generate_chunk_previews(
         chunks_dir.mkdir(exist_ok=True)
         
         chunk_previews = []
-        storage_prefix = f"chunk_previews/{generation_id or 'temp'}"
+        # Use unique path for each request to avoid conflicts
+        import time
+        import uuid
+        unique_id = str(uuid.uuid4())[:8]
+        storage_prefix = f"chunk_previews/{generation_id or 'temp'}/{unique_id}"
         
         for i in range(num_chunks):
             print(f"[chunk-preview] Processing chunk {i+1}/{num_chunks}...")
@@ -144,23 +148,49 @@ def generate_chunk_previews(
                 check=True, capture_output=True
             )
             
-            # Upload video chunk
+            # Upload video chunk (use upsert to handle duplicates)
             video_storage_path = f"{storage_prefix}/video_chunk_{i:03d}.mp4"
             with open(video_chunk_path, "rb") as f:
-                supabase.storage.from_(BUCKET).upload(
-                    video_storage_path, 
-                    f.read(), 
-                    file_options={"content-type": "video/mp4"}
-                )
+                try:
+                    supabase.storage.from_(BUCKET).upload(
+                        video_storage_path, 
+                        f.read(), 
+                        file_options={"content-type": "video/mp4", "upsert": "true"}
+                    )
+                except Exception as upload_error:
+                    # If upload fails, try update (file might already exist)
+                    f.seek(0)  # Reset file pointer
+                    try:
+                        supabase.storage.from_(BUCKET).update(
+                            video_storage_path,
+                            f.read(),
+                            file_options={"content-type": "video/mp4"}
+                        )
+                    except Exception:
+                        # If both fail, re-raise the original error
+                        raise upload_error
             
-            # Upload audio chunk
+            # Upload audio chunk (use upsert to handle duplicates)
             audio_storage_path = f"{storage_prefix}/audio_chunk_{i:03d}.wav"
             with open(audio_chunk_path, "rb") as f:
-                supabase.storage.from_(BUCKET).upload(
-                    audio_storage_path,
-                    f.read(),
-                    file_options={"content-type": "audio/wav"}
-                )
+                try:
+                    supabase.storage.from_(BUCKET).upload(
+                        audio_storage_path,
+                        f.read(),
+                        file_options={"content-type": "audio/wav", "upsert": "true"}
+                    )
+                except Exception as upload_error:
+                    # If upload fails, try update (file might already exist)
+                    f.seek(0)  # Reset file pointer
+                    try:
+                        supabase.storage.from_(BUCKET).update(
+                            audio_storage_path,
+                            f.read(),
+                            file_options={"content-type": "audio/wav"}
+                        )
+                    except Exception:
+                        # If both fail, re-raise the original error
+                        raise upload_error
             
             # Get signed URLs (valid for 1 hour)
             video_signed = supabase.storage.from_(BUCKET).create_signed_url(video_storage_path, 3600)
