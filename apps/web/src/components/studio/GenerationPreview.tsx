@@ -18,7 +18,7 @@ interface GenerationPreviewProps {
   onCancelClick?: () => void;
 }
 
-export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl, estimatedTimeRemaining }: GenerationPreviewProps & { estimatedTimeRemaining?: number | null }) {
+export function GenerationPreview({ status, progress, placeholderImage, onDownloadClick, onCreateAnother, videoUrl, estimatedTimeRemaining, onCancelClick }: GenerationPreviewProps & { estimatedTimeRemaining?: number | null }) {
   const [showNoise, setShowNoise] = useState(true);
   const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string | null>(null);
 
