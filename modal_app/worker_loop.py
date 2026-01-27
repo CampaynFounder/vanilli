@@ -388,20 +388,12 @@ def process_job_with_chunks(
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
                 # Audio timing: Master audio starts at 0
-                # Chunk 0: Audio starts at sync_offset in master audio (skips dead space)
-                # Subsequent chunks: Audio continues sequentially from master audio (no sync_offset added)
-                if i == 0 and sync_offset and sync_offset > 0:
-                    # Chunk 0: Audio starts at sync_offset in master audio, duration excludes dead space
-                    audio_start_time = sync_offset  # In master audio
-                    audio_duration = video_chunk_actual_duration - sync_offset
-                    # Ensure we don't have negative duration
-                    if audio_duration <= 0:
-                        audio_duration = video_chunk_actual_duration
-                        audio_start_time = 0
-                else:
-                    # Subsequent chunks: Audio starts at i * chunk_duration in master audio (sequential, no offset)
-                    audio_start_time = i * chunk_duration  # Sequential in master audio
-                    audio_duration = video_chunk_actual_duration
+                # All chunks: Extract full chunk_duration from master audio starting at i * chunk_duration
+                # Chunk 0: Audio starts at 0 in master audio (full chunk_duration)
+                # Subsequent chunks: Audio continues sequentially (i * chunk_duration)
+                # When muxing chunk 0: Delay audio by sync_offset to align with music start in video
+                audio_start_time = i * chunk_duration  # Sequential in master audio (0 for chunk 0)
+                audio_duration = video_chunk_actual_duration  # Full chunk duration
                 
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
@@ -410,9 +402,9 @@ def process_job_with_chunks(
                 kling_requested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk: {video_chunk_start_time:.3f}s to {video_chunk_end_time:.3f}s (duration: {video_chunk_actual_duration:.3f}s)")
-                print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s)")
+                print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s) in master audio")
                 if i == 0 and sync_offset and sync_offset > 0:
-                    print(f"  - Chunk 0: Audio excludes {sync_offset:.3f}s dead space at video start")
+                    print(f"  - Chunk 0: Audio will be delayed by {sync_offset:.3f}s when muxing to align with music start in video")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
