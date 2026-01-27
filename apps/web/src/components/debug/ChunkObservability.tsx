@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { supabase } from '@/lib/supabase';
+import { supabase, getUser } from '@/lib/supabase';
 
 interface ChunkInfo {
   chunkIndex: number;
@@ -264,10 +264,16 @@ export function ChunkObservability() {
     setError(null);
 
     try {
-      // Upload files to Supabase Storage temporarily
+      // Get user ID for storage path - inputs/ requires authenticated user
+      const user = await getUser();
+      if (!user) {
+        throw new Error('Please sign in to use chunk observability. The debug page requires authentication for file uploads.');
+      }
+      
+      // Upload files to Supabase Storage using inputs/ path (has RLS policies for authenticated users)
       const tempId = `temp_${Date.now()}`;
-      const videoPath = `temp_uploads/${tempId}/video.mp4`;
-      const audioPath = `temp_uploads/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
+      const videoPath = `inputs/${user.id}/${tempId}/video.mp4`;
+      const audioPath = `inputs/${user.id}/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
 
       console.log('Uploading files for analysis...');
       
@@ -400,10 +406,16 @@ export function ChunkObservability() {
     setError(null);
 
     try {
-      // Upload files to Supabase Storage temporarily
+      // Get user ID for storage path - inputs/ requires authenticated user
+      const user = await getUser();
+      if (!user) {
+        throw new Error('Please sign in to use chunk observability. The debug page requires authentication for file uploads.');
+      }
+      
+      // Upload files to Supabase Storage using inputs/ path (has RLS policies for authenticated users)
       const tempId = `temp_${Date.now()}`;
-      const videoPath = `temp_uploads/${tempId}/video.mp4`;
-      const audioPath = `temp_uploads/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
+      const videoPath = `inputs/${user.id}/${tempId}/video.mp4`;
+      const audioPath = `inputs/${user.id}/${tempId}/audio.${audioFile.name.split('.').pop() || 'mp3'}`;
 
       console.log('Uploading files to Supabase...');
       
