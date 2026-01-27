@@ -52,20 +52,18 @@ export function ChunkObservability() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   
-  // Analysis results
+  // Analysis results (calculated automatically)
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
-  const [syncOffset, setSyncOffset] = useState<number>(0);
+  const [calculatedBpm, setCalculatedBpm] = useState<number | null>(null);
+  const [calculatedSyncOffset, setCalculatedSyncOffset] = useState<number | null>(null);
+  const [calculatedChunkDuration, setCalculatedChunkDuration] = useState<number | null>(null);
   const [tempoAnalysis, setTempoAnalysis] = useState<TempoAnalysis | null>(null);
   const [chunks, setChunks] = useState<ChunkInfo[]>([]);
-  
-  // Manual inputs
-  const [manualBpm, setManualBpm] = useState<string>('');
   
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [chunkPreviews, setChunkPreviews] = useState<ChunkPreviewResult | null>(null);
   const [generatingPreviews, setGeneratingPreviews] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -106,8 +104,13 @@ export function ChunkObservability() {
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     setAudioDuration(null);
+    // Reset all calculated values when new audio is uploaded
+    setCalculatedBpm(null);
+    setCalculatedSyncOffset(null);
+    setCalculatedChunkDuration(null);
     setTempoAnalysis(null);
     setChunks([]);
+    setChunkPreviews(null);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -543,12 +546,17 @@ export function ChunkObservability() {
 
       setUploadingFiles(false);
 
+      // Validate we have the required calculated values
+      if (calculatedSyncOffset === null || calculatedChunkDuration === null) {
+        throw new Error('Sync offset and chunk duration must be calculated first. Use "Analyze & Generate Chunk Previews" button.');
+      }
+
       // Call the helper function with explicit values
       await generateChunkPreviewsWithValues(
         videoSignedUrl,
         audioSignedUrl,
-        syncOffset,
-        tempoAnalysis.chunkDuration
+        calculatedSyncOffset,
+        calculatedChunkDuration
       );
 
       // Clean up temp files (async, don't wait)
@@ -616,9 +624,10 @@ export function ChunkObservability() {
 
   return (
     <GlassCard className="p-6">
-      <h2 className="text-xl font-bold mb-4">Chunk Observability with File Upload</h2>
+      <h2 className="text-xl font-bold mb-4">Chunk Observability - Verify Chunking Logic</h2>
       <p className="text-sm text-slate-400 mb-4">
-        Upload your tracking video and audio to verify chunk calculations, tempo analysis, and synchronization before sending to Kling.
+        Upload tracking video, audio, and optional images. The system will automatically calculate tempo (BPM), sync offset, and generate downloadable chunks. 
+        Verify that chunks start on downbeats and that video chunk 1 + audio chunk 1 + image 1 are properly aligned.
       </p>
 
       {/* Hidden media elements for duration detection */}
@@ -692,125 +701,89 @@ export function ChunkObservability() {
           </div>
         </div>
 
-        {/* Auto-Analyze Button - Main Action */}
-        {videoFile && audioFile && videoDuration !== null && !tempoAnalysis && (
+        {/* Main Action Button - Automatically Calculate Everything */}
+        {videoFile && audioFile && videoDuration !== null && !chunkPreviews && (
           <div className="p-4 bg-blue-900/20 border border-blue-700 rounded">
-            <h3 className="text-lg font-semibold mb-2 text-blue-300">Ready to Analyze</h3>
+            <h3 className="text-lg font-semibold mb-2 text-blue-300">Ready to Analyze & Generate Chunks</h3>
             <p className="text-sm text-slate-400 mb-4">
-              Click below to automatically calculate tempo (BPM), sync offset, and generate downloadable chunk previews.
+              Click below to automatically:
+              <br />• Calculate tempo (BPM) from audio
+              <br />• Calculate sync offset between video and audio
+              <br />• Calculate chunk duration (aligned to downbeats/measure boundaries)
+              <br />• Generate downloadable chunk previews (video + audio + image pairs)
             </p>
             <button
               onClick={analyzeMediaWithModal}
               disabled={analyzingMedia || uploadingFiles}
-              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium"
+              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
             >
-              {uploadingFiles ? 'Uploading files...' : analyzingMedia ? 'Analyzing with Modal...' : 'Analyze & Generate Chunk Previews'}
+              {uploadingFiles ? 'Uploading files...' : analyzingMedia ? 'Analyzing & Generating Chunks...' : 'Analyze & Generate Chunk Previews'}
             </button>
           </div>
         )}
 
-        {/* Tempo Analysis */}
-        <div className="p-4 bg-slate-900/30 rounded border border-slate-700">
-          <h3 className="text-lg font-semibold mb-3">Tempo Analysis</h3>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">BPM (Beats Per Minute)</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={manualBpm}
-                  onChange={(e) => setManualBpm(e.target.value)}
-                  placeholder="e.g., 120"
-                  min="60"
-                  max="200"
-                  step="0.1"
-                  className="flex-1 px-3 py-2 bg-slate-900 rounded border border-slate-700 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await analyzeAudio();
-                    // Auto-calculate chunks after tempo is calculated
-                    if (tempoAnalysis && videoDuration !== null && videoFile && audioFile) {
-                      setTimeout(() => calculateChunks(), 100);
-                    }
-                  }}
-                  disabled={analyzing || !manualBpm}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded text-sm font-medium"
-                >
-                  {analyzing ? 'Analyzing...' : 'Calculate Chunk Duration'}
-                </button>
+        {/* Calculated Results Display */}
+        {(calculatedBpm !== null || calculatedSyncOffset !== null || calculatedChunkDuration !== null) && (
+          <div className="p-4 bg-slate-900/50 rounded border border-slate-700">
+            <h3 className="text-lg font-semibold mb-3">Calculated Analysis Results</h3>
+            
+            <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+              <div>
+                <span className="text-slate-400">BPM (Tempo):</span>
+                <div className="font-mono text-lg mt-1">
+                  {calculatedBpm !== null ? calculatedBpm.toFixed(2) : 'Calculating...'}
+                </div>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Or enter BPM manually (60-200). Use tools like Audacity, Rekordbox, or tap tempo to detect.
-              </p>
+              <div>
+                <span className="text-slate-400">Sync Offset:</span>
+                <div className="font-mono text-lg mt-1">
+                  {calculatedSyncOffset !== null ? (
+                    <>
+                      {calculatedSyncOffset >= 0 ? '+' : ''}{calculatedSyncOffset.toFixed(3)}s
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({calculatedSyncOffset >= 0 ? 'audio ahead' : 'audio behind'})
+                      </span>
+                    </>
+                  ) : 'Calculating...'}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-400">Chunk Duration:</span>
+                <div className="font-mono text-lg mt-1 text-green-400">
+                  {calculatedChunkDuration !== null ? calculatedChunkDuration.toFixed(3) + 's' : 'Calculating...'}
+                </div>
+              </div>
             </div>
 
             {tempoAnalysis && (
-              <div className="mt-4 p-3 bg-slate-800 rounded">
-                <h4 className="font-semibold mb-2">Tempo Analysis Results</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-slate-400">BPM:</span>
-                    <span className="ml-2 font-mono">{tempoAnalysis.bpm.toFixed(2)}</span>
-                  </div>
+              <div className="mt-4 p-3 bg-slate-800 rounded text-xs">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-slate-400">Seconds per Beat:</span>
                     <span className="ml-2 font-mono">{tempoAnalysis.secondsPerBeat.toFixed(3)}s</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Seconds per Measure:</span>
+                    <span className="text-slate-400">Seconds per Measure (4/4):</span>
                     <span className="ml-2 font-mono">{tempoAnalysis.secondsPerMeasure.toFixed(3)}s</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Measures per Chunk:</span>
                     <span className="ml-2 font-mono">{tempoAnalysis.measuresPerChunk}</span>
                   </div>
-                  <div className="col-span-2 pt-2 border-t border-slate-700">
-                    <span className="text-slate-400">Calculated Chunk Duration:</span>
-                    <span className="ml-2 font-mono text-lg text-green-400">{tempoAnalysis.chunkDuration.toFixed(3)}s</span>
+                  <div>
+                    <span className="text-slate-400">Number of Chunks:</span>
+                    <span className="ml-2 font-mono">{chunks.length}</span>
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-slate-500">
+                <div className="mt-2 pt-2 border-t border-slate-700 text-slate-500">
                   Formula: {tempoAnalysis.measuresPerChunk} measures × {tempoAnalysis.secondsPerMeasure.toFixed(3)}s/measure = {tempoAnalysis.chunkDuration.toFixed(3)}s
+                </div>
+                <div className="mt-2 text-green-400">
+                  ✓ All chunks start on downbeats (measure boundaries) for seamless ffmpeg concatenation
                 </div>
               </div>
             )}
           </div>
-        </div>
-
-        {/* Sync Offset */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Sync Offset (seconds)</label>
-          <input
-            type="number"
-            value={syncOffset}
-            onChange={(e) => {
-              const newOffset = parseFloat(e.target.value) || 0;
-              setSyncOffset(newOffset);
-              // Auto-calculate chunks if tempo is already set
-              if (tempoAnalysis && videoDuration !== null && videoFile && audioFile) {
-                setTimeout(() => calculateChunks(), 100);
-              }
-            }}
-            step="0.001"
-            className="w-full px-3 py-2 bg-slate-900/50 rounded border border-slate-700 text-sm"
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Audio alignment offset. Positive = audio is ahead of video, Negative = audio is behind video.
-          </p>
-        </div>
-
-        {/* Calculate Chunks Button - shown when tempo is set but chunks not calculated */}
-        {tempoAnalysis && videoDuration !== null && videoFile && audioFile && chunks.length === 0 && (
-          <button
-            onClick={calculateChunks}
-            disabled={loading}
-            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium"
-          >
-            {loading ? 'Calculating...' : 'Calculate Chunks'}
-          </button>
         )}
 
         {error && (
