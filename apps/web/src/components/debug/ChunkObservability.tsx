@@ -28,6 +28,8 @@ interface ChunkPreview {
   chunk_index: number;
   video_chunk_url: string;
   audio_chunk_url: string;
+  image_url?: string | null;  // Optional image URL for this chunk
+  image_index?: number | null;  // Optional image index
   video_start_time: number;
   video_end_time: number;
   audio_start_time: number;
@@ -363,11 +365,12 @@ export function ChunkObservability() {
       const calculatedChunkDuration = analysisResult.chunk_duration;
 
       if (bpm && calculatedSyncOffset !== undefined && calculatedChunkDuration) {
-        // Set the calculated values
-        setManualBpm(bpm.toFixed(2));
-        setSyncOffset(calculatedSyncOffset);
+        // Store calculated values
+        setCalculatedBpm(bpm);
+        setCalculatedSyncOffset(calculatedSyncOffset);
+        setCalculatedChunkDuration(calculatedChunkDuration);
         
-        // Calculate tempo analysis
+        // Calculate tempo analysis for display
         const analysis = calculateChunkDurationFromBpm(bpm);
         setTempoAnalysis(analysis);
         
@@ -395,14 +398,55 @@ export function ChunkObservability() {
         }
         setChunks(calculatedChunks);
         
+        // Upload images if provided and get signed URLs
+        let imageSignedUrls: string[] = [];
+        if (imageFiles.length > 0) {
+          const imagePaths: string[] = [];
+          for (let i = 0; i < imageFiles.length; i++) {
+            const imagePath = `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`;
+            const { error: imageError } = await supabase.storage
+              .from('vannilli')
+              .upload(imagePath, imageFiles[i], {
+                contentType: imageFiles[i].type || 'image/jpeg',
+                upsert: true,
+              });
+            if (imageError) {
+              console.warn(`Failed to upload image ${i}:`, imageError);
+            } else {
+              imagePaths.push(imagePath);
+            }
+          }
+          
+          // Get signed URLs for uploaded images
+          for (const imagePath of imagePaths) {
+            const { data: imageSigned, error: imageSignedError } = await supabase.storage
+              .from('vannilli')
+              .createSignedUrl(imagePath, 3600);
+            if (!imageSignedError && imageSigned) {
+              const imageSignedUrl = (imageSigned as any)?.signedUrl || (imageSigned as any)?.signed_url;
+              if (imageSignedUrl) {
+                imageSignedUrls.push(imageSignedUrl);
+              }
+            }
+          }
+        }
+        
         // Then generate previews directly with the values we have (don't wait for state)
-        // Re-upload files and generate previews
         await generateChunkPreviewsWithValues(
           videoSignedUrl,
           audioSignedUrl,
           calculatedSyncOffset,
-          analysis.chunkDuration
+          calculatedChunkDuration,
+          imageSignedUrls.length > 0 ? imageSignedUrls : undefined
         );
+        
+        // Clean up image files too
+        if (imageFiles.length > 0) {
+          const imagePaths = imageFiles.map((_, i) => 
+            `inputs/${user.id}/${tempId}/image_${i}.${imageFiles[i].name.split('.').pop() || 'jpg'}`
+          );
+          supabase.storage.from('vannilli').remove(imagePaths).catch(console.error);
+        }
       } else {
         throw new Error('Analysis did not return expected values');
       }
@@ -421,7 +465,8 @@ export function ChunkObservability() {
     videoSignedUrl: string,
     audioSignedUrl: string,
     syncOffsetValue: number,
-    chunkDurationValue: number
+    chunkDurationValue: number,
+    imageUrls?: string[]
   ) => {
     setGeneratingPreviews(true);
     setError(null);
@@ -451,6 +496,7 @@ export function ChunkObservability() {
           audio_url: audioSignedUrl,
           sync_offset: syncOffsetValue,
           chunk_duration: chunkDurationValue,
+          image_urls: imageUrls || [], // Optional array of image URLs
         }),
       });
 
@@ -1003,6 +1049,18 @@ export function ChunkObservability() {
                         )}
                       </div>
                     </div>
+                    {preview.image_url && (
+                      <div className="mb-3 p-2 bg-slate-800 rounded">
+                        <div className="text-xs text-slate-400 mb-1">
+                          Image {preview.image_index !== null && preview.image_index !== undefined ? preview.image_index + 1 : 'N/A'}:
+                        </div>
+                        <img 
+                          src={preview.image_url} 
+                          alt={`Chunk ${preview.chunk_index + 1} image`}
+                          className="max-w-full max-h-32 rounded"
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <a
                         href={preview.video_chunk_url}
@@ -1020,7 +1078,7 @@ export function ChunkObservability() {
                       </a>
                     </div>
                     <div className="mt-2 text-xs text-slate-500">
-                      Compare: Video chunk {preview.chunk_index + 1} audio offset should match audio chunk {preview.chunk_index + 1} start time
+                      Chunk {preview.chunk_index + 1}: Video + Audio{preview.image_url ? ` + Image ${(preview.image_index ?? 0) + 1}` : ''} should align perfectly
                     </div>
                   </div>
                 );

@@ -32,6 +32,7 @@ def generate_chunk_previews(
     sync_offset: float,
     chunk_duration: float,
     generation_id: Optional[str] = None,
+    image_urls: Optional[List[str]] = None,
 ) -> Dict:
     """Generate preview chunks (video + audio) for validation.
     
@@ -176,10 +177,19 @@ def generate_chunk_previews(
             if not video_chunk_url or not audio_chunk_url:
                 raise Exception(f"Failed to create signed URLs for chunk {i+1}")
             
+            # Get image URL for this chunk (rotate through images if provided)
+            image_url = None
+            image_index = None
+            if image_urls and len(image_urls) > 0:
+                image_index = i % len(image_urls)
+                image_url = image_urls[image_index]
+            
             chunk_previews.append({
                 "chunk_index": i,
                 "video_chunk_url": video_chunk_url,
                 "audio_chunk_url": audio_chunk_url,
+                "image_url": image_url,  # Optional image URL for this chunk
+                "image_index": image_index,  # Optional image index (0-based)
                 "video_start_time": video_start_time,
                 "video_end_time": video_end_time,
                 "audio_start_time": audio_start_time,
@@ -254,6 +264,7 @@ def api():
         sync_offset = data.get("sync_offset")
         chunk_duration = data.get("chunk_duration")
         generation_id = data.get("generation_id")
+        image_urls = data.get("image_urls", [])  # Optional array of image URLs
         
         if not all([video_url, audio_url, sync_offset is not None, chunk_duration]):
             return JSONResponse(
@@ -268,6 +279,7 @@ def api():
                 sync_offset=float(sync_offset),
                 chunk_duration=float(chunk_duration),
                 generation_id=generation_id,
+                image_urls=image_urls if image_urls else None,
             )
             return JSONResponse(result)
         except Exception as e:
