@@ -962,46 +962,56 @@ export function ChunkObservability() {
                     )}
                     <div className="flex gap-2">
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // Programmatic download to avoid navigation - stays on same page
-                          const link = document.createElement('a');
-                          link.href = preview.video_chunk_url;
-                          link.download = `chunk_${preview.chunk_index + 1}_video.mp4`;
-                          // No target - download happens without navigation
-                          link.style.display = 'none';
-                          document.body.appendChild(link);
-                          link.click();
-                          // Clean up immediately
-                          requestAnimationFrame(() => {
-                            if (link.parentNode) {
+                          // Fetch-based download to prevent new tab navigation
+                          try {
+                            const response = await fetch(preview.video_chunk_url);
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `chunk_${preview.chunk_index + 1}_video.mp4`;
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
+                            link.click();
+                            // Clean up after download starts
+                            setTimeout(() => {
                               document.body.removeChild(link);
-                            }
-                          });
+                              window.URL.revokeObjectURL(url);
+                            }, 100);
+                          } catch (err) {
+                            console.error('Download failed:', err);
+                          }
                         }}
                         className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm text-center cursor-pointer"
                       >
                         Download Video Chunk {preview.chunk_index + 1}
                       </button>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // Programmatic download to avoid navigation - stays on same page
-                          const link = document.createElement('a');
-                          link.href = preview.audio_chunk_url;
-                          link.download = `chunk_${preview.chunk_index + 1}_audio.wav`;
-                          // No target - download happens without navigation
-                          link.style.display = 'none';
-                          document.body.appendChild(link);
-                          link.click();
-                          // Clean up immediately
-                          requestAnimationFrame(() => {
-                            if (link.parentNode) {
+                          // Fetch-based download to prevent new tab navigation
+                          try {
+                            const response = await fetch(preview.audio_chunk_url);
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `chunk_${preview.chunk_index + 1}_audio.wav`;
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
+                            link.click();
+                            // Clean up after download starts
+                            setTimeout(() => {
                               document.body.removeChild(link);
-                            }
-                          });
+                              window.URL.revokeObjectURL(url);
+                            }, 100);
+                          } catch (err) {
+                            console.error('Download failed:', err);
+                          }
                         }}
                         className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm text-center cursor-pointer"
                       >

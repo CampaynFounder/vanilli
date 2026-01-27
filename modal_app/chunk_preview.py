@@ -441,16 +441,41 @@ def api():
                 if not isinstance(sync_offset, (int, float)):
                     sync_offset = float(sync_offset)
                 
+                # Onset-based fallback: If audalign returns near-zero offset, detect first musical transient
+                # This handles cases where audalign fails to detect dead space at video start
+                if abs(sync_offset) < 0.1:
+                    print(f"[chunk-preview] Audalign returned near-zero offset ({sync_offset:.3f}s), checking for onset-based fallback...")
+                    try:
+                        # Load video audio and detect onsets
+                        y_video, sr_video = librosa.load(str(video_audio_path), sr=22050)
+                        onset_env = librosa.onset.onset_strength(y=y_video, sr=sr_video)
+                        onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr_video, backtrack=True)
+                        
+                        if len(onset_frames) > 0:
+                            first_onset_time = librosa.frames_to_time(onset_frames[0], sr=sr_video)
+                            print(f"[chunk-preview] First onset detected at {first_onset_time:.3f}s in video audio")
+                            
+                            # If first onset is > 0.3s, use it as offset (music starts later in video)
+                            if first_onset_time > 0.3:
+                                print(f"[chunk-preview] Using onset-based offset: {first_onset_time:.3f}s (music starts {first_onset_time:.3f}s into video)")
+                                sync_offset = first_onset_time
+                            else:
+                                print(f"[chunk-preview] First onset is too early ({first_onset_time:.3f}s), keeping audalign offset")
+                        else:
+                            print(f"[chunk-preview] No onsets detected in video audio, keeping audalign offset")
+                    except Exception as e:
+                        print(f"[chunk-preview] Onset detection failed: {e}, keeping audalign offset")
+                
                 # Interpret offset:
                 # Positive offset = master audio starts BEFORE video audio (music in video starts later)
                 # This means: music starts X seconds INTO the video (dead space at start)
-                print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s")
+                print(f"[chunk-preview] Final sync offset: {sync_offset:.3f}s")
                 if sync_offset > 0:
                     print(f"[chunk-preview]   → Music starts {sync_offset:.3f}s INTO the video (dead space at start)")
                 elif sync_offset < 0:
                     print(f"[chunk-preview]   → Video matches mid-song (audio needs trimming by {abs(sync_offset):.3f}s)")
                 else:
-                    print(f"[chunk-preview]   → Perfect sync (no offset needed) - WARNING: Check if this is correct!")
+                    print(f"[chunk-preview]   → Perfect sync (no offset needed)")
                 
                 # Calculate BPM using librosa
                 print(f"[chunk-preview] Calculating tempo...")
