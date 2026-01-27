@@ -26,7 +26,7 @@ serve(async (req) => {
     });
   }
 
-  let body: { record?: { id?: string; user_video_url?: string; master_audio_url?: string; tier?: string } };
+  let body: { record?: { id?: string; user_video_url?: string; master_audio_url?: string; tier?: string; user_bpm?: number } };
   try {
     body = await req.json();
   } catch {
@@ -46,6 +46,7 @@ serve(async (req) => {
 
   const jobId = record.id;
   const tier = record.tier || "open_mic";
+  const userBpm = record.user_bpm; // Optional user-provided BPM
 
   // Only dispatch to analyzer for DEMO/Industry tiers (need tempo analysis)
   const needsAnalysis = tier === "demo" || tier === "industry";
@@ -53,14 +54,22 @@ serve(async (req) => {
   if (needsAnalysis) {
     try {
       // Dispatch to Modal Analyzer
+      const analyzerPayload: { job_id: string; video: string; audio: string; bpm?: number } = {
+        job_id: jobId,
+        video: record.user_video_url,
+        audio: record.master_audio_url,
+      };
+      
+      // Include user-provided BPM if available
+      if (userBpm != null && userBpm > 0 && userBpm <= 300) {
+        analyzerPayload.bpm = userBpm;
+        console.log(`[dispatch] Including user-provided BPM: ${userBpm}`);
+      }
+      
       const analyzerResponse = await fetch(modalAnalyzerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          job_id: jobId,
-          video: record.user_video_url,
-          audio: record.master_audio_url,
-        }),
+        body: JSON.stringify(analyzerPayload),
       });
 
       if (!analyzerResponse.ok) {

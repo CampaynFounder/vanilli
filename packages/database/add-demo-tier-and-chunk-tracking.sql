@@ -23,6 +23,8 @@ ALTER TABLE video_jobs ADD CONSTRAINT video_jobs_tier_check
 ALTER TABLE video_jobs ADD COLUMN IF NOT EXISTS sync_offset FLOAT;
 ALTER TABLE video_jobs ADD COLUMN IF NOT EXISTS bpm FLOAT;
 ALTER TABLE video_jobs ADD COLUMN IF NOT EXISTS chunk_duration FLOAT;
+-- Add user-provided BPM field (optional, used if provided instead of calculating)
+ALTER TABLE video_jobs ADD COLUMN IF NOT EXISTS user_bpm FLOAT;
 ALTER TABLE video_jobs ADD COLUMN IF NOT EXISTS analysis_status TEXT DEFAULT 'PENDING_ANALYSIS' 
   CHECK (analysis_status IN ('PENDING_ANALYSIS', 'ANALYZED', 'FAILED'));
 

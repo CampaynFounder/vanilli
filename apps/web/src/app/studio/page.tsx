@@ -43,6 +43,9 @@ function StudioPage() {
 
   // Optional scene prompt: context/environment (motion comes from video). Max 100 chars.
   const [prompt, setPrompt] = useState('');
+  
+  // Optional user-provided BPM (tempo)
+  const [userBpm, setUserBpm] = useState<string>('');
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -351,19 +354,30 @@ function StudioPage() {
         
         console.log('[studio] Generation created:', gen.id, 'credits:', genSecs);
         
+        const jobData: any = {
+          user_id: uid,
+          generation_id: gen.id,
+          tier: userTier,
+          is_first_time: false, // TODO: detect first time
+          status: 'PENDING_ANALYSIS',
+          user_video_url: t.signedUrl,
+          master_audio_url: audioSignedUrl || t.signedUrl, // Use video audio if no separate audio
+          target_images: imageUrls,
+          prompt: (prompt || '').slice(0, 100) || null,
+        };
+        
+        // Include user-provided BPM if entered
+        if (userBpm && userBpm.trim() !== '') {
+          const bpmValue = parseFloat(userBpm);
+          if (!isNaN(bpmValue) && bpmValue > 0 && bpmValue <= 300) {
+            jobData.user_bpm = bpmValue;
+            console.log(`[studio] Including user-provided BPM: ${bpmValue}`);
+          }
+        }
+        
         const { data: job, error: je } = await supabase
           .from('video_jobs')
-          .insert({
-            user_id: uid,
-            generation_id: gen.id,
-            tier: userTier,
-            is_first_time: false, // TODO: detect first time
-            status: 'PENDING_ANALYSIS',
-            user_video_url: t.signedUrl,
-            master_audio_url: audioSignedUrl || t.signedUrl, // Use video audio if no separate audio
-            target_images: imageUrls,
-            prompt: (prompt || '').slice(0, 100) || null,
-          })
+          .insert(jobData)
           .select('id')
           .single();
         
@@ -782,6 +796,28 @@ function StudioPage() {
               />
               <p id="studio-prompt-hint" className="mt-1.5 text-xs text-slate-500">
                 Context and environment for the scene. Motion comes from your video. {prompt.length}/100
+              </p>
+            </GlassCard>
+
+            {/* BPM/Tempo input (optional) – helps with audio alignment and chunking */}
+            <GlassCard>
+              <label htmlFor="studio-bpm" className="block text-sm font-medium text-slate-300 mb-2">
+                5. BPM (Tempo) <span className="text-slate-500 font-normal">(optional)</span>
+              </label>
+              <input
+                id="studio-bpm"
+                type="number"
+                min="1"
+                max="300"
+                step="0.1"
+                value={userBpm}
+                onChange={(e) => setUserBpm(e.target.value)}
+                placeholder="e.g. 120"
+                className="w-full px-4 py-3 rounded-lg bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-colors"
+                aria-describedby="studio-bpm-hint"
+              />
+              <p id="studio-bpm-hint" className="mt-1.5 text-xs text-slate-500">
+                Beats per minute of your track. If provided, will be used for chunk calculation. Otherwise, we'll detect it automatically.
               </p>
             </GlassCard>
           </div>

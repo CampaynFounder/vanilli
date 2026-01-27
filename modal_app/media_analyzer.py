@@ -75,6 +75,7 @@ def analyze_media(
     job_id: Optional[str],
     video_url: str,
     audio_url: str,
+    user_bpm: Optional[float] = None,
 ) -> Dict:
     """Analyze media files: calculate sync offset and tempo-based chunk duration.
     
@@ -280,11 +281,23 @@ def analyze_media(
         else:
             print(f"[analyzer]   → Perfect sync (no offset needed)")
         
-        # 2. Calculate BPM and measure grid using librosa
-        print("[analyzer] Analyzing tempo with librosa...")
-        y, sr = librosa.load(str(audio_path), sr=22050)
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
-        bpm = float(tempo)
+        # 2. Calculate BPM and measure grid
+        # Use user-provided BPM if available, otherwise calculate with librosa
+        if user_bpm is not None and user_bpm > 0:
+            print(f"[analyzer] Using user-provided BPM: {user_bpm:.2f}")
+            bpm = float(user_bpm)
+            # Still calculate with librosa for comparison
+            y, sr = librosa.load(str(audio_path), sr=22050)
+            calculated_tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+            calculated_bpm = float(calculated_tempo)
+            print(f"[analyzer] Calculated BPM (for comparison): {calculated_bpm:.2f}")
+            print(f"[analyzer] User BPM vs Calculated: {bpm:.2f} vs {calculated_bpm:.2f} (diff: {abs(bpm - calculated_bpm):.2f})")
+        else:
+            print("[analyzer] No user BPM provided, calculating tempo with librosa...")
+            y, sr = librosa.load(str(audio_path), sr=22050)
+            tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+            bpm = float(tempo)
+            print(f"[analyzer] Calculated BPM: {bpm:.2f}")
         
         # Calculate beats per second and seconds per beat
         beats_per_second = bpm / 60.0
@@ -448,10 +461,26 @@ def api():
                 status_code=400
             )
         
+        # Get optional user-provided BPM from request body
+        user_bpm = None
+        try:
+            body = await req.json()
+            if "bpm" in body and body["bpm"] is not None:
+                user_bpm = float(body["bpm"])
+                if user_bpm <= 0 or user_bpm > 300:
+                    return JSONResponse(
+                        {"error": "BPM must be between 1 and 300"},
+                        status_code=400
+                    )
+                print(f"[analyzer] Received user-provided BPM: {user_bpm:.2f}")
+        except (ValueError, KeyError, TypeError):
+            # BPM not provided or invalid, will calculate it
+            pass
+        
         # Start analysis (async - returns immediately, analysis runs in background)
         try:
             # Call the analysis function remotely (job_id can be None for debug)
-            result = analyze_media.remote(job_id or "debug", video_url, audio_url)
+            result = analyze_media.remote(job_id or "debug", video_url, audio_url, user_bpm)
             return JSONResponse({
                 "status": "Analysis Complete",
                 "job_id": job_id,
