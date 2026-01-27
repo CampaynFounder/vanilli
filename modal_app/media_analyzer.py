@@ -174,20 +174,19 @@ def analyze_media(
             
             # Compute cross-correlation
             # This finds where video audio best matches master audio
-            # Use 'valid' mode for faster computation (only where arrays fully overlap)
+            # Use 'full' mode to detect both positive and negative offsets
             print(f"[analyzer] Starting cross-correlation computation...")
-            correlation = signal.correlate(y_master_short, y_video_short, mode='valid')
+            correlation = signal.correlate(y_master_short, y_video_short, mode='full')
             print(f"[analyzer] Cross-correlation completed, finding peak...")
             
             # Find peak correlation (best match point)
             peak_index = np.argmax(np.abs(correlation))
             
             # Convert peak index to time offset
-            # With 'valid' mode, correlation length = len(master) - len(video) + 1
-            # Peak at index 0 means video at 0s matches master at 0s
-            # Peak at index N means video at 0s matches master at N samples
-            # So offset_samples = peak_index (video is shifted right by this amount)
-            offset_samples = peak_index
+            # correlation is 'full' mode, so indices range from -len(video) to +len(master)
+            # Center is at len(video_short) - 1
+            center_index = len(y_video_short) - 1
+            offset_samples = peak_index - center_index
             offset_seconds = offset_samples / sr_master
             
             print(f"[analyzer] Cross-correlation peak at index {peak_index} (center={center_index})")
