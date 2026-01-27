@@ -445,9 +445,12 @@ def process_job_with_chunks(
             raise Exception("No chunks completed successfully")
         
         # Calculate total credits charged (only for successful chunks)
+        # Query completed chunks from database
+        chunks_query = supabase.table("video_chunks").select("credits_charged, status").eq("job_id", job_id).execute()
+        chunks_data = chunks_query.data if chunks_query.data else []
         total_credits_charged = sum(
             chunk.get("credits_charged", 0) 
-            for chunk in (chunks or []) 
+            for chunk in chunks_data
             if chunk.get("status") == "COMPLETED"
         )
         

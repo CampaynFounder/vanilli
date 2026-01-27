@@ -12,7 +12,9 @@ ALTER TABLE generations ADD COLUMN IF NOT EXISTS progress_percentage INTEGER DEF
 ALTER TABLE generations ADD COLUMN IF NOT EXISTS estimated_completion_at TIMESTAMPTZ;
 
 -- Add current_processing_stage (for display purposes)
-ALTER TABLE generations ADD COLUMN IF NOT EXISTS current_stage TEXT 
+-- First drop the constraint if it exists, then add the updated one
+ALTER TABLE generations DROP CONSTRAINT IF EXISTS generations_current_stage_check;
+ALTER TABLE generations ADD CONSTRAINT generations_current_stage_check
   CHECK (current_stage IN ('pending', 'analyzing', 'processing_chunks', 'stitching', 'finalizing', 'completed', 'failed', 'cancelled'));
 
 -- Add started_at timestamp (when processing actually started)
