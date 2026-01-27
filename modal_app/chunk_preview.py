@@ -72,6 +72,8 @@ def generate_chunk_previews(
     
     with tempfile.TemporaryDirectory() as work_dir:
         work_path = Path(work_dir)
+        video_raw_path = work_path / "video_raw.mp4"
+        audio_raw_path = work_path / "audio_raw.wav"
         video_path = work_path / "video.mp4"
         audio_path = work_path / "audio.wav"
         
@@ -79,22 +81,59 @@ def generate_chunk_previews(
         print(f"[chunk-preview] Downloading video from {video_url}")
         r = requests.get(video_url, timeout=120)
         r.raise_for_status()
-        video_path.write_bytes(r.content)
+        video_raw_path.write_bytes(r.content)
         
         print(f"[chunk-preview] Downloading audio from {audio_url}")
         r = requests.get(audio_url, timeout=120)
         r.raise_for_status()
         audio_content = r.content
-        audio_path.write_bytes(audio_content)
+        audio_raw_path.write_bytes(audio_content)
         
         # Extract audio from MP4 if needed
         if audio_url.lower().endswith('.mp4'):
             audio_wav_path = work_path / "audio_extracted.wav"
             subprocess.run(
-                ["ffmpeg", "-y", "-i", str(audio_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_wav_path)],
+                ["ffmpeg", "-y", "-i", str(audio_raw_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_wav_path)],
                 check=True, capture_output=True
             )
-            audio_path = audio_wav_path
+            audio_raw_path = audio_wav_path
+        
+        # Apply Smart Trim based on sync_offset polarity
+        # This eliminates dead air by trimming the appropriate input file
+        print(f"[chunk-preview] Applying Smart Trim with sync_offset: {sync_offset:.3f}s")
+        
+        # Threshold for "near zero" - avoid unnecessary processing for tiny offsets
+        SMART_TRIM_THRESHOLD = 0.1  # 100ms
+        
+        if abs(sync_offset) < SMART_TRIM_THRESHOLD:
+            # Near zero offset - no trimming needed
+            print(f"[chunk-preview] Offset is near zero ({sync_offset:.3f}s), skipping trim")
+            video_path = video_raw_path
+            audio_path = audio_raw_path
+        elif sync_offset > 0:
+            # CASE A: Positive offset - Dead air in video
+            # Trim the video start to remove dead air, audio starts at 0
+            print(f"[chunk-preview] Trimming {sync_offset:.3f}s from VIDEO start (removing dead air)")
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(video_raw_path),
+                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-perfect cut
+                 "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
+                 str(video_path)],
+                check=True, capture_output=True
+            )
+            audio_path = audio_raw_path
+        else:
+            # CASE B: Negative offset - Mid-song performance
+            # Trim the audio start, video starts at 0
+            trim_val = abs(sync_offset)
+            print(f"[chunk-preview] Trimming {trim_val:.3f}s from AUDIO start (matching mid-song)")
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(trim_val), "-i", str(audio_raw_path),
+                 "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+                 str(audio_path)],
+                check=True, capture_output=True
+            )
+            video_path = video_raw_path
         
         # Get durations
         result = subprocess.run(
@@ -127,10 +166,12 @@ def generate_chunk_previews(
             print(f"[chunk-preview] Processing chunk {i+1}/{num_chunks}...")
             
             # Calculate timing
+            # After Smart Trim, both video and audio start at 0, so timing is aligned
             video_start_time = i * chunk_duration
             video_end_time = min(video_start_time + chunk_duration, video_duration)
-            audio_start_time = video_start_time + sync_offset
-            audio_end_time = audio_start_time + chunk_duration
+            # Audio timing matches video timing after Smart Trim (no offset needed)
+            audio_start_time = video_start_time
+            audio_end_time = video_end_time
             
             # Extract video chunk
             video_chunk_path = chunks_dir / f"video_chunk_{i:03d}.mp4"
