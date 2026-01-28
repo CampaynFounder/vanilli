@@ -106,8 +106,15 @@ def worker_loop():
     analysis_status = job.get("analysis_status", "PENDING_ANALYSIS")
     sync_offset = job.get("sync_offset")
     chunk_duration = job.get("chunk_duration")
+    user_bpm = job.get("user_bpm")  # User-provided BPM (if available)
+    bpm = job.get("bpm")  # Calculated BPM from analyzer
     
     print(f"[worker] Processing job {job_id} (tier: {user_tier}, generation: {generation_id}, analysis: {analysis_status})")
+    if user_bpm:
+        print(f"[worker] User-provided BPM: {user_bpm:.2f}")
+    if bpm:
+        print(f"[worker] Calculated BPM: {bpm:.2f}")
+    print(f"[worker] Chunk duration: {chunk_duration:.3f}s (calculated from {'user' if user_bpm else 'detected'} BPM)")
     
     # Check if generation was cancelled
     if generation_id:
@@ -275,24 +282,81 @@ def process_job_with_chunks(
             )
             master_audio_raw_path = audio_wav_path
         
-        # DO NOT trim video/audio - keep full files
-        # The sync_offset will be used when muxing final video with audio
-        # Positive offset = music starts X seconds into video (dead space at start)
-        # We'll shift the audio to the right by offset amount when muxing
-        print(f"[worker] Sync offset: {sync_offset:.3f}s (will be applied when muxing final video)")
-        print(f"[worker] Positive offset = music starts {sync_offset:.3f}s into video (dead space at start)")
-        print(f"[worker] Negative offset = video matches mid-song (audio needs trimming)")
+        # Smart Video Trim: Apply trim logic based on sync_offset polarity
+        # This ensures the final output starts exactly on the downbeat
+        # Positive offset (> 0): Dead space in video → Trim VIDEO
+        # Negative offset (< 0): Video starts mid-song → Trim AUDIO
+        # Zero offset: No trimming needed
+        print(f"[worker] Sync offset: {sync_offset:.3f}s")
         
-        # Use original files (no trimming)
-        user_video_path = user_video_raw_path
-        master_audio_path = master_audio_raw_path
-        
-        # Get video duration
+        # Get original durations before trimming
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(user_video_path)],
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(user_video_raw_path)],
             capture_output=True, text=True, check=True
         )
-        duration = float(result.stdout.strip())
+        video_duration_raw = float(result.stdout.strip())
+        
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(master_audio_raw_path)],
+            capture_output=True, text=True, check=True
+        )
+        audio_duration_raw = float(result.stdout.strip())
+        
+        if abs(sync_offset) < 0.01:
+            print(f"[worker] Offset is near zero, no trimming needed")
+            user_video_path = user_video_raw_path
+            master_audio_path = master_audio_raw_path
+            video_duration = video_duration_raw
+            audio_duration = audio_duration_raw
+        elif sync_offset > 0:
+            print(f"[worker] Positive offset: Trimming VIDEO by {sync_offset:.3f}s (removing dead space)")
+            # Trim video: apply -ss to video input, re-encode for frame-accurate cut
+            video_trimmed_path = work_path / "video_trimmed.mp4"
+            trim_result = subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(user_video_raw_path),
+                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-accurate trim
+                 "-pix_fmt", "yuv420p",  # Ensure compatibility
+                 "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
+                 "-movflags", "+faststart",  # Web optimization
+                 str(video_trimmed_path)],
+                check=True, capture_output=True, text=True
+            )
+            # Verify trimmed video was created and has video stream
+            if not video_trimmed_path.exists() or video_trimmed_path.stat().st_size == 0:
+                raise Exception(f"Video trimming failed - file missing or empty")
+            # Verify video has video stream
+            probe_result = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(video_trimmed_path)],
+                capture_output=True, text=True
+            )
+            if probe_result.returncode != 0 or "video" not in probe_result.stdout.lower():
+                raise Exception(f"Trimmed video has no video stream - trimming may have failed")
+            print(f"[worker] Video trimmed successfully: {video_trimmed_path.stat().st_size / 1024 / 1024:.2f} MB")
+            user_video_path = video_trimmed_path
+            master_audio_path = master_audio_raw_path
+            # Video duration is reduced by sync_offset
+            video_duration = max(0, video_duration_raw - sync_offset)
+            audio_duration = audio_duration_raw
+        else:
+            # Negative offset: Trim audio
+            trim_val = abs(sync_offset)
+            print(f"[worker] Negative offset: Trimming AUDIO by {trim_val:.3f}s (matching mid-song)")
+            audio_trimmed_path = work_path / "audio_trimmed.wav"
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(trim_val), "-i", str(master_audio_raw_path),
+                 "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+                 str(audio_trimmed_path)],
+                check=True, capture_output=True, text=True
+            )
+            user_video_path = user_video_raw_path
+            master_audio_path = audio_trimmed_path
+            # Audio duration is reduced by trim_val
+            video_duration = video_duration_raw
+            audio_duration = max(0, audio_duration_raw - trim_val)
+        
+        # Use video_duration from Smart Video Trim (already calculated above)
+        duration = video_duration
         
         # Calculate number of chunks
         # Skip last chunk if it would be less than 3 seconds
@@ -380,12 +444,31 @@ def process_job_with_chunks(
                     }).eq("id", generation_id).execute()
                 
                 # Split video chunk
+                # After Smart Video Trim, chunk 0 starts at 0, subsequent chunks continue sequentially
+                # IMPORTANT: Re-encode (not copy) to preserve quality and fix timestamps
                 start_time = i * chunk_duration
                 chunk_path = chunks_dir / f"chunk_{i:03d}.mp4"
+                print(f"[worker] Extracting chunk {i+1} video: start={start_time:.3f}s, duration={chunk_duration:.3f}s (re-encoding for quality)")
                 subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(user_video_path), "-ss", str(start_time), "-t", str(chunk_duration), "-c", "copy", str(chunk_path)],
-                    check=True, capture_output=True
+                    ["ffmpeg", "-y", "-i", str(user_video_path), "-ss", str(start_time), "-t", str(chunk_duration),
+                     "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for quality
+                     "-pix_fmt", "yuv420p",  # Ensure compatibility
+                     "-avoid_negative_ts", "make_zero",  # Fix timestamps
+                     "-movflags", "+faststart",  # Web optimization
+                     str(chunk_path)],
+                    check=True, capture_output=True, text=True
                 )
+                # Verify chunk was created and has video stream
+                if not chunk_path.exists() or chunk_path.stat().st_size == 0:
+                    raise Exception(f"Video chunk {i+1} extraction failed - file missing or empty")
+                probe_result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(chunk_path)],
+                    capture_output=True, text=True
+                )
+                if probe_result.returncode != 0 or "video" not in probe_result.stdout.lower():
+                    raise Exception(f"Video chunk {i+1} has no video stream - extraction may have failed")
+                print(f"[worker] Video chunk {i+1} extracted: {chunk_path.stat().st_size / 1024:.2f} KB")
                 
                 # Upload chunk for Kling
                 chunk_storage_path = f"temp_chunks/{job_id}/chunk_{i:03d}.mp4"
@@ -545,54 +628,28 @@ def process_job_with_chunks(
                     audio_slice_path = audio_with_silence_path  # Use audio with prepended silence
                 
                 # Mux video + audio
-                # Chunk 0: Delay audio by sync_offset to align with music in video (which has dead space at start)
-                # Chunk 1: Audio has silence prepended, video starts at 0, both align at 0
-                # Chunk 2+: Audio continues sequentially, no delay needed
+                # After Smart Video Trim, chunk 0 video/audio both start at 0
+                # Subsequent chunks continue sequentially, no delay needed
                 segment_path = chunks_dir / f"segment_{i:03d}.mp4"
                 print(f"[worker] Muxing chunk {i+1}: Kling video + audio slice")
-                if i == 0 and sync_offset and sync_offset > 0:
-                    # Chunk 0: Video has dead space at start, delay audio by sync_offset to align with music
-                    print(f"[worker] Chunk 0: Delaying audio by {sync_offset:.3f}s to align with music in video")
-                    result = subprocess.run(
-                        ["ffmpeg", "-y",
-                         "-i", str(kling_output_path),  # Video from Kling (has dead space at start)
-                         "-i", str(audio_slice_path),   # Audio slice (0 to chunk_duration from master)
-                         "-filter_complex", f"[1:a]adelay={int(sync_offset * 1000)}|{int(sync_offset * 1000)}[delayed]",  # Delay audio by sync_offset ms
-                         "-map", "0:v:0", "-map", "[delayed]",
-                         "-c:v", "libx264", "-preset", "veryfast",
-                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-                         "-movflags", "+faststart",
-                         "-shortest", str(segment_path)],
-                        check=True, capture_output=True, text=True
-                    )
-                    # Log FFmpeg output for debugging
-                    if result.stdout:
-                        print(f"[worker] FFmpeg output: {result.stdout[:500]}")
-                    if result.stderr:
-                        print(f"[worker] FFmpeg stderr: {result.stderr[:500]}")
-                    print(f"[worker] Chunk 0 muxing completed (audio delayed by {sync_offset:.3f}s to align with music)")
-                elif i == 1 and sync_offset and sync_offset > 0:
-                    # Chunk 1: Audio has silence prepended, video starts at 0, both align at 0
-                    print(f"[worker] Chunk 1: Audio has {sync_offset:.3f}s silence prepended, video at 0s - both align at start")
-                    result = subprocess.run(
-                        ["ffmpeg", "-y",
-                         "-i", str(kling_output_path),  # Video from Kling (starts at chunk_duration in original)
-                         "-i", str(audio_slice_path),   # Audio slice with silence prepended
-                         "-map", "0:v:0", "-map", "1:a:0",
-                         "-c:v", "libx264", "-preset", "veryfast",
-                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-                         "-movflags", "+faststart",
-                         "-shortest", str(segment_path)],
-                        check=True, capture_output=True, text=True
-                    )
-                    # Log FFmpeg output for debugging
-                    if result.stdout:
-                        print(f"[worker] FFmpeg output: {result.stdout[:500]}")
-                    if result.stderr:
-                        print(f"[worker] FFmpeg stderr: {result.stderr[:500]}")
-                    print(f"[worker] Chunk 1 muxing completed (audio with silence, video at 0s - both aligned)")
-                else:
-                    # Subsequent chunks: Audio continues sequentially from where previous chunk ended
+                # Simple muxing - both video and audio are already aligned after Smart Video Trim
+                result = subprocess.run(
+                    ["ffmpeg", "-y",
+                     "-i", str(kling_output_path),  # Video from Kling
+                     "-i", str(audio_slice_path),   # Audio slice (aligned after Smart Video Trim)
+                     "-map", "0:v:0", "-map", "1:a:0",
+                     "-c:v", "libx264", "-preset", "veryfast",
+                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+                     "-movflags", "+faststart",
+                     "-shortest", str(segment_path)],
+                    check=True, capture_output=True, text=True
+                )
+                # Log FFmpeg output for debugging
+                if result.stdout:
+                    print(f"[worker] FFmpeg output: {result.stdout[:500]}")
+                if result.stderr:
+                    print(f"[worker] FFmpeg stderr: {result.stderr[:500]}")
+                print(f"[worker] Chunk {i+1} muxing completed (video and audio aligned after Smart Video Trim)")
                     # No delay needed, aligns naturally with video
                     result = subprocess.run(
                         ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
