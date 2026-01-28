@@ -320,60 +320,70 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   };
 
-  // Video player for completed videos - allows playback
+  // Video player for completed videos - allows playback; thumbnail is playable once loaded
   const CompletedVideoPlayer = ({ videoPath }: { videoPath: string }) => {
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
-    
+
+    const handlePlayPause = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!videoRef.current) return;
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {});
+      }
+    };
+
     useEffect(() => {
+      setLoadError(false);
       const loadVideo = async () => {
         try {
-          // Ensure path doesn't have leading slash
           const cleanPath = videoPath.startsWith('/') ? videoPath.slice(1) : videoPath;
           const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(cleanPath, 3600);
           if (!error && data?.signedUrl) {
             setSignedUrl(data.signedUrl);
           } else {
-            console.error('[history] Error loading completed video:', error);
+            setLoadError(true);
           }
-        } catch (e) {
-          console.error('[history] Error loading video for playback:', e);
+        } catch {
+          setLoadError(true);
         }
       };
       loadVideo();
     }, [videoPath]);
-    
+
+    if (loadError) {
+      return <div className="text-2xl" title="Video unavailable">🎬</div>;
+    }
     if (!signedUrl) {
       return <div className="text-2xl">⏳</div>;
     }
-    
+
     return (
       <div className="w-full h-full relative group">
         <video
           ref={videoRef}
           src={signedUrl}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           controls={isPlaying}
           playsInline
           preload="metadata"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (videoRef.current) {
-              if (isPlaying) {
-                videoRef.current.pause();
-              } else {
-                videoRef.current.play();
-              }
-            }
-          }}
+          onClick={handlePlayPause}
         />
         {!isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/20 transition-colors cursor-pointer">
-            <div className="text-white text-3xl drop-shadow-lg">▶</div>
-          </div>
+          <button
+            type="button"
+            onClick={handlePlayPause}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-inset"
+            aria-label="Play video"
+          >
+            <div className="text-white text-3xl drop-shadow-lg pointer-events-none">▶</div>
+          </button>
         )}
       </div>
     );
@@ -394,27 +404,23 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
             <div className="flex items-start gap-4">
               {/* Thumbnail or Video Player */}
               <div className="flex-shrink-0 w-32 h-20 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center relative">
-                {generation.status === 'completed' && generation.final_video_r2_path ? (
-                  // Video player for completed videos
-                  <CompletedVideoPlayer 
-                    videoPath={generation.final_video_r2_path}
+                {generation.status === 'completed' ? (
+                  // Playable video for every completed generation (fallback path if DB missing)
+                  <CompletedVideoPlayer
+                    videoPath={generation.final_video_r2_path || `outputs/${generation.id}/final.mp4`}
                   />
                 ) : isProcessing ? (
-                  // Modern processing animation with user's target images
                   <ProcessingThumbnail
                     targetImages={generation.video_jobs?.target_images}
                     thumbnailPath={generation.thumbnail_r2_path}
                     progress={progress}
                     currentStage={currentStage}
                   />
-                ) : generation.thumbnail_r2_path && (generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') ? (
-                  // Static thumbnail for failed/cancelled (completed uses video player above)
-                  <ThumbnailImage 
-                    path={generation.thumbnail_r2_path} 
+                ) : generation.thumbnail_r2_path && (generation.status === 'failed' || generation.status === 'cancelled') ? (
+                  <ThumbnailImage
+                    path={generation.thumbnail_r2_path}
                     alt={displayName}
                   />
-                ) : generation.status === 'completed' ? (
-                  <div className="text-4xl">✅</div>
                 ) : generation.status === 'failed' ? (
                   <div className="text-4xl">❌</div>
                 ) : (
