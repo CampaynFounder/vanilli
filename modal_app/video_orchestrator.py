@@ -38,7 +38,7 @@ class KlingClient:
         self.api_key = api_key
         self.base_url = "https://queue.fal.run"
         self.endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"  # Full endpoint for submission
-        self.model_id = "fal-ai/kling-video/v2.6"  # Base model ID for status/result endpoints (subpath excluded)
+        self.model_id = "kling-video/v2.6"  # Model ID for status/result endpoints (no namespace, no subpath)
     
     def generate(self, driver_video_url: str, target_image_url: str, prompt: Optional[str] = None, webhook_url: Optional[str] = None) -> str:
         """Generate video via fal.ai Kling API. Returns request_id for polling.

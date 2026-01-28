@@ -209,7 +209,7 @@ def process_video_impl(data: Optional[dict] = None):
         # fal.ai Kling motion-control: driver/reference video + image. character_orientation=image.
         fal_base_url = "https://queue.fal.run"
         fal_endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"  # Full endpoint for submission
-        fal_model_id = "fal-ai/kling-video/v2.6"  # Base model ID for status/result (subpath excluded)
+        fal_model_id = "kling-video/v2.6"  # Model ID for status/result endpoints (no namespace, no subpath)
         payload = {
             "image_url": target_url,
             "video_url": tracking_url_for_kling,
