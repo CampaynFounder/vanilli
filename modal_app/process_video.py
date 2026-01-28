@@ -73,7 +73,8 @@ def process_video_impl(data: Optional[dict] = None):
         base = Path(d)
         tracking_path = base / "tracking.mp4"
         target_path = base / "target.jpg"
-        audio_path = base / "audio.mp3"
+        audio_raw_path = base / "audio_raw"  # Will detect extension from URL
+        audio_path = base / "audio.wav"  # Converted WAV for processing
         kling_path = base / "kling.mp4"
         synced_path = base / "synced.mp4"
         final_path = base / "final.mp4"
@@ -88,7 +89,23 @@ def process_video_impl(data: Optional[dict] = None):
             download(tracking_url, tracking_path)
             download(target_url, target_path)
             if audio_url:
-                download(audio_url, audio_path)
+                # Detect file extension from URL
+                audio_ext = audio_url.lower().split('.')[-1].split('?')[0] if '.' in audio_url.lower() else 'mp3'
+                audio_raw_path = base / f"audio_raw.{audio_ext}"
+                download(audio_url, audio_raw_path)
+                
+                # Convert to WAV if needed (MP3, MP4, or other formats)
+                if audio_ext not in ('wav', 'wave'):
+                    print(f"[vannilli] Converting audio from {audio_ext.upper()} to WAV format...")
+                    _run_ffmpeg(
+                        ["ffmpeg", "-y", "-i", str(audio_raw_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_path)],
+                        "convert-audio-to-wav",
+                    )
+                    print(f"[vannilli] Audio converted to WAV successfully")
+                else:
+                    # Already WAV, just copy/rename
+                    import shutil
+                    shutil.copy2(audio_raw_path, audio_path)
             # Download watermark if needed for trial users
             if is_trial:
                 watermark_url = os.environ.get("VANNILLI_WATERMARK_URL") or "https://vannilli.xaino.io/logo/watermark.png"
