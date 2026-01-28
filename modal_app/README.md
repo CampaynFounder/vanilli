@@ -59,7 +59,7 @@ The function needs:
 
 - `tracking_video_url`, `target_image_url`, `audio_track_url` – publicly reachable URLs (e.g. Supabase signed URLs)
 - `generation_id` – an existing `generations` row with `status: 'pending'`
-- Optional: `is_trial` (default `false`), `generation_seconds` (when > 0: trim tracking and audio to this many seconds before Kling and merge), `prompt` (string, max 100 chars; passed to Kling motion-control for context/environment)
+- Optional: `is_trial` (default `false`), `generation_seconds` (when > 0: trim tracking and audio to this many seconds before Kling and merge), `prompt` (string, max 500 chars; passed to fal.ai/Kling motion-control for context/environment)
 
 **Option A – Use the app once, then call Modal yourself**
 
