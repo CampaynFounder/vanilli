@@ -224,9 +224,9 @@ export default function SocialSignupPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold transition-all shadow-lg shadow-purple-500/20 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]"
+                      className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none active:scale-[0.99]"
                     >
-                      {loading ? 'Creating account…' : 'Claim Free Credits Now'}
+                      {loading ? 'Getting your deal…' : 'Get My AI Artist Deal Now'}
                     </button>
                   </form>
                 </>
