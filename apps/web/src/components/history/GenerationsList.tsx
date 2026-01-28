@@ -193,13 +193,19 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         // Create signed URL from storage path
         // Ensure path doesn't have leading slash (Supabase expects relative path)
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-        console.log(`[GenerationsList] Creating signed URL for path: ${cleanPath}`);
         const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(cleanPath, 3600);
         if (error || !data?.signedUrl) {
-          console.error(`[GenerationsList] Failed to create signed URL:`, error);
-          console.error(`[GenerationsList] Path used: ${cleanPath}`);
-          console.error(`[GenerationsList] Generation ID: ${generation.id}`);
-          console.error(`[GenerationsList] final_video_r2_path: ${generation.final_video_r2_path}`);
+          // Log error details for debugging (only in development)
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error(`[GenerationsList] Failed to create signed URL:`, error);
+            // eslint-disable-next-line no-console
+            console.error(`[GenerationsList] Path used: ${cleanPath}`);
+            // eslint-disable-next-line no-console
+            console.error(`[GenerationsList] Generation ID: ${generation.id}`);
+            // eslint-disable-next-line no-console
+            console.error(`[GenerationsList] final_video_r2_path: ${generation.final_video_r2_path}`);
+          }
           setDownloadError(error?.message || 'Download link not available. The video may not have been uploaded yet.');
           setDownloadErrorId(downloadKey);
           return;
@@ -309,7 +315,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   };
 
   // Video player for completed videos - allows playback
-  const CompletedVideoPlayer = ({ videoPath, generationId }: { videoPath: string; generationId: string }) => {
+  const CompletedVideoPlayer = ({ videoPath }: { videoPath: string }) => {
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -444,7 +450,6 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   // Video player for completed videos
                   <CompletedVideoPlayer 
                     videoPath={generation.final_video_r2_path}
-                    generationId={generation.id}
                   />
                 ) : isProcessing && generation.video_jobs?.user_video_url ? (
                   // Live video scrubbing for pending/processing status

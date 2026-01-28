@@ -408,7 +408,7 @@ function StudioPage() {
           try {
             const { data: row } = await supabase
               .from('generations')
-              .select('status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
+              .select('id, status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
               .eq('id', gen.id)
               .single();
             
@@ -459,12 +459,17 @@ function StudioPage() {
               if (row.final_video_r2_path) {
                 // Ensure path doesn't have leading slash (Supabase expects relative path)
                 const cleanPath = row.final_video_r2_path.startsWith('/') ? row.final_video_r2_path.slice(1) : row.final_video_r2_path;
-                console.log(`[studio] Creating signed URL for final video: ${cleanPath}`);
                 const { data: urlData, error: urlError } = await supabase.storage.from(BUCKET).createSignedUrl(cleanPath, 3600);
                 if (urlError) {
-                  console.error(`[studio] Failed to create signed URL:`, urlError);
-                  console.error(`[studio] Path used: ${cleanPath}`);
-                  console.error(`[studio] Generation ID: ${row.id}`);
+                  // Log error details for debugging (only in development)
+                  if (process.env.NODE_ENV === 'development') {
+                    // eslint-disable-next-line no-console
+                    console.error(`[studio] Failed to create signed URL:`, urlError);
+                    // eslint-disable-next-line no-console
+                    console.error(`[studio] Path used: ${cleanPath}`);
+                    // eslint-disable-next-line no-console
+                    console.error(`[studio] Generation ID: ${row.id}`);
+                  }
                 } else if (urlData?.signedUrl) {
                   setVideoUrl(urlData.signedUrl);
                 }
@@ -582,7 +587,7 @@ function StudioPage() {
           try {
             const { data: row } = await supabase
               .from('generations')
-              .select('status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
+              .select('id, status, error_message, final_video_r2_path, progress_percentage, current_stage, estimated_completion_at')
               .eq('id', gid)
               .single();
             
