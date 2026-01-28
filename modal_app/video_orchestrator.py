@@ -70,7 +70,10 @@ class KlingClient:
     
     def poll_status(self, request_id: str, max_attempts: int = 60) -> Tuple[str, Optional[str]]:
         """Poll fal.ai task status. Returns (status, video_url). Status: 'succeed', 'failed', 'processing'."""
-        for _ in range(max_attempts):
+        status_poll_failures = 0
+        max_status_failures = 10  # After 10 status poll failures, try direct result fetch
+        
+        for attempt in range(max_attempts):
             time.sleep(5)
             try:
                 # fal.ai queue API: get status (must include model_id in path)
@@ -81,6 +84,7 @@ class KlingClient:
                 )
                 r.raise_for_status()
                 j = r.json()
+                status_poll_failures = 0  # Reset on success
                 
                 # fal.ai status format: "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
                 status = j.get("status")
@@ -125,7 +129,43 @@ class KlingClient:
                 elif status in ("COMPLETED", "FAILED"):
                     break
             except requests.exceptions.RequestException as e:
+                status_poll_failures += 1
                 print(f"[fal.ai] Poll error: {e}, continuing...")
+                
+                # If status polling keeps failing, try fetching result directly as fallback
+                # (useful if status endpoint has issues but result endpoint works)
+                if status_poll_failures >= max_status_failures and attempt >= 5:  # Wait at least 5 attempts before trying fallback
+                    print(f"[fal.ai] Status polling failed {status_poll_failures} times, trying direct result fetch as fallback...")
+                    try:
+                        result_r = requests.get(
+                            f"{self.base_url}/{self.endpoint}/requests/{request_id}",
+                            headers={"Authorization": f"Key {self.api_key}"},
+                            timeout=30,
+                        )
+                        if result_r.status_code == 200:
+                            result_j = result_r.json()
+                            # Check if it's completed
+                            if result_j.get("status") == "COMPLETED":
+                                response_data = result_j.get("response", {})
+                                video_data = response_data.get("video") if response_data else result_j.get("video")
+                                if video_data:
+                                    if isinstance(video_data, dict):
+                                        video_url = video_data.get("url")
+                                    elif isinstance(video_data, str):
+                                        video_url = video_data
+                                    else:
+                                        video_url = None
+                                    
+                                    if video_url:
+                                        print(f"[fal.ai] Successfully fetched result via fallback method")
+                                        return ("succeed", video_url)
+                        elif result_r.status_code == 400:
+                            # Not ready yet, continue polling
+                            print(f"[fal.ai] Result not ready yet (400), continuing to poll...")
+                            continue
+                    except Exception as fallback_e:
+                        print(f"[fal.ai] Fallback result fetch also failed: {fallback_e}, continuing...")
+                
                 continue
         raise Exception("fal.ai task timed out")
 
