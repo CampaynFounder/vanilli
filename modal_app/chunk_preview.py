@@ -98,12 +98,42 @@ def generate_chunk_previews(
             )
             audio_raw_path = audio_wav_path
         
-        # DO NOT trim video/audio - keep full files for preview
-        # The sync_offset is only used to calculate where to extract audio chunks from master
-        # In production, chunk 0 video is trimmed by sync_offset, but for preview we show original chunks
-        print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s (used for audio chunk timing, not for trimming)")
-        video_path = video_raw_path
-        audio_path = audio_raw_path
+        # Smart Video Trim: Apply trim logic based on sync_offset polarity
+        # This ensures the final output starts exactly on the downbeat
+        # Positive offset (> 0): Dead space in video → Trim VIDEO
+        # Negative offset (< 0): Video starts mid-song → Trim AUDIO
+        # Zero offset: No trimming needed
+        print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s")
+        if abs(sync_offset) < 0.01:
+            print(f"[chunk-preview] Offset is near zero, no trimming needed")
+            video_path = video_raw_path
+            audio_path = audio_raw_path
+        elif sync_offset > 0:
+            print(f"[chunk-preview] Positive offset: Trimming VIDEO by {sync_offset:.3f}s (removing dead space)")
+            # Trim video: apply -ss to video input, re-encode for frame-accurate cut
+            video_trimmed_path = work_path / "video_trimmed.mp4"
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(video_raw_path),
+                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-accurate trim
+                 "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
+                 str(video_trimmed_path)],
+                check=True, capture_output=True
+            )
+            video_path = video_trimmed_path
+            audio_path = audio_raw_path
+        else:
+            # Negative offset: Trim audio
+            trim_val = abs(sync_offset)
+            print(f"[chunk-preview] Negative offset: Trimming AUDIO by {trim_val:.3f}s (matching mid-song)")
+            audio_trimmed_path = work_path / "audio_trimmed.wav"
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", str(trim_val), "-i", str(audio_raw_path),
+                 "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+                 str(audio_trimmed_path)],
+                check=True, capture_output=True
+            )
+            video_path = video_raw_path
+            audio_path = audio_trimmed_path
         
         # Get durations
         result = subprocess.run(
@@ -150,49 +180,60 @@ def generate_chunk_previews(
             
             # Calculate timing with sync_offset
             # Video chunks: sequential, starting at 0
+            # After Smart Video Trim, chunk 0 video/audio are already aligned at 0
             video_start_time = i * chunk_duration
             video_end_time = min(video_start_time + chunk_duration, video_duration)
             video_chunk_actual_duration = video_end_time - video_start_time
             
-            # Audio timing: Match production logic in worker_loop.py
-            # Chunk 0: Audio starts at 0 in master, delayed by sync_offset when muxing
-            # Chunk 1: Audio starts at chunk_duration in master, silence prepended in production
-            # Chunk 2+: Audio starts where previous chunk ended in master
-            if sync_offset and sync_offset > 0:
-                if i == 0:
-                    # Chunk 0: Audio extracted from 0 to chunk_duration
-                    # In production, audio is delayed by sync_offset when muxing
-                    audio_start_time = 0
-                elif i == 1:
-                    # Chunk 1: Audio starts at chunk_duration in master
-                    # In production, silence is prepended to this audio
-                    audio_start_time = chunk_duration
-                else:
-                    # Chunk 2+: Start where previous chunk audio ended in master
-                    # If chunk 0 extracts 0-8s, chunk 1 starts at 8s, chunk 2 starts at 16s, etc.
-                    prev_audio_end = i * chunk_duration
-                    audio_start_time = prev_audio_end
+            # Audio timing: After Smart Video Trim, chunk 0 audio starts at 0
+            # Subsequent chunks continue sequentially
+            if i == 0:
+                # Chunk 0: After Smart Video Trim, audio starts at 0 (video or audio was trimmed)
+                audio_start_time = 0
             else:
-                # No sync offset: audio chunks match video chunks exactly
+                # Chunk 1+: Continue sequentially from where previous chunk ended
+                # If chunk 0 is chunk_duration long, chunk 1 starts at chunk_duration
                 audio_start_time = i * chunk_duration
             
             audio_end_time = audio_start_time + video_chunk_actual_duration
             
             # Extract video chunk
+            # For chunk 0, video was already trimmed by Smart Video Trim (if positive offset)
+            # For other chunks, extract normally
             video_chunk_path = chunks_dir / f"video_chunk_{i:03d}.mp4"
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(video_path), "-ss", str(video_start_time), 
-                 "-t", str(video_end_time - video_start_time), "-c", "copy", str(video_chunk_path)],
-                check=True, capture_output=True
-            )
+            if i == 0 and sync_offset and sync_offset > 0:
+                # Chunk 0 video was already trimmed, just extract from 0
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(video_path), "-ss", "0", 
+                     "-t", str(video_chunk_actual_duration), "-c", "copy", str(video_chunk_path)],
+                    check=True, capture_output=True
+                )
+            else:
+                # Normal extraction for chunk 0 (negative/zero offset) or chunk 1+
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(video_path), "-ss", str(video_start_time), 
+                     "-t", str(video_end_time - video_start_time), "-c", "copy", str(video_chunk_path)],
+                    check=True, capture_output=True
+                )
             
             # Extract audio chunk
+            # For chunk 0, audio was already trimmed by Smart Video Trim (if negative offset)
+            # For other chunks, extract normally
             audio_chunk_path = chunks_dir / f"audio_chunk_{i:03d}.wav"
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(audio_path), "-ss", str(audio_start_time), 
-                 "-t", str(video_chunk_actual_duration), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_chunk_path)],
-                check=True, capture_output=True
-            )
+            if i == 0 and sync_offset and sync_offset < 0:
+                # Chunk 0 audio was already trimmed, just extract from 0
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(audio_path), "-ss", "0", 
+                     "-t", str(video_chunk_actual_duration), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_chunk_path)],
+                    check=True, capture_output=True
+                )
+            else:
+                # Normal extraction for chunk 0 (positive/zero offset) or chunk 1+
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(audio_path), "-ss", str(audio_start_time), 
+                     "-t", str(video_chunk_actual_duration), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_chunk_path)],
+                    check=True, capture_output=True
+                )
             
             print(f"[chunk-preview] Chunk {i+1}: Video {video_start_time:.3f}s-{video_end_time:.3f}s, Audio {audio_start_time:.3f}s-{audio_end_time:.3f}s in master")
             
