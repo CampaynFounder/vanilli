@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { supabase } from '@/lib/supabase';
@@ -109,12 +109,12 @@ export function LinkPaymentMethod({
   onSuccess: (creditsRemaining?: number, alreadyUsed?: boolean) => void;
   updateOnly?: boolean;
 }) {
-  const router = useRouter();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [alreadyUsed, setAlreadyUsed] = useState(false);
+  const [creditsGranted, setCreditsGranted] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const stripePromise = useMemo(() => (stripePk ? loadStripe(stripePk) : null), []);
@@ -157,28 +157,29 @@ export function LinkPaymentMethod({
   const handleSuccess = (creditsRemaining?: number, alreadyUsedFlag?: boolean) => {
     setSuccess(true);
     setAlreadyUsed(alreadyUsedFlag === true);
-    
-    // If credits were granted (not already used) and this is not updateOnly, redirect to success page
-    if (!updateOnly && creditsRemaining !== undefined && !alreadyUsedFlag) {
-      // Small delay to show success message, then redirect
-      setTimeout(() => {
-        router.push('/checkout-success?product=free_credits');
-      }, 500);
-    } else {
-      // For updateOnly or already used, just call onSuccess callback
-      onSuccess(creditsRemaining, alreadyUsedFlag);
-    }
+    if (creditsRemaining !== undefined && !alreadyUsedFlag) setCreditsGranted(creditsRemaining);
+    onSuccess(creditsRemaining, alreadyUsedFlag);
+    // No redirect to checkout-success; users stay here. Use Studio "First time? Director Training" for tutorial.
   };
 
   if (success) {
     return (
-      <div className="space-y-1">
+      <div className="space-y-2">
         <p className="text-green-400 text-sm font-medium">
           Payment method linked.
         </p>
         {alreadyUsed && (
           <p className="text-amber-400/90 text-sm">
             This payment method was already used for free credits on another account. No additional credits were granted.
+          </p>
+        )}
+        {!alreadyUsed && creditsGranted != null && creditsGranted >= 3 && (
+          <p className="text-slate-300 text-sm">
+            You have <span className="text-purple-400 font-semibold">{creditsGranted} credits</span>.
+            {' '}
+            <Link href="/studio" className="text-purple-400 hover:text-purple-300 font-medium underline underline-offset-2">
+              Go to Studio →
+            </Link>
           </p>
         )}
       </div>

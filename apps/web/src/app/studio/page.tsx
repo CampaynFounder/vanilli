@@ -12,6 +12,7 @@ import { MediaUpload } from '@/components/studio/MediaUpload';
 import { MultiImageUpload } from '@/components/studio/MultiImageUpload';
 import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
+import { DirectorTrainingTutorial } from '@/components/tutorial/DirectorTrainingTutorial';
 import { AppBackground } from '@/components/AppBackground';
 
 const BUCKET = 'vannilli';
@@ -56,7 +57,8 @@ function StudioPage() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
-  
+  const [showTutorial, setShowTutorial] = useState(false);
+
   // Real-time countdown timer for estimated time
   useEffect(() => {
     if (estimatedTimeRemaining != null && estimatedTimeRemaining > 0 && isGenerating) {
@@ -724,7 +726,28 @@ function StudioPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold gradient-text-premium mb-2">Studio</h1>
           <p className="text-slate-400">Upload your files and generate professional music videos</p>
+          <button
+            type="button"
+            onClick={() => setShowTutorial(true)}
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 hover:border-purple-500/50 text-sm font-medium transition-colors"
+          >
+            <span>🎬</span>
+            First time? Director Training
+          </button>
         </div>
+
+        {showTutorial && (
+          <DirectorTrainingTutorial
+            onComplete={() => {
+              localStorage.setItem('vannilli_tutorial_seen', 'true');
+              setShowTutorial(false);
+            }}
+            onSkip={() => {
+              localStorage.setItem('vannilli_tutorial_seen', 'true');
+              setShowTutorial(false);
+            }}
+          />
+        )}
 
         {/* Main Studio Area */}
         <div className="grid lg:grid-cols-2 gap-6 mb-6">

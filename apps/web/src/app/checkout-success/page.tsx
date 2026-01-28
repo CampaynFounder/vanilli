@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -11,117 +11,100 @@ import { DirectorTrainingTutorial } from '@/components/tutorial/DirectorTraining
 function CheckoutSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, refreshUser, session, loading } = useAuth();
+  const { user, session, loading } = useAuth();
   const [creditsConfirmed, setCreditsConfirmed] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [initialCredits, setInitialCredits] = useState<number | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const product = searchParams?.get('product') || 'demo';
   const maxPollingAttempts = 10; // 10 attempts = ~15 seconds
 
   useEffect(() => {
-    // Wait for auth to finish loading before checking
     if (loading) return;
-    
-    // Only redirect if we're sure the user is not authenticated (not just loading)
+
     if (!user || !session) {
       const redirectUrl = '/checkout-success?product=' + product;
       router.push('/auth/signin?redirect=' + encodeURIComponent(redirectUrl));
       return;
     }
 
+    const uid = user.id;
+    const previousCredits = user.creditsRemaining ?? 0;
+
     const checkCredits = async (): Promise<boolean> => {
-      await refreshUser();
-      // Use the supabase client from lib which already has the session configured
-      const { data, error } = await supabase
+      const { data, err } = await supabase
         .from('users')
         .select('credits_remaining, tier')
-        .eq('id', user.id)
+        .eq('id', uid)
         .single();
-      
-      if (!error && data) {
-        const credits = (data as { credits_remaining?: number }).credits_remaining ?? 0;
-        const tier = (data as { tier?: string }).tier;
-        
-        // Store initial credits on first check
-        if (initialCredits === null) {
-          setInitialCredits(user.creditsRemaining || 0);
-        }
-        
-        setCreditsRemaining(credits);
-        
-        const previousCredits = initialCredits ?? user.creditsRemaining ?? 0;
-        const creditIncrease = credits - previousCredits;
-        const hasSeenTutorial = typeof window !== 'undefined' && localStorage.getItem('vannilli_tutorial_seen');
-        const isFirstTimeFreeCredits = creditIncrease === 3 && previousCredits === 0 && credits === 3 && !hasSeenTutorial;
-        
-        // For free_credits product (payment linking), check if credits are 3
-        if (product === 'free_credits' && credits === 3 && previousCredits === 0) {
-          setCreditsConfirmed(true);
-          if (isFirstTimeFreeCredits) {
-            setShowTutorial(true);
-          }
-          return true;
-        }
-        
-        // For DEMO tier, check if credits are 20 or more
-        if (product === 'demo' && tier === 'demo' && credits >= 20) {
-          setCreditsConfirmed(true);
-          if (isFirstTimeFreeCredits) {
-            setShowTutorial(true);
-          }
-          return true;
-        }
-        
-        // For other products, check if credits increased
-        if (product !== 'demo' && product !== 'free_credits' && credits > previousCredits) {
-          setCreditsConfirmed(true);
-          if (isFirstTimeFreeCredits) {
-            setShowTutorial(true);
-          }
-          return true;
-        }
-        
-        // Fallback: Check if user just got 3 free credits (handles cases where product param might not be set)
-        if (isFirstTimeFreeCredits) {
-          setCreditsConfirmed(true);
-          setShowTutorial(true);
-          return true;
-        }
+
+      if (err || !data) return false;
+
+      const credits = (data as { credits_remaining?: number }).credits_remaining ?? 0;
+      const tier = (data as { tier?: string }).tier;
+
+      setCreditsRemaining(credits);
+      const creditIncrease = credits - previousCredits;
+      const hasSeenTutorial = typeof window !== 'undefined' && localStorage.getItem('vannilli_tutorial_seen');
+      const isFirstTimeFreeCredits = creditIncrease === 3 && previousCredits === 0 && credits === 3 && !hasSeenTutorial;
+
+      if (product === 'free_credits' && credits === 3 && previousCredits === 0) {
+        setCreditsConfirmed(true);
+        if (isFirstTimeFreeCredits) setShowTutorial(true);
+        return true;
+      }
+      if (product === 'demo' && tier === 'demo' && credits >= 20) {
+        setCreditsConfirmed(true);
+        if (isFirstTimeFreeCredits) setShowTutorial(true);
+        return true;
+      }
+      if (product !== 'demo' && product !== 'free_credits' && credits > previousCredits) {
+        setCreditsConfirmed(true);
+        if (isFirstTimeFreeCredits) setShowTutorial(true);
+        return true;
+      }
+      if (isFirstTimeFreeCredits) {
+        setCreditsConfirmed(true);
+        setShowTutorial(true);
+        return true;
       }
       return false;
     };
 
-    // Initial check
-    let intervalId: NodeJS.Timeout | null = null;
-    
+    let attempts = 0;
+
+    const runPoll = () => {
+      attempts++;
+      if (attempts >= maxPollingAttempts) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setError('Credits may still be processing. Please refresh the page in a moment.');
+        return;
+      }
+      checkCredits().then((confirmed) => {
+        if (confirmed && pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      });
+    };
+
     checkCredits().then((confirmed) => {
       if (confirmed) return;
-      
-      // Start polling if not confirmed
-      let attempts = 0;
-      intervalId = setInterval(async () => {
-        attempts++;
-        
-        if (attempts >= maxPollingAttempts) {
-          if (intervalId) clearInterval(intervalId);
-          setError('Credits may still be processing. Please refresh the page in a moment.');
-          return;
-        }
-        
-        const confirmed = await checkCredits();
-        if (confirmed && intervalId) {
-          clearInterval(intervalId);
-        }
-      }, 1500);
+      pollIntervalRef.current = setInterval(runPoll, 1500);
     });
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     };
-  }, [user?.id, session?.access_token, product, refreshUser, router, loading]);
+  }, [user?.id, session?.access_token, product, router, loading]);
 
   const productNames: Record<string, string> = {
     demo: 'DEMO',

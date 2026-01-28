@@ -65,10 +65,24 @@ export function useAuth(): AuthState & {
       } else {
         fallback();
       }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      setUser(null);
-      setSession(null);
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+      // Avoid clearing session when users query fails but auth session is still valid
+      // (e.g. transient network/RLS). Re-check session and use metadata fallback instead of logout.
+      try {
+        const currentSession = await getSession();
+        if (currentSession?.user) {
+          setSession(currentSession);
+          const u = currentSession.user;
+          setUser({ id: u.id, email: u.email || '', tier: 'free', creditsRemaining: 0, freeGenerationRedeemed: false, avatarUrl: u.user_metadata?.avatar_url, hasValidCard: false });
+        } else {
+          setUser(null);
+          setSession(null);
+        }
+      } catch {
+        setUser(null);
+        setSession(null);
+      }
     } finally {
       setLoading(false);
     }
