@@ -104,10 +104,26 @@ def generate_chunk_previews(
         # Negative offset (< 0): Video starts mid-song → Trim AUDIO
         # Zero offset: No trimming needed
         print(f"[chunk-preview] Sync offset: {sync_offset:.3f}s")
+        
+        # Get original durations before trimming
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(video_raw_path)],
+            capture_output=True, text=True, check=True
+        )
+        video_duration_raw = float(result.stdout.strip())
+        
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_raw_path)],
+            capture_output=True, text=True, check=True
+        )
+        audio_duration_raw = float(result.stdout.strip())
+        
         if abs(sync_offset) < 0.01:
             print(f"[chunk-preview] Offset is near zero, no trimming needed")
             video_path = video_raw_path
             audio_path = audio_raw_path
+            video_duration = video_duration_raw
+            audio_duration = audio_duration_raw
         elif sync_offset > 0:
             print(f"[chunk-preview] Positive offset: Trimming VIDEO by {sync_offset:.3f}s (removing dead space)")
             # Trim video: apply -ss to video input, re-encode for frame-accurate cut
@@ -121,6 +137,9 @@ def generate_chunk_previews(
             )
             video_path = video_trimmed_path
             audio_path = audio_raw_path
+            # Video duration is reduced by sync_offset
+            video_duration = max(0, video_duration_raw - sync_offset)
+            audio_duration = audio_duration_raw
         else:
             # Negative offset: Trim audio
             trim_val = abs(sync_offset)
@@ -134,19 +153,9 @@ def generate_chunk_previews(
             )
             video_path = video_raw_path
             audio_path = audio_trimmed_path
-        
-        # Get durations
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
-            capture_output=True, text=True, check=True
-        )
-        video_duration = float(result.stdout.strip())
-        
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
-            capture_output=True, text=True, check=True
-        )
-        audio_duration = float(result.stdout.strip())
+            # Audio duration is reduced by trim_val
+            video_duration = video_duration_raw
+            audio_duration = max(0, audio_duration_raw - trim_val)
         
         # Calculate number of chunks
         # Skip last chunk if it would be less than 3 seconds
