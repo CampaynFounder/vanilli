@@ -592,41 +592,6 @@ def process_job_with_chunks(
                     raise Exception(f"Audio slice {i+1} extraction failed - file missing or empty")
                 print(f"[worker] Audio slice {i+1} extracted: {audio_slice_path.stat().st_size / 1024:.2f} KB")
                 
-                # For chunk 1: Prepend sync_offset seconds of silence to audio
-                # This ensures chunk 1 audio and video both start at 0s in chunk 1's timeline
-                if i == 1 and sync_offset and sync_offset > 0:
-                    print(f"[worker] Chunk 1: Prepending {sync_offset:.3f}s of silence to audio")
-                    audio_with_silence_path = chunks_dir / f"audio_chunk_{i:03d}_with_silence.wav"
-                    # Generate silence and concatenate with audio slice
-                    # Step 1: Generate silence file
-                    silence_path = chunks_dir / f"silence_{i:03d}.wav"
-                    subprocess.run(
-                        ["ffmpeg", "-y",
-                         "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
-                         "-t", str(sync_offset),  # Generate silence for sync_offset seconds
-                         "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
-                         str(silence_path)],
-                        check=True, capture_output=True, text=True
-                    )
-                    # Step 2: Create concat file (silence + audio)
-                    concat_list_path = chunks_dir / f"concat_{i:03d}.txt"
-                    with open(concat_list_path, "w") as f:
-                        f.write(f"file '{silence_path.absolute()}'\n")
-                        f.write(f"file '{audio_slice_path.absolute()}'\n")
-                    # Step 3: Concatenate silence + audio
-                    subprocess.run(
-                        ["ffmpeg", "-y",
-                         "-f", "concat", "-safe", "0", "-i", str(concat_list_path),
-                         "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
-                         str(audio_with_silence_path)],
-                        check=True, capture_output=True, text=True
-                    )
-                    # Verify audio with silence was created
-                    if not audio_with_silence_path.exists() or audio_with_silence_path.stat().st_size == 0:
-                        raise Exception(f"Chunk 1 audio with silence failed - file missing or empty")
-                    print(f"[worker] Chunk 1: Audio with silence size: {audio_with_silence_path.stat().st_size / 1024:.2f} KB")
-                    audio_slice_path = audio_with_silence_path  # Use audio with prepended silence
-                
                 # Mux video + audio
                 # After Smart Video Trim, chunk 0 video/audio both start at 0
                 # Subsequent chunks continue sequentially, no delay needed
