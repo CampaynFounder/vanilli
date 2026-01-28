@@ -224,9 +224,13 @@ def worker_loop():
                 "error_message": error_msg,
             }).eq("id", generation_id).execute()
             
-            gen_data = supabase.table("generations").select("project_id").eq("id", generation_id).single().execute()
-            if gen_data.data and gen_data.data.get("project_id"):
-                supabase.table("projects").update({"status": "failed"}).eq("id", gen_data.data["project_id"]).execute()
+            # Safely get project_id - generation might not exist
+            try:
+                gen_data = supabase.table("generations").select("project_id").eq("id", generation_id).maybe_single().execute()
+                if gen_data.data and gen_data.data.get("project_id"):
+                    supabase.table("projects").update({"status": "failed"}).eq("id", gen_data.data["project_id"]).execute()
+            except Exception as e:
+                print(f"[worker] Could not update project status (generation may not exist): {e}")
 
 
 def process_job_with_chunks(
@@ -517,6 +521,15 @@ def process_job_with_chunks(
                 print(f"[worker] Submitting chunk {i+1} to fal.ai with webhook: {webhook_url[:60]}...")
                 task_id = kling_client.generate(chunk_url, current_image, prompt, webhook_url=webhook_url)
                 kling_completed_at = None
+                
+                # Store kling_task_id IMMEDIATELY so webhook can find the chunk
+                # This must be done before polling starts, as webhook might arrive first
+                if chunk_id:
+                    supabase.table("video_chunks").update({
+                        "kling_task_id": task_id,
+                        "kling_requested_at": kling_requested_at,
+                    }).eq("id", chunk_id).execute()
+                    print(f"[worker] Stored kling_task_id {task_id} for chunk {i+1} (webhook can now find it)")
                 
                 # Poll for status (webhook will also update database, but we poll for immediate results)
                 # With webhooks, if polling fails, the webhook will still update the chunk
