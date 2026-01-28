@@ -568,15 +568,6 @@ def process_job_with_chunks(
                 if result.stderr:
                     print(f"[worker] FFmpeg stderr: {result.stderr[:500]}")
                 print(f"[worker] Chunk {i+1} muxing completed (video and audio aligned after Smart Video Trim)")
-                    # No delay needed, aligns naturally with video
-                    result = subprocess.run(
-                        ["ffmpeg", "-y", "-i", str(kling_output_path), "-i", str(audio_slice_path),
-                         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
-                         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-                         "-shortest", str(segment_path)],
-                        check=True, capture_output=True, text=True
-                    )
-                    print(f"[worker] Chunk {i+1} muxing completed (audio aligned naturally)")
                 
                 # Verify muxed segment exists and has content
                 if not segment_path.exists() or segment_path.stat().st_size == 0:
