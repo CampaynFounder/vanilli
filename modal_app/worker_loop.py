@@ -508,9 +508,16 @@ def process_job_with_chunks(
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
-                # Call Kling
-                task_id = kling_client.generate(chunk_url, current_image, prompt)
+                # Call Kling with webhook support
+                # Construct webhook URL for fal.ai callbacks
+                webhook_url = f"{supabase_url}/functions/v1/fal-webhook"
+                print(f"[worker] Submitting chunk {i+1} to fal.ai with webhook: {webhook_url[:60]}...")
+                task_id = kling_client.generate(chunk_url, current_image, prompt, webhook_url=webhook_url)
                 kling_completed_at = None
+                
+                # Poll for status (webhook will also update database, but we poll for immediate results)
+                # With webhooks, if polling fails, the webhook will still update the chunk
+                print(f"[worker] Polling fal.ai for chunk {i+1} (request_id: {task_id})...")
                 status, kling_video_url = kling_client.poll_status(task_id)
                 kling_completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 

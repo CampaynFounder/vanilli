@@ -39,15 +39,28 @@ class KlingClient:
         self.base_url = "https://queue.fal.run"
         self.endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"
     
-    def generate(self, driver_video_url: str, target_image_url: str, prompt: Optional[str] = None) -> str:
-        """Generate video via fal.ai Kling API. Returns request_id for polling."""
+    def generate(self, driver_video_url: str, target_image_url: str, prompt: Optional[str] = None, webhook_url: Optional[str] = None) -> str:
+        """Generate video via fal.ai Kling API. Returns request_id for polling.
+        
+        Args:
+            driver_video_url: URL of the driver video
+            target_image_url: URL of the target image
+            prompt: Optional prompt text
+            webhook_url: Optional webhook URL for async callbacks (recommended)
+        """
+        # Use queue.submit format for webhook support
         payload = {
-            "image_url": target_image_url,
-            "video_url": driver_video_url,
-            "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
+            "input": {
+                "image_url": target_image_url,
+                "video_url": driver_video_url,
+                "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
+            }
         }
         if prompt:
-            payload["prompt"] = prompt[:100]
+            payload["input"]["prompt"] = prompt[:100]
+        
+        if webhook_url:
+            payload["webhookUrl"] = webhook_url
         
         r = requests.post(
             f"{self.base_url}/{self.endpoint}",
