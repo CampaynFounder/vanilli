@@ -208,7 +208,8 @@ def process_video_impl(data: Optional[dict] = None):
 
         # fal.ai Kling motion-control: driver/reference video + image. character_orientation=image.
         fal_base_url = "https://queue.fal.run"
-        fal_endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"
+        fal_endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"  # Full endpoint for submission
+        fal_model_id = "fal-ai/kling-video/v2.6"  # Base model ID for status/result (subpath excluded)
         payload = {
             "image_url": target_url,
             "video_url": tracking_url_for_kling,
@@ -261,9 +262,9 @@ def process_video_impl(data: Optional[dict] = None):
         for _ in range(60):
             time.sleep(5)
             try:
-                # Get status (must include model_id in path)
+                # Get status (use base model_id, exclude subpath)
                 r = requests.get(
-                    f"{fal_base_url}/{fal_endpoint}/requests/{task_id}/status",
+                    f"{fal_base_url}/{fal_model_id}/requests/{task_id}/status",
                     headers={"Authorization": f"Key {fal_api_key}"},
                     timeout=30,
                 )
@@ -278,9 +279,9 @@ def process_video_impl(data: Optional[dict] = None):
                     _fail(supabase, generation_id, "Video generation failed. Please try again.")
                     return {"ok": False, "error": "Video generation failed. Please try again."}
                 if status == "COMPLETED":
-                    # Get the result (must include model_id in path)
+                    # Get the result (use base model_id, exclude subpath)
                     result_r = requests.get(
-                        f"{fal_base_url}/{fal_endpoint}/requests/{task_id}",
+                        f"{fal_base_url}/{fal_model_id}/requests/{task_id}",
                         headers={"Authorization": f"Key {fal_api_key}"},
                         timeout=30,
                     )

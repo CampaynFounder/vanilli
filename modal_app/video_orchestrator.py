@@ -37,7 +37,8 @@ class KlingClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://queue.fal.run"
-        self.endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"
+        self.endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"  # Full endpoint for submission
+        self.model_id = "fal-ai/kling-video/v2.6"  # Base model ID for status/result endpoints (subpath excluded)
     
     def generate(self, driver_video_url: str, target_image_url: str, prompt: Optional[str] = None, webhook_url: Optional[str] = None) -> str:
         """Generate video via fal.ai Kling API. Returns request_id for polling.
@@ -91,9 +92,9 @@ class KlingClient:
         for attempt in range(max_attempts):
             time.sleep(5)
             try:
-                # fal.ai queue API: get status (must include model_id in path)
+                # fal.ai queue API: get status (use base model_id, exclude subpath)
                 r = requests.get(
-                    f"{self.base_url}/{self.endpoint}/requests/{request_id}/status",
+                    f"{self.base_url}/{self.model_id}/requests/{request_id}/status",
                     headers={"Authorization": f"Key {self.api_key}"},
                     timeout=30,
                 )
@@ -104,9 +105,9 @@ class KlingClient:
                 # fal.ai status format: "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
                 status = j.get("status")
                 if status == "COMPLETED":
-                    # Get the result (must include model_id in path)
+                    # Get the result (use base model_id, exclude subpath)
                     result_r = requests.get(
-                        f"{self.base_url}/{self.endpoint}/requests/{request_id}",
+                        f"{self.base_url}/{self.model_id}/requests/{request_id}",
                         headers={"Authorization": f"Key {self.api_key}"},
                         timeout=30,
                     )
@@ -153,7 +154,7 @@ class KlingClient:
                     print(f"[fal.ai] Status polling failed {status_poll_failures} times, trying direct result fetch as fallback...")
                     try:
                         result_r = requests.get(
-                            f"{self.base_url}/{self.endpoint}/requests/{request_id}",
+                            f"{self.base_url}/{self.model_id}/requests/{request_id}",
                             headers={"Authorization": f"Key {self.api_key}"},
                             timeout=30,
                         )
