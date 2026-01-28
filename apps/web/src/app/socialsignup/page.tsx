@@ -146,14 +146,14 @@ export default function SocialSignupPage() {
               )}
             </div>
             <h2 className="text-lg sm:text-xl text-slate-300 font-medium mb-4 sm:mb-6">
-              Create Hyper-Real Industry Approved Music Videos and Content
+              Don&apos;t Miss the Next AI Music Industry Wave
             </h2>
           </div>
 
           {/* Logo carousel: transparent containers, auto-scrolling marquee */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center">
-              Companies and Labels Looking to Sign AI Artists
+              Companies Are Searching For the Next AI Star
             </h3>
             <div className="overflow-hidden -mx-4 sm:-mx-6" aria-hidden>
               <div className="flex gap-4 animate-marquee py-1">
@@ -181,8 +181,8 @@ export default function SocialSignupPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold text-white mb-1">Claim Free Credits Now</h2>
-                  <p className="text-slate-400 text-sm mb-5">Sign up to get started.</p>
+                  <h2 className="text-xl font-bold text-white mb-1 text-center">Get Started Today for FREE</h2>
+                  <p className="text-slate-400 text-sm mb-5 text-center">Sign up to get started.</p>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <label htmlFor="social-email" className="block text-sm font-medium text-slate-300 mb-1.5">
@@ -226,7 +226,7 @@ export default function SocialSignupPage() {
                       disabled={loading}
                       className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none active:scale-[0.99]"
                     >
-                      {loading ? 'Getting your deal…' : 'Get My AI Artist Deal Now'}
+                      {loading ? 'Securing…' : 'Secure my AI Artist Bag'}
                     </button>
                   </form>
                 </>
