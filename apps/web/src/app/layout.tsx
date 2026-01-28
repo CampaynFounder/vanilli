@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { GlobalSignupModal } from '@/components/GlobalSignupModal';
+
+const GA_MEASUREMENT_ID = 'G-RP6TSSJS3N';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -84,6 +87,19 @@ export default function RootLayout({
           <body className="font-sans antialiased min-h-screen">
             {children}
             <GlobalSignupModal />
+            {/* Google tag (gtag.js) – conversions & behavior on home, auth, social signup */}
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="gtag-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_MEASUREMENT_ID}');
+              `}
+            </Script>
           </body>
     </html>
   );
