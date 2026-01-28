@@ -89,6 +89,7 @@ serve(async (req) => {
   let findError: any = null;
   
   if (payload.request_id) {
+    console.log(`[fal-webhook] Searching for chunk with kling_task_id = '${payload.request_id}'`);
     const result = await supabase
       .from("video_chunks")
       .select("id, job_id, generation_id, chunk_index, status, kling_task_id")
@@ -96,6 +97,15 @@ serve(async (req) => {
       .maybeSingle();
     chunk = result.data;
     findError = result.error;
+    
+    if (chunk) {
+      console.log(`[fal-webhook] ✓ Found chunk: id=${chunk.id}, chunk_index=${chunk.chunk_index}, job_id=${chunk.job_id}`);
+    } else {
+      console.log(`[fal-webhook] ✗ No chunk found with kling_task_id = '${payload.request_id}'`);
+      if (findError) {
+        console.error(`[fal-webhook] Database error:`, findError);
+      }
+    }
   }
   
   // If not found and we have gateway_request_id, try that too
@@ -108,6 +118,31 @@ serve(async (req) => {
       .maybeSingle();
     chunk = result.data;
     findError = result.error;
+    
+    if (chunk) {
+      console.log(`[fal-webhook] ✓ Found chunk with gateway_request_id: id=${chunk.id}, chunk_index=${chunk.chunk_index}`);
+    } else {
+      console.log(`[fal-webhook] ✗ No chunk found with gateway_request_id = '${payload.gateway_request_id}'`);
+    }
+  }
+
+  // Debug: List recent chunks to see what kling_task_ids exist
+  if (!chunk) {
+    console.log(`[fal-webhook] DEBUG: Checking recent chunks to see what kling_task_ids are stored...`);
+    const recentChunks = await supabase
+      .from("video_chunks")
+      .select("id, chunk_index, kling_task_id, status, job_id")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    
+    if (recentChunks.data && recentChunks.data.length > 0) {
+      console.log(`[fal-webhook] Recent chunks (last 10):`);
+      recentChunks.data.forEach((c: any) => {
+        console.log(`  - chunk_index=${c.chunk_index}, kling_task_id='${c.kling_task_id}', status=${c.status}, job_id=${c.job_id}`);
+      });
+    } else {
+      console.log(`[fal-webhook] No recent chunks found in database`);
+    }
   }
 
   if (findError || !chunk) {
@@ -115,6 +150,7 @@ serve(async (req) => {
       `[fal-webhook] Chunk not found for request_id ${request_id}:`,
       findError
     );
+    console.error(`[fal-webhook] Full payload:`, JSON.stringify(payload, null, 2));
     // Return 200 to prevent fal.ai from retrying
     return new Response(JSON.stringify({ received: true, message: "Chunk not found" }), {
       status: 200,
