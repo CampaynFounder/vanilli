@@ -76,7 +76,7 @@ serve(async (req) => {
   console.log(`[fal-webhook] Received webhook - request_id: ${payload.request_id}, gateway_request_id: ${payload.gateway_request_id}, status: ${payload.status}`);
   console.log(`[fal-webhook] Using request_id for lookup: ${request_id}`);
 
-  // Find the chunk by kling_task_id (which stores the fal.ai request_id from initial response)
+  // Find the chunk by fal_request_id (which stores the fal.ai request_id from initial response)
   // Try request_id first, then gateway_request_id as fallback
   let chunk: {
     id: string;
@@ -84,16 +84,16 @@ serve(async (req) => {
     generation_id: string | null;
     chunk_index: number;
     status: string;
-    kling_task_id: string | null;
+    fal_request_id: string | null;
   } | null = null;
   let findError: any = null;
   
   if (payload.request_id) {
-    console.log(`[fal-webhook] Searching for chunk with kling_task_id = '${payload.request_id}'`);
+    console.log(`[fal-webhook] Searching for chunk with fal_request_id = '${payload.request_id}'`);
     const result = await supabase
       .from("video_chunks")
-      .select("id, job_id, generation_id, chunk_index, status, kling_task_id")
-      .eq("kling_task_id", payload.request_id)
+      .select("id, job_id, generation_id, chunk_index, status, fal_request_id")
+      .eq("fal_request_id", payload.request_id)
       .maybeSingle();
     chunk = result.data;
     findError = result.error;
@@ -101,7 +101,7 @@ serve(async (req) => {
     if (chunk) {
       console.log(`[fal-webhook] ✓ Found chunk: id=${chunk.id}, chunk_index=${chunk.chunk_index}, job_id=${chunk.job_id}`);
     } else {
-      console.log(`[fal-webhook] ✗ No chunk found with kling_task_id = '${payload.request_id}'`);
+      console.log(`[fal-webhook] ✗ No chunk found with fal_request_id = '${payload.request_id}'`);
       if (findError) {
         console.error(`[fal-webhook] Database error:`, findError);
       }
@@ -113,8 +113,8 @@ serve(async (req) => {
     console.log(`[fal-webhook] request_id not found, trying gateway_request_id: ${payload.gateway_request_id}`);
     const result = await supabase
       .from("video_chunks")
-      .select("id, job_id, generation_id, chunk_index, status, kling_task_id")
-      .eq("kling_task_id", payload.gateway_request_id)
+      .select("id, job_id, generation_id, chunk_index, status, fal_request_id")
+      .eq("fal_request_id", payload.gateway_request_id)
       .maybeSingle();
     chunk = result.data;
     findError = result.error;
@@ -126,19 +126,19 @@ serve(async (req) => {
     }
   }
 
-  // Debug: List recent chunks to see what kling_task_ids exist
+  // Debug: List recent chunks to see what fal_request_ids exist
   if (!chunk) {
-    console.log(`[fal-webhook] DEBUG: Checking recent chunks to see what kling_task_ids are stored...`);
+    console.log(`[fal-webhook] DEBUG: Checking recent chunks to see what fal_request_ids are stored...`);
     const recentChunks = await supabase
       .from("video_chunks")
-      .select("id, chunk_index, kling_task_id, status, job_id")
+      .select("id, chunk_index, fal_request_id, status, job_id")
       .order("created_at", { ascending: false })
       .limit(10);
     
     if (recentChunks.data && recentChunks.data.length > 0) {
       console.log(`[fal-webhook] Recent chunks (last 10):`);
       recentChunks.data.forEach((c: any) => {
-        console.log(`  - chunk_index=${c.chunk_index}, kling_task_id='${c.kling_task_id}', status=${c.status}, job_id=${c.job_id}`);
+        console.log(`  - chunk_index=${c.chunk_index}, fal_request_id='${c.fal_request_id}', status=${c.status}, job_id=${c.job_id}`);
       });
     } else {
       console.log(`[fal-webhook] No recent chunks found in database`);
