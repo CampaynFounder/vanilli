@@ -1,4 +1,5 @@
 """VideoProductionOrchestrator: Tier-based video processing with global audio alignment."""
+import json
 import os
 import subprocess
 import tempfile
@@ -104,7 +105,10 @@ class KlingClient:
                 
                 # fal.ai status format: "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
                 status = j.get("status")
+                print(f"[fal.ai] Poll attempt {attempt + 1}/{max_attempts}: status = {status}")
+                
                 if status == "COMPLETED":
+                    print(f"[fal.ai] Status is COMPLETED, fetching result for request_id: {request_id}")
                     # Get the result (use base model_id, exclude subpath)
                     result_r = requests.get(
                         f"{self.base_url}/{self.model_id}/requests/{request_id}",
@@ -114,23 +118,34 @@ class KlingClient:
                     result_r.raise_for_status()
                     result_j = result_r.json()
                     
+                    print(f"[fal.ai] ===== FULL RESULT PAYLOAD ===== ")
+                    print(f"[fal.ai] {json.dumps(result_j, indent=2)}")
+                    print(f"[fal.ai] ===== END RESULT PAYLOAD ===== ")
+                    
                     # Extract video URL from fal.ai response
                     # fal.ai returns: {"response": {"video": {"url": "...", "file_name": "...", ...}}}
                     # Or directly: {"video": {"url": "..."}}
                     response_data = result_j.get("response", {})
                     video_data = response_data.get("video") if response_data else result_j.get("video")
                     
+                    print(f"[fal.ai] Extracted video_data: {video_data}")
+                    
                     if video_data:
                         if isinstance(video_data, dict):
                             video_url = video_data.get("url")
+                            print(f"[fal.ai] Video URL (from dict.url): {video_url}")
                         elif isinstance(video_data, str):
                             video_url = video_data
+                            print(f"[fal.ai] Video URL (direct string): {video_url}")
                         else:
                             video_url = None
+                            print(f"[fal.ai] Video data is neither dict nor string: {type(video_data)}")
                         
                         if video_url:
+                            print(f"[fal.ai] ✓ Successfully extracted video URL: {video_url}")
                             return ("succeed", video_url)
                     
+                    print(f"[fal.ai] ERROR: No video URL found in result payload")
                     raise Exception(f"fal.ai task completed but no video URL found: {result_j}")
                 elif status == "FAILED":
                     error_data = j.get("error", {})
