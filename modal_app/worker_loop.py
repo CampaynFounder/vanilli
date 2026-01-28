@@ -105,13 +105,21 @@ def worker_loop():
         print(f"[worker] Calculated BPM: {bpm:.2f}")
     print(f"[worker] Chunk duration: {chunk_duration:.3f}s (calculated from {'user' if user_bpm else 'detected'} BPM)")
     
-    # Ensure credits are deducted for this generation (idempotent check)
-    # This is a safeguard in case the trigger didn't fire or failed
+    # Check if generation was cancelled (check this first)
     if generation_id:
+        gen_check = supabase.table("generations").select("status").eq("id", generation_id).single().execute()
+        if gen_check.data and gen_check.data.get("status") == "cancelled":
+            print(f"[worker] Generation {generation_id} was cancelled. Skipping job {job_id}.")
+            queue_manager.mark_job_failed(job_id, "Cancelled by user")
+            return
+        
+        # Ensure credits are deducted for this generation (idempotent check)
+        # This is a safeguard in case the trigger didn't fire or failed
+        # We ALWAYS retrieve the request and subtract credits
         try:
-            gen_check = supabase.table("generations").select("credits_deducted, cost_credits, status").eq("id", generation_id).single().execute()
-            if gen_check.data:
-                gen_data = gen_check.data
+            gen_credit_check = supabase.table("generations").select("credits_deducted, cost_credits, status").eq("id", generation_id).single().execute()
+            if gen_credit_check.data:
+                gen_data = gen_credit_check.data
                 # If credits not deducted and generation has a cost, retry deduction
                 if not gen_data.get("credits_deducted") and gen_data.get("cost_credits", 0) > 0:
                     print(f"[worker] Credits not yet deducted for generation {generation_id}, retrying...")
@@ -125,14 +133,6 @@ def worker_loop():
         except Exception as credit_check_error:
             print(f"[worker] WARNING: Failed to check/retry credit deduction for generation {generation_id}: {credit_check_error}")
             # Continue processing - don't fail the job if credit check fails
-    
-    # Check if generation was cancelled
-    if generation_id:
-        gen_check = supabase.table("generations").select("status").eq("id", generation_id).single().execute()
-        if gen_check.data and gen_check.data.get("status") == "cancelled":
-            print(f"[worker] Generation {generation_id} was cancelled. Skipping job {job_id}.")
-            queue_manager.mark_job_failed(job_id, "Cancelled by user")
-            return
     
     # If job needs analysis, skip (analyzer service handles it)
     if analysis_status != "ANALYZED" and (user_tier == "demo" or user_tier == "industry"):
