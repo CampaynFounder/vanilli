@@ -210,7 +210,12 @@ function HistoryPage() {
                         </div>
                         {item.metadata?.credits && (
                           <div className="text-purple-400 font-semibold">
-                            +{item.metadata.credits} credits
+                            {item.action === 'credits_deducted' ? '-' : '+'}{item.metadata.credits} credits
+                          </div>
+                        )}
+                        {item.metadata?.credits_before !== undefined && item.metadata?.credits_after !== undefined && (
+                          <div className="text-xs text-slate-500 mt-1">
+                            {item.metadata.credits_before} → {item.metadata.credits_after}
                           </div>
                         )}
                       </div>
