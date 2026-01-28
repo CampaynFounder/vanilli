@@ -18,11 +18,34 @@ function RefHandler() {
   return null;
 }
 
-// Placeholder logo slots for carousel (replace with real images via props later)
-const CAROUSEL_LOGOS = Array.from({ length: 7 }, (_, i) => ({
+const HERO_HEADLINE_SRC = '/images/socialsignup/hero-headline.png';
+
+const CAROUSEL_LOGO_SRCS = Array.from({ length: 7 }, (_, i) => ({
   id: `logo-${i + 1}`,
-  label: `Partner ${i + 1}`,
+  src: `/images/socialsignup/logos/logo-${i + 1}.png`,
 }));
+
+function CarouselLogo({ src }: { src: string }) {
+  const [err, setErr] = useState(false);
+  return (
+    <div
+      className="flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl sm:rounded-2xl bg-transparent border border-white/10 flex items-center justify-center p-2 overflow-hidden"
+      aria-hidden
+    >
+      {err ? (
+        <span className="text-slate-600 text-xs">Logo</span>
+      ) : (
+        <img
+          src={src}
+          alt=""
+          className="w-full h-full object-contain"
+          loading="lazy"
+          onError={() => setErr(true)}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function SocialSignupPage() {
   const [email, setEmail] = useState('');
@@ -31,6 +54,7 @@ export default function SocialSignupPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [done, setDone] = useState(false);
+  const [heroImgError, setHeroImgError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,33 +124,43 @@ export default function SocialSignupPage() {
             </Link>
           </div>
 
-          {/* Headlines */}
+          {/* Hero headline: PNG with gradual reveal, or text fallback */}
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold gradient-text-premium mb-2 sm:mb-3">
-              Get Your AI Artist Signed
-            </h1>
+            <div className="min-h-[4.5rem] sm:min-h-[5rem] flex flex-col items-center justify-center mb-2 sm:mb-3">
+              {heroImgError ? (
+                <h1 className="text-2xl sm:text-3xl font-bold gradient-text-premium">
+                  Get Your AI Artist Signed
+                </h1>
+              ) : (
+                <div className="opacity-0 animate-reveal-hero w-full max-w-md mx-auto">
+                  <Image
+                    src={HERO_HEADLINE_SRC}
+                    alt="Get Your AI Artist Signed"
+                    width={640}
+                    height={160}
+                    className="w-full h-auto object-contain"
+                    priority
+                    onError={() => setHeroImgError(true)}
+                  />
+                </div>
+              )}
+            </div>
             <h2 className="text-lg sm:text-xl text-slate-300 font-medium mb-4 sm:mb-6">
               Create Hyper-Real Industry Approved Music Videos and Content
             </h2>
           </div>
 
-          {/* Carousel */}
+          {/* Logo carousel: transparent containers, horizontal scroll */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center">
               Companies and Labels Looking to Sign AI Artists
             </h3>
             <div
-              className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 scrollbar-hide"
+              className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 scrollbar-hide scroll-smooth"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              {CAROUSEL_LOGOS.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl sm:rounded-2xl bg-slate-800/60 border border-slate-700/80 flex items-center justify-center text-slate-500 text-xs font-medium"
-                  aria-hidden
-                >
-                  {item.label}
-                </div>
+              {CAROUSEL_LOGO_SRCS.map((item) => (
+                <CarouselLogo key={item.id} src={item.src} />
               ))}
             </div>
           </div>
