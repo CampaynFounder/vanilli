@@ -29,7 +29,7 @@ function CarouselLogo({ src }: { src: string }) {
   const [err, setErr] = useState(false);
   return (
     <div
-      className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl bg-transparent border border-white/10 flex items-center justify-center p-1.5 overflow-hidden"
+      className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl bg-transparent flex items-center justify-center p-1.5 overflow-hidden"
       aria-hidden
     >
       {err ? (
@@ -153,10 +153,10 @@ export default function SocialSignupPage() {
           {/* Logo carousel: transparent containers, auto-scrolling marquee */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center">
-              AI Artists Music Videos. That Get You Signed
+              Music Videos For AI Artists That Get YOU Signed
             </h3>
             <div className="overflow-hidden -mx-4 sm:-mx-6" aria-hidden>
-              <div className="flex gap-4 animate-marquee py-1">
+              <div className="flex gap-[1.05rem] animate-marquee py-1">
                 {[...CAROUSEL_LOGO_SRCS, ...CAROUSEL_LOGO_SRCS].map((item, i) => (
                   <CarouselLogo key={`${item.id}-${i}`} src={item.src} />
                 ))}
@@ -226,7 +226,7 @@ export default function SocialSignupPage() {
                       disabled={loading}
                       className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none active:scale-[0.99]"
                     >
-                      {loading ? 'Securing…' : 'Secure my AI Artist Bag'}
+                      {loading ? 'Securing…' : 'Secure My AI Artist Bag'}
                     </button>
                   </form>
                 </>
