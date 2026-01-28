@@ -131,11 +131,23 @@ def analyze_media(
         audio_content = r.content
         audio_path.write_bytes(audio_content)
         
-        # Check if audio is MP4 and extract if needed
-        if audio_url.lower().endswith('.mp4'):
+        # Convert audio to WAV if needed (MP3, MP4, or other formats)
+        audio_ext = audio_url.lower().split('.')[-1] if '.' in audio_url.lower() else ''
+        if audio_ext not in ('wav', 'wave'):
+            # Convert to WAV format for processing
+            print(f"[analyzer] Converting audio from {audio_ext.upper()} to WAV format...")
             audio_wav_path = base / "audio_extracted.wav"
-            extract_audio_from_mp4(audio_path, audio_wav_path)
+            if audio_ext == 'mp4':
+                # Use existing MP4 extraction function
+                extract_audio_from_mp4(audio_path, audio_wav_path)
+            else:
+                # For MP3 and other formats, use ffmpeg to convert
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(audio_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_wav_path)],
+                    check=True, capture_output=True
+                )
             audio_path = audio_wav_path
+            print(f"[analyzer] Audio converted to WAV successfully")
         
         # Extract audio from video for alignment
         print("[analyzer] Extracting audio from video...")

@@ -89,14 +89,18 @@ def generate_chunk_previews(
         audio_content = r.content
         audio_raw_path.write_bytes(audio_content)
         
-        # Extract audio from MP4 if needed
-        if audio_url.lower().endswith('.mp4'):
+        # Convert audio to WAV if needed (MP3, MP4, or other formats)
+        audio_ext = audio_url.lower().split('.')[-1] if '.' in audio_url.lower() else ''
+        if audio_ext not in ('wav', 'wave'):
+            # Convert to WAV format for processing
+            print(f"[chunk-preview] Converting audio from {audio_ext.upper()} to WAV format...")
             audio_wav_path = work_path / "audio_extracted.wav"
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(audio_raw_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_wav_path)],
                 check=True, capture_output=True
             )
             audio_raw_path = audio_wav_path
+            print(f"[chunk-preview] Audio converted to WAV successfully")
         
         # Smart Video Trim: Apply trim logic based on sync_offset polarity
         # This ensures the final output starts exactly on the downbeat

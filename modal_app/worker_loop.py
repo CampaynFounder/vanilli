@@ -261,15 +261,18 @@ def process_job_with_chunks(
         audio_content = r.content
         master_audio_raw_path.write_bytes(audio_content)
         
-        # Extract audio from MP4 if needed
-        if master_audio_url.lower().endswith('.mp4'):
-            import subprocess
+        # Convert audio to WAV if needed (MP3, MP4, or other formats)
+        audio_ext = master_audio_url.lower().split('.')[-1] if '.' in master_audio_url.lower() else ''
+        if audio_ext not in ('wav', 'wave'):
+            # Convert to WAV format for processing
+            print(f"[worker] Converting audio from {audio_ext.upper()} to WAV format...")
             audio_wav_path = work_path / "audio_extracted.wav"
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(master_audio_raw_path), "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(audio_wav_path)],
                 check=True, capture_output=True
             )
             master_audio_raw_path = audio_wav_path
+            print(f"[worker] Audio converted to WAV successfully")
         
         # Smart Video Trim: Apply trim logic based on sync_offset polarity
         # This ensures the final output starts exactly on the downbeat
