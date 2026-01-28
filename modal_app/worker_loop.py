@@ -492,49 +492,17 @@ def process_job_with_chunks(
                 video_chunk_end_time = min(video_chunk_start_time + chunk_duration, duration)
                 video_chunk_actual_duration = video_chunk_end_time - video_chunk_start_time
                 
-                # Audio timing: All chunks are shifted by sync_offset
-                # Pattern: Each chunk audio starts where previous chunk audio ended
-                # Chunk 0: Audio 0 to chunk_duration (delayed by sync_offset when muxing)
-                # Chunk 1: Audio starts at (chunk_duration - sync_offset), continues for chunk_duration
-                # Audio timing calculation with sync_offset
-                # sync_offset = when music starts in video (positive = dead space at start)
-                # 
-                # Audio timing with sync_offset:
-                # Chunk 0: Audio starts at 0 in master, delayed by sync_offset when muxing (to align with music in video)
-                # Chunk 1: Audio starts at chunk_duration in master, but we prepend sync_offset seconds of silence
-                #         This ensures chunk 1 audio and video both start at 0s in chunk 1's timeline
-                # Chunk 2+: Continue sequentially from where previous chunk ended
-                if sync_offset and sync_offset > 0:
-                    if i == 0:
-                        # Chunk 0: Audio extracted from 0 to chunk_duration in master
-                        # Video keeps dead space at start (not trimmed)
-                        # Audio will be delayed by sync_offset when muxing to align with music
-                        audio_start_time = 0
-                        print(f"[worker] Chunk 0 audio: starts at 0s in master")
-                        print(f"[worker]   → Audio extracted: 0s to {chunk_duration:.3f}s in master")
-                        print(f"[worker]   → Video keeps dead space (not trimmed)")
-                        print(f"[worker]   → Audio will be delayed by {sync_offset:.3f}s when muxing to align with music")
-                    elif i == 1:
-                        # Chunk 1: Audio starts at chunk_duration in master
-                        # We'll prepend sync_offset seconds of silence to chunk 1 audio
-                        # This ensures chunk 1 audio and video both start at 0s in chunk 1's timeline
-                        audio_start_time = chunk_duration
-                        print(f"[worker] Chunk 1 audio: starts at {audio_start_time:.3f}s in master (where chunk 0 ended)")
-                        print(f"[worker]   → Will prepend {sync_offset:.3f}s of silence to chunk 1 audio")
-                        print(f"[worker]   → This ensures chunk 1 audio and video both start at 0s")
-                    else:
-                        # Chunk 2+: Start where previous chunk audio ended in master
-                        # Chunk 1 audio: chunk_duration to (chunk_duration + chunk_duration) = 2 * chunk_duration
-                        # Chunk 2 audio: 2 * chunk_duration to 3 * chunk_duration
-                        # etc.
-                        prev_audio_end = i * chunk_duration
-                        audio_start_time = prev_audio_end
-                        print(f"[worker] Chunk {i} audio: starts at {audio_start_time:.3f}s in master (where chunk {i-1} ended)")
-                    audio_duration = video_chunk_actual_duration
+                # Audio timing: After Smart Video Trim, chunk 0 audio starts at 0
+                # Subsequent chunks continue sequentially
+                if i == 0:
+                    # Chunk 0: After Smart Video Trim, audio starts at 0 (video or audio was trimmed)
+                    audio_start_time = 0
                 else:
-                    # No sync offset: audio chunks match video chunks exactly
+                    # Chunk 1+: Continue sequentially from where previous chunk ended
+                    # If chunk 0 is chunk_duration long, chunk 1 starts at chunk_duration
                     audio_start_time = i * chunk_duration
-                    audio_duration = video_chunk_actual_duration
+                
+                audio_duration = video_chunk_actual_duration
                 
                 image_index = i % len(target_images)
                 current_image = target_images[image_index]
