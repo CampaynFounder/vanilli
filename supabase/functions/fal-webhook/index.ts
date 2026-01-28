@@ -13,8 +13,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  */
 
 serve(async (req) => {
+  // Allow GET requests for health checks (returns status message)
+  if (req.method === "GET") {
+    return new Response(
+      JSON.stringify({
+        service: "fal.ai webhook handler",
+        status: "active",
+        message: "This endpoint accepts POST requests from fal.ai webhooks only",
+        method: "POST",
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  // Only accept POST requests for actual webhooks
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+    return new Response(JSON.stringify({ error: "Method not allowed. Use POST for webhooks." }), {
       status: 405,
       headers: { "Content-Type": "application/json" },
     });
