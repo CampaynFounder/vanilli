@@ -525,11 +525,20 @@ def process_job_with_chunks(
                 # Store kling_task_id IMMEDIATELY so webhook can find the chunk
                 # This must be done before polling starts, as webhook might arrive first
                 if chunk_id:
-                    supabase.table("video_chunks").update({
-                        "kling_task_id": task_id,
-                        "kling_requested_at": kling_requested_at,
-                    }).eq("id", chunk_id).execute()
-                    print(f"[worker] Stored kling_task_id {task_id} for chunk {i+1} (webhook can now find it)")
+                    try:
+                        update_result = supabase.table("video_chunks").update({
+                            "kling_task_id": task_id,
+                            "kling_requested_at": kling_requested_at,
+                        }).eq("id", chunk_id).execute()
+                        if update_result.data:
+                            print(f"[worker] Stored kling_task_id {task_id} for chunk {i+1} (webhook can now find it)")
+                        else:
+                            print(f"[worker] WARNING: Failed to store kling_task_id for chunk {i+1} - update returned no data")
+                    except Exception as store_error:
+                        print(f"[worker] ERROR: Failed to store kling_task_id for chunk {i+1}: {store_error}")
+                        # Continue anyway - polling will still work
+                else:
+                    print(f"[worker] WARNING: chunk_id is None for chunk {i+1}, cannot store kling_task_id")
                 
                 # Poll for status (webhook will also update database, but we poll for immediate results)
                 # With webhooks, if polling fails, the webhook will still update the chunk
