@@ -464,7 +464,8 @@ def api():
         {
             "video_url": str,  # Required: URL to tracking video
             "audio_url": str,  # Required: URL to master audio
-            "image_urls": [str]  # Optional: Array of image URLs
+            "image_urls": [str],  # Optional: Array of image URLs
+            "user_bpm": float  # Optional: User-provided BPM (if provided, will be used instead of calculating)
         }
         """
         try:
@@ -481,6 +482,7 @@ def api():
         video_url = data.get("video_url") or data.get("video") if isinstance(data, dict) else None
         audio_url = data.get("audio_url") or data.get("audio") if isinstance(data, dict) else None
         image_urls = data.get("image_urls", []) if isinstance(data, dict) else []  # Optional array of image URLs
+        user_bpm = data.get("user_bpm") if isinstance(data, dict) else None  # Optional user-provided BPM
         
         # Ignore job_id if provided (not needed for observability)
         job_id = data.get("job_id") if isinstance(data, dict) else None
@@ -672,11 +674,22 @@ def api():
                 else:
                     print(f"[chunk-preview]   → Perfect sync (no offset needed)")
                 
-                # Calculate BPM using librosa
-                print(f"[chunk-preview] Calculating tempo...")
-                y, sr = librosa.load(str(audio_path), sr=22050)
-                tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
-                bpm = float(tempo)
+                # Calculate BPM - use user-provided if available, otherwise calculate with librosa
+                if user_bpm is not None and user_bpm > 0:
+                    print(f"[chunk-preview] Using user-provided BPM: {user_bpm:.2f}")
+                    bpm = float(user_bpm)
+                    # Still calculate with librosa for comparison
+                    y, sr = librosa.load(str(audio_path), sr=22050)
+                    calculated_tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+                    calculated_bpm = float(calculated_tempo)
+                    print(f"[chunk-preview] Calculated BPM (for comparison): {calculated_bpm:.2f}")
+                    print(f"[chunk-preview] User BPM vs Calculated: {bpm:.2f} vs {calculated_bpm:.2f} (diff: {abs(bpm - calculated_bpm):.2f})")
+                else:
+                    print(f"[chunk-preview] No user BPM provided, calculating tempo with librosa...")
+                    y, sr = librosa.load(str(audio_path), sr=22050)
+                    tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+                    bpm = float(tempo)
+                    print(f"[chunk-preview] Calculated BPM: {bpm:.2f}")
                 
                 # Calculate chunk duration
                 beats_per_second = bpm / 60.0
@@ -692,7 +705,8 @@ def api():
                 if chunk_duration < seconds_per_measure:
                     chunk_duration = seconds_per_measure
                 
-                print(f"[chunk-preview] Analysis complete: BPM={bpm:.2f}, sync_offset={sync_offset:.3f}s, chunk_duration={chunk_duration:.3f}s")
+                print(f"[chunk-preview] Analysis complete: BPM={bpm:.2f} ({'user-provided' if (user_bpm is not None and user_bpm > 0) else 'calculated'}), sync_offset={sync_offset:.3f}s, chunk_duration={chunk_duration:.3f}s")
+                print(f"[chunk-preview] BPM: {bpm:.2f}, Measures per chunk: {measures_per_chunk}, Chunk duration: {chunk_duration:.2f}s")
             
         except Exception as e:
             error_msg = str(e)[:500]

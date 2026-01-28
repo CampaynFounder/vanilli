@@ -457,8 +457,17 @@ function StudioPage() {
               setIsGenerating(false);
               setEstimatedTimeRemaining(0);
               if (row.final_video_r2_path) {
-                const { data: urlData } = await supabase.storage.from(BUCKET).createSignedUrl(row.final_video_r2_path, 3600);
-                if (urlData?.signedUrl) setVideoUrl(urlData.signedUrl);
+                // Ensure path doesn't have leading slash (Supabase expects relative path)
+                const cleanPath = row.final_video_r2_path.startsWith('/') ? row.final_video_r2_path.slice(1) : row.final_video_r2_path;
+                console.log(`[studio] Creating signed URL for final video: ${cleanPath}`);
+                const { data: urlData, error: urlError } = await supabase.storage.from(BUCKET).createSignedUrl(cleanPath, 3600);
+                if (urlError) {
+                  console.error(`[studio] Failed to create signed URL:`, urlError);
+                  console.error(`[studio] Path used: ${cleanPath}`);
+                  console.error(`[studio] Generation ID: ${row.id}`);
+                } else if (urlData?.signedUrl) {
+                  setVideoUrl(urlData.signedUrl);
+                }
               }
               refreshUser();
               return;

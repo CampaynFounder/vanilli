@@ -191,9 +191,16 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         downloadUrl = path;
       } else {
         // Create signed URL from storage path
-        const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(path, 3600);
+        // Ensure path doesn't have leading slash (Supabase expects relative path)
+        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+        console.log(`[GenerationsList] Creating signed URL for path: ${cleanPath}`);
+        const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(cleanPath, 3600);
         if (error || !data?.signedUrl) {
-          setDownloadError(error?.message || 'Download link not available');
+          console.error(`[GenerationsList] Failed to create signed URL:`, error);
+          console.error(`[GenerationsList] Path used: ${cleanPath}`);
+          console.error(`[GenerationsList] Generation ID: ${generation.id}`);
+          console.error(`[GenerationsList] final_video_r2_path: ${generation.final_video_r2_path}`);
+          setDownloadError(error?.message || 'Download link not available. The video may not have been uploaded yet.');
           setDownloadErrorId(downloadKey);
           return;
         }
