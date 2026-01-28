@@ -544,14 +544,10 @@ def process_job_with_chunks(
                 print(f"[worker] Chunk {i+1}/{num_chunks} observability:")
                 print(f"  - Video chunk: {video_chunk_start_time:.3f}s to {video_chunk_end_time:.3f}s (duration: {video_chunk_actual_duration:.3f}s)")
                 print(f"  - Audio chunk: {audio_start_time:.3f}s to {audio_start_time + audio_duration:.3f}s (duration: {audio_duration:.3f}s) in master audio")
-                if sync_offset and sync_offset > 0:
-                    if i == 0:
-                        print(f"  - Chunk 0: Audio starts at 0s, will be delayed by {sync_offset:.3f}s when muxing (shifts audio right by {sync_offset:.3f}s)")
-                    elif i == 1:
-                        print(f"  - Chunk 1: Audio starts at {audio_start_time:.3f}s (chunk_duration {chunk_duration:.3f}s - sync_offset {sync_offset:.3f}s)")
-                    else:
-                        prev_audio_end = (chunk_duration - sync_offset) + chunk_duration if i == 2 else ((i-1) * chunk_duration - sync_offset) + chunk_duration
-                        print(f"  - Chunk {i}: Audio starts at {audio_start_time:.3f}s (where chunk {i-1} audio ended: {prev_audio_end:.3f}s)")
+                if i == 0:
+                    print(f"  - Chunk 0: After Smart Video Trim, video and audio both start at 0s")
+                else:
+                    print(f"  - Chunk {i}: Audio continues sequentially from chunk {i-1} (starts at {audio_start_time:.3f}s)")
                 print(f"  - Image index: {image_index}/{len(target_images)-1}, URL: {current_image}")
                 print(f"  - Video chunk URL: {chunk_url[:80]}...")
                 
