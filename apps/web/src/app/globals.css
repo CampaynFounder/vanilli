@@ -148,6 +148,20 @@
   }
 }
 
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 24s linear infinite;
+  width: max-content;
+}
+
 /* Beat pulse animation */
 @keyframes beatPulse {
   0%, 100% {

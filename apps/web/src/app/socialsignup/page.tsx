@@ -29,11 +29,11 @@ function CarouselLogo({ src }: { src: string }) {
   const [err, setErr] = useState(false);
   return (
     <div
-      className="flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl sm:rounded-2xl bg-transparent border border-white/10 flex items-center justify-center p-2 overflow-hidden"
+      className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl bg-transparent border border-white/10 flex items-center justify-center p-1.5 overflow-hidden"
       aria-hidden
     >
       {err ? (
-        <span className="text-slate-600 text-xs">Logo</span>
+        <span className="text-slate-600 text-[10px]">Logo</span>
       ) : (
         <img
           src={src}
@@ -126,18 +126,18 @@ export default function SocialSignupPage() {
 
           {/* Hero headline: PNG with gradual reveal, or text fallback */}
           <div className="text-center mb-6 sm:mb-8">
-            <div className="min-h-[4.5rem] sm:min-h-[5rem] flex flex-col items-center justify-center mb-2 sm:mb-3">
+            <div className="min-h-[6rem] sm:min-h-[7rem] flex flex-col items-center justify-center mb-2 sm:mb-3">
               {heroImgError ? (
                 <h1 className="text-2xl sm:text-3xl font-bold gradient-text-premium">
                   Get Your AI Artist Signed
                 </h1>
               ) : (
-                <div className="opacity-0 animate-reveal-hero w-full max-w-md mx-auto">
+                <div className="opacity-0 animate-reveal-hero w-full max-w-2xl mx-auto px-1">
                   <Image
                     src={HERO_HEADLINE_SRC}
                     alt="Get Your AI Artist Signed"
-                    width={640}
-                    height={160}
+                    width={800}
+                    height={200}
                     className="w-full h-auto object-contain"
                     priority
                     onError={() => setHeroImgError(true)}
@@ -150,18 +150,17 @@ export default function SocialSignupPage() {
             </h2>
           </div>
 
-          {/* Logo carousel: transparent containers, horizontal scroll */}
+          {/* Logo carousel: transparent containers, auto-scrolling marquee */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center">
               Companies and Labels Looking to Sign AI Artists
             </h3>
-            <div
-              className="flex gap-4 overflow-x-auto overflow-y-hidden pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 scrollbar-hide scroll-smooth"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              {CAROUSEL_LOGO_SRCS.map((item) => (
-                <CarouselLogo key={item.id} src={item.src} />
-              ))}
+            <div className="overflow-hidden -mx-4 sm:-mx-6" aria-hidden>
+              <div className="flex gap-4 animate-marquee py-1">
+                {[...CAROUSEL_LOGO_SRCS, ...CAROUSEL_LOGO_SRCS].map((item, i) => (
+                  <CarouselLogo key={`${item.id}-${i}`} src={item.src} />
+                ))}
+              </div>
             </div>
           </div>
 
