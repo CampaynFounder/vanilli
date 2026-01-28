@@ -127,14 +127,29 @@ def generate_chunk_previews(
         elif sync_offset > 0:
             print(f"[chunk-preview] Positive offset: Trimming VIDEO by {sync_offset:.3f}s (removing dead space)")
             # Trim video: apply -ss to video input, re-encode for frame-accurate cut
+            # IMPORTANT: Use proper encoding settings to preserve quality and fix timestamps
             video_trimmed_path = work_path / "video_trimmed.mp4"
-            subprocess.run(
+            trim_result = subprocess.run(
                 ["ffmpeg", "-y", "-ss", str(sync_offset), "-i", str(video_raw_path),
                  "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for frame-accurate trim
+                 "-pix_fmt", "yuv420p",  # Ensure compatibility
                  "-avoid_negative_ts", "make_zero",  # Ensure timestamps start at 0
+                 "-movflags", "+faststart",  # Web optimization
                  str(video_trimmed_path)],
-                check=True, capture_output=True
+                check=True, capture_output=True, text=True
             )
+            # Verify trimmed video was created and has video stream
+            if not video_trimmed_path.exists() or video_trimmed_path.stat().st_size == 0:
+                raise Exception(f"Video trimming failed - file missing or empty")
+            # Verify video has video stream
+            probe_result = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(video_trimmed_path)],
+                capture_output=True, text=True
+            )
+            if probe_result.returncode != 0 or "video" not in probe_result.stdout.lower():
+                raise Exception(f"Trimmed video has no video stream - trimming may have failed")
+            print(f"[chunk-preview] Video trimmed successfully: {video_trimmed_path.stat().st_size / 1024 / 1024:.2f} MB")
             video_path = video_trimmed_path
             audio_path = audio_raw_path
             # Video duration is reduced by sync_offset
@@ -207,23 +222,51 @@ def generate_chunk_previews(
             audio_end_time = audio_start_time + video_chunk_actual_duration
             
             # Extract video chunk
-            # For chunk 0, video was already trimmed by Smart Video Trim (if positive offset)
-            # For other chunks, extract normally
+            # IMPORTANT: After Smart Video Trim, we must re-encode (not copy) to preserve quality and fix timestamps
+            # Using -c copy can cause black frames or missing video due to keyframe/timestamp issues
             video_chunk_path = chunks_dir / f"video_chunk_{i:03d}.mp4"
             if i == 0 and sync_offset and sync_offset > 0:
-                # Chunk 0 video was already trimmed, just extract from 0
+                # Chunk 0 video was already trimmed, extract from 0 with re-encoding
+                print(f"[chunk-preview] Extracting chunk 0 video (from trimmed video, re-encoding for quality)")
                 subprocess.run(
                     ["ffmpeg", "-y", "-i", str(video_path), "-ss", "0", 
-                     "-t", str(video_chunk_actual_duration), "-c", "copy", str(video_chunk_path)],
-                    check=True, capture_output=True
+                     "-t", str(video_chunk_actual_duration),
+                     "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for quality
+                     "-pix_fmt", "yuv420p",  # Ensure compatibility
+                     "-avoid_negative_ts", "make_zero",  # Fix timestamps
+                     "-movflags", "+faststart",  # Web optimization
+                     str(video_chunk_path)],
+                    check=True, capture_output=True, text=True
                 )
             else:
                 # Normal extraction for chunk 0 (negative/zero offset) or chunk 1+
+                # Re-encode to ensure quality and proper timestamps
+                print(f"[chunk-preview] Extracting chunk {i+1} video (re-encoding for quality)")
                 subprocess.run(
                     ["ffmpeg", "-y", "-i", str(video_path), "-ss", str(video_start_time), 
-                     "-t", str(video_end_time - video_start_time), "-c", "copy", str(video_chunk_path)],
-                    check=True, capture_output=True
+                     "-t", str(video_end_time - video_start_time),
+                     "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # Re-encode for quality
+                     "-pix_fmt", "yuv420p",  # Ensure compatibility
+                     "-avoid_negative_ts", "make_zero",  # Fix timestamps
+                     "-movflags", "+faststart",  # Web optimization
+                     str(video_chunk_path)],
+                    check=True, capture_output=True, text=True
                 )
+            
+            # Verify video chunk was created and has content
+            if not video_chunk_path.exists() or video_chunk_path.stat().st_size == 0:
+                raise Exception(f"Video chunk {i+1} extraction failed - file missing or empty")
+            
+            # Verify video has video stream (not just audio)
+            probe_result = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(video_chunk_path)],
+                capture_output=True, text=True
+            )
+            if probe_result.returncode != 0 or "video" not in probe_result.stdout.lower():
+                raise Exception(f"Video chunk {i+1} has no video stream - extraction may have failed")
+            
+            print(f"[chunk-preview] Video chunk {i+1} extracted: {video_chunk_path.stat().st_size / 1024:.2f} KB")
             
             # Extract audio chunk
             # For chunk 0, audio was already trimmed by Smart Video Trim (if negative offset)
