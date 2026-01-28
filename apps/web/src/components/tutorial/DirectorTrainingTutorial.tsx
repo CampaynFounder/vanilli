@@ -60,7 +60,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-purple-400 font-bold">2.</span>
-                <span><strong className="text-white">Count Down:</strong> Say "3, 2, 1" silently, then play the part of the music the AI artist will perform.</span>
+                <span><strong className="text-white">Count Down:</strong> Say "3, 2, 1" silently, then play the part of the music the AI artist will perform as you lip sync the facial movements for training.</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-purple-400 font-bold">3.</span>
@@ -217,7 +217,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
       content: (
         <div className="space-y-4">
           <p className="text-slate-300 text-sm mb-4">
-            Fill in these details to generate your system prompt:
+            Fill in these details to generate a sample Vannilli prompt:
           </p>
           
           <div className="space-y-3">
