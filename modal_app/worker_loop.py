@@ -522,8 +522,13 @@ def process_job_with_chunks(
                 task_id = kling_client.generate(chunk_url, current_image, prompt, webhook_url=webhook_url)
                 kling_completed_at = None
                 
+                # Log the request_id we received from fal.ai
+                print(f"[worker] Received request_id from fal.ai: {task_id} for chunk {i+1}")
+                
                 # Store kling_task_id IMMEDIATELY so webhook can find the chunk
                 # This must be done before polling starts, as webhook might arrive first
+                # Note: We store the request_id from the initial POST response
+                # The webhook may send request_id or gateway_request_id, but request_id should match
                 if chunk_id:
                     try:
                         update_result = supabase.table("video_chunks").update({
@@ -531,14 +536,18 @@ def process_job_with_chunks(
                             "kling_requested_at": kling_requested_at,
                         }).eq("id", chunk_id).execute()
                         if update_result.data:
-                            print(f"[worker] Stored kling_task_id {task_id} for chunk {i+1} (webhook can now find it)")
+                            print(f"[worker] ✓ Stored kling_task_id '{task_id}' for chunk {i+1} (chunk_id: {chunk_id})")
+                            print(f"[worker]   Webhook should be able to find this chunk using request_id: {task_id}")
                         else:
                             print(f"[worker] WARNING: Failed to store kling_task_id for chunk {i+1} - update returned no data")
+                            print(f"[worker]   chunk_id: {chunk_id}, task_id: {task_id}")
                     except Exception as store_error:
                         print(f"[worker] ERROR: Failed to store kling_task_id for chunk {i+1}: {store_error}")
+                        print(f"[worker]   chunk_id: {chunk_id}, task_id: {task_id}")
                         # Continue anyway - polling will still work
                 else:
                     print(f"[worker] WARNING: chunk_id is None for chunk {i+1}, cannot store kling_task_id")
+                    print(f"[worker]   This means the chunk record doesn't exist - webhook will not be able to find it!")
                 
                 # Poll for status (webhook will also update database, but we poll for immediate results)
                 # With webhooks, if polling fails, the webhook will still update the chunk

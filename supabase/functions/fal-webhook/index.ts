@@ -44,6 +44,7 @@ serve(async (req) => {
 
   let payload: {
     request_id?: string;
+    gateway_request_id?: string;  // fal.ai webhook also sends this
     status?: string;
     video?: { url?: string } | string;
     response?: { video?: { url?: string } | string };
@@ -60,23 +61,47 @@ serve(async (req) => {
     });
   }
 
-  const request_id = payload.request_id;
+  // fal.ai webhook sends both request_id and gateway_request_id
+  // request_id is the queue ID (what we store), gateway_request_id is the last retry attempt
+  // We should use request_id for matching, but fall back to gateway_request_id if needed
+  const request_id = payload.request_id || payload.gateway_request_id;
   if (!request_id) {
-    console.error("[fal-webhook] Missing request_id in payload:", payload);
+    console.error("[fal-webhook] Missing request_id and gateway_request_id in payload:", JSON.stringify(payload, null, 2));
     return new Response(JSON.stringify({ error: "Missing request_id" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  console.log(`[fal-webhook] Received webhook for request_id: ${request_id}, status: ${payload.status}`);
+  console.log(`[fal-webhook] Received webhook - request_id: ${payload.request_id}, gateway_request_id: ${payload.gateway_request_id}, status: ${payload.status}`);
+  console.log(`[fal-webhook] Using request_id for lookup: ${request_id}`);
 
-  // Find the chunk by kling_task_id (which stores the fal.ai request_id)
-  const { data: chunk, error: findError } = await supabase
-    .from("video_chunks")
-    .select("id, job_id, generation_id, chunk_index, status")
-    .eq("kling_task_id", request_id)
-    .single();
+  // Find the chunk by kling_task_id (which stores the fal.ai request_id from initial response)
+  // Try request_id first, then gateway_request_id as fallback
+  let chunk = null;
+  let findError = null;
+  
+  if (payload.request_id) {
+    const result = await supabase
+      .from("video_chunks")
+      .select("id, job_id, generation_id, chunk_index, status, kling_task_id")
+      .eq("kling_task_id", payload.request_id)
+      .maybeSingle();
+    chunk = result.data;
+    findError = result.error;
+  }
+  
+  // If not found and we have gateway_request_id, try that too
+  if (!chunk && payload.gateway_request_id && payload.gateway_request_id !== payload.request_id) {
+    console.log(`[fal-webhook] request_id not found, trying gateway_request_id: ${payload.gateway_request_id}`);
+    const result = await supabase
+      .from("video_chunks")
+      .select("id, job_id, generation_id, chunk_index, status, kling_task_id")
+      .eq("kling_task_id", payload.gateway_request_id)
+      .maybeSingle();
+    chunk = result.data;
+    findError = result.error;
+  }
 
   if (findError || !chunk) {
     console.error(
