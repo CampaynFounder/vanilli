@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { DirectorTrainingTutorial } from '@/components/tutorial/DirectorTrainingTutorial';
 
 function CheckoutSuccessContent() {
   const router = useRouter();
@@ -14,6 +15,8 @@ function CheckoutSuccessContent() {
   const [creditsConfirmed, setCreditsConfirmed] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [initialCredits, setInitialCredits] = useState<number | null>(null);
 
   const product = searchParams?.get('product') || 'demo';
   const maxPollingAttempts = 10; // 10 attempts = ~15 seconds
@@ -41,17 +44,41 @@ function CheckoutSuccessContent() {
       if (!error && data) {
         const credits = (data as { credits_remaining?: number }).credits_remaining ?? 0;
         const tier = (data as { tier?: string }).tier;
+        
+        // Store initial credits on first check
+        if (initialCredits === null) {
+          setInitialCredits(user.creditsRemaining || 0);
+        }
+        
         setCreditsRemaining(credits);
+        
+        const previousCredits = initialCredits ?? user.creditsRemaining ?? 0;
+        const creditIncrease = credits - previousCredits;
+        const hasSeenTutorial = typeof window !== 'undefined' && localStorage.getItem('vannilli_tutorial_seen');
+        const isFirstTimeFreeCredits = creditIncrease === 3 && previousCredits === 0 && credits === 3 && !hasSeenTutorial;
         
         // For DEMO tier, check if credits are 20 or more
         if (product === 'demo' && tier === 'demo' && credits >= 20) {
           setCreditsConfirmed(true);
+          if (isFirstTimeFreeCredits) {
+            setShowTutorial(true);
+          }
           return true;
         }
         
         // For other products, check if credits increased
-        if (product !== 'demo' && credits > (user.creditsRemaining || 0)) {
+        if (product !== 'demo' && credits > previousCredits) {
           setCreditsConfirmed(true);
+          if (isFirstTimeFreeCredits) {
+            setShowTutorial(true);
+          }
+          return true;
+        }
+        
+        // Fallback: Check if user just got 3 free credits (handles cases where product param might not be set)
+        if (isFirstTimeFreeCredits) {
+          setCreditsConfirmed(true);
+          setShowTutorial(true);
           return true;
         }
       }
@@ -97,6 +124,20 @@ function CheckoutSuccessContent() {
 
   const productName = productNames[product] || 'Tier';
 
+  const handleTutorialComplete = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vannilli_tutorial_seen', 'true');
+    }
+    router.push('/studio');
+  };
+
+  const handleTutorialSkip = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vannilli_tutorial_seen', 'true');
+    }
+    router.push('/studio');
+  };
+
   // Show loading state while auth is loading
   if (loading) {
     return (
@@ -111,37 +152,43 @@ function CheckoutSuccessContent() {
       <div className="max-w-2xl w-full text-center">
         {creditsConfirmed ? (
           <>
-            {/* Celebration Animation */}
-            <div className="mb-8 flex justify-center">
-              <div className="relative w-64 h-64 md:w-80 md:h-80">
-                {/* Animated confetti/celebration effect */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-8xl md:text-9xl animate-bounce">🎉</div>
+            {showTutorial ? (
+              <DirectorTrainingTutorial onComplete={handleTutorialComplete} onSkip={handleTutorialSkip} />
+            ) : (
+              <>
+                {/* Celebration Animation */}
+                <div className="mb-8 flex justify-center">
+                  <div className="relative w-64 h-64 md:w-80 md:h-80">
+                    {/* Animated confetti/celebration effect */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-8xl md:text-9xl animate-bounce">🎉</div>
+                    </div>
+                    {/* Optional: Add MP4/GIF here */}
+                    {/* <video autoPlay loop muted className="w-full h-full object-contain">
+                      <source src="/celebration.mp4" type="video/mp4" />
+                    </video> */}
+                  </div>
                 </div>
-                {/* Optional: Add MP4/GIF here */}
-                {/* <video autoPlay loop muted className="w-full h-full object-contain">
-                  <source src="/celebration.mp4" type="video/mp4" />
-                </video> */}
-              </div>
-            </div>
 
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Congratulations! 🎊
-            </h1>
-            <p className="text-xl md:text-2xl text-slate-300 mb-2">
-              You've successfully enrolled in the {productName} tier!
-            </p>
-            {creditsRemaining !== null && (
-              <p className="text-lg text-purple-400 font-semibold mb-8">
-                You now have {creditsRemaining} credits
-              </p>
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                  Congratulations! 🎊
+                </h1>
+                <p className="text-xl md:text-2xl text-slate-300 mb-2">
+                  You've successfully enrolled in the {productName} tier!
+                </p>
+                {creditsRemaining !== null && (
+                  <p className="text-lg text-purple-400 font-semibold mb-8">
+                    You now have {creditsRemaining} credits
+                  </p>
+                )}
+                <Link
+                  href="/studio"
+                  className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Go to Studio
+                </Link>
+              </>
             )}
-            <Link
-              href="/studio"
-              className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Go to Studio
-            </Link>
           </>
         ) : error ? (
           <>
