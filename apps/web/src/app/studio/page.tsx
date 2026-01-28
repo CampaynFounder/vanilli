@@ -429,7 +429,7 @@ function StudioPage() {
             if (row.current_stage) {
               const stageMap: Record<string, typeof currentStep> = {
                 'analyzing': 'preparing',
-                'processing_chunks': 'processing scenes',
+                'processing_chunks': 'syncing',  // Processing scenes maps to syncing step
                 'stitching': 'syncing',
                 'finalizing': 'finalizing',
                 'completed': 'complete',
@@ -594,7 +594,7 @@ function StudioPage() {
             if (row.current_stage) {
               const stageMap: Record<string, typeof currentStep> = {
                 'analyzing': 'preparing',
-                'processing_chunks': 'processing scenes',
+                'processing_chunks': 'syncing',  // Processing scenes maps to syncing step
                 'stitching': 'syncing',
                 'finalizing': 'finalizing',
                 'completed': 'complete',
