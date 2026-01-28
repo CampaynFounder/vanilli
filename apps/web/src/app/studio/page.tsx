@@ -159,7 +159,7 @@ function StudioPage() {
         setDurationValidation({ valid: false, error: `Audio must be at least ${minDuration} seconds` });
         return;
       }
-      // For DEMO and Industry tiers: audio can be different length (uses global alignment + tempo chunking)
+      // For DEMO and Industry tiers: audio can be different length (uses global alignment + tempo-based scene calculation)
       // For lower tiers: audio must match video length
       if (userTier !== 'demo' && userTier !== 'industry') {
         if (audioWhole > maxDuration) {
@@ -799,7 +799,7 @@ function StudioPage() {
               </p>
             </GlassCard>
 
-            {/* BPM/Tempo input (optional) – helps with audio alignment and chunking */}
+            {/* BPM/Tempo input (optional) – helps with audio alignment and scene calculation */}
             <GlassCard>
               <label htmlFor="studio-bpm" className="block text-sm font-medium text-slate-300 mb-2">
                 5. BPM (Tempo) <span className="text-slate-500 font-normal">(optional)</span>
