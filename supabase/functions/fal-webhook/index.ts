@@ -61,6 +61,11 @@ serve(async (req) => {
     });
   }
 
+  // LOG THE FULL PAYLOAD FIRST - This is critical for debugging
+  console.log(`[fal-webhook] ===== FULL WEBHOOK PAYLOAD =====`);
+  console.log(JSON.stringify(payload, null, 2));
+  console.log(`[fal-webhook] ===== END PAYLOAD =====`);
+
   // fal.ai webhook sends both request_id and gateway_request_id
   // request_id is the queue ID (what we store), gateway_request_id is the last retry attempt
   // We should use request_id for matching, but fall back to gateway_request_id if needed
@@ -163,25 +168,60 @@ serve(async (req) => {
 
   // fal.ai webhook can send "OK" for successful requests or "COMPLETED" for queue-based requests
   if (status === "COMPLETED" || status === "OK") {
+    console.log(`[fal-webhook] Processing ${status} status for chunk ${chunk.id}`);
+    
     // Extract video URL from fal.ai response
-    // Format can be: {"payload": {"video": {"url": "..."}}} (webhook format)
-    // or {"response": {"video": {"url": "..."}}} (queue result format)
-    // or {"video": {"url": "..."}} (direct format)
+    // fal.ai webhook formats can vary:
+    // 1. {"response": {"video": {"url": "..."}}} (queue result format)
+    // 2. {"payload": {"video": {"url": "..."}}} (webhook format)
+    // 3. {"video": {"url": "..."}} (direct format)
+    // 4. {"response": {"video": "..."}} (video as string)
+    // 5. {"video": "..."} (video as direct string)
     let video_url: string | undefined;
-    const payload_data = payload.payload || {};
+    
+    // Try all possible paths
     const response_data = payload.response || {};
-    const video_data = payload_data.video || response_data.video || payload.video;
-
+    const payload_data = payload.payload || {};
+    
+    // Check response.video first (most common for queue API)
+    let video_data = response_data.video;
+    if (!video_data) {
+      // Check payload.video (webhook format)
+      video_data = payload_data.video;
+    }
+    if (!video_data) {
+      // Check direct payload.video
+      video_data = payload.video;
+    }
+    
+    console.log(`[fal-webhook] Extracted video_data:`, JSON.stringify(video_data, null, 2));
+    
     if (video_data) {
       if (typeof video_data === "string") {
         video_url = video_data;
-      } else if (typeof video_data === "object" && video_data.url) {
-        video_url = video_data.url;
+        console.log(`[fal-webhook] Video URL (string): ${video_url}`);
+      } else if (typeof video_data === "object") {
+        // Could be {"url": "..."} or nested structure
+        if (video_data.url) {
+          video_url = video_data.url;
+          console.log(`[fal-webhook] Video URL (object.url): ${video_url}`);
+        } else {
+          // Try to find any URL-like string in the object
+          const videoStr = JSON.stringify(video_data);
+          const urlMatch = videoStr.match(/https?:\/\/[^\s"']+\.(mp4|mov|webm)/i);
+          if (urlMatch) {
+            video_url = urlMatch[0];
+            console.log(`[fal-webhook] Video URL (extracted from object): ${video_url}`);
+          }
+        }
       }
     }
 
     if (!video_url) {
-      console.error(`[fal-webhook] No video URL in payload for request_id ${request_id}`);
+      console.error(`[fal-webhook] No video URL found in payload for request_id ${request_id}`);
+      console.error(`[fal-webhook] Attempted paths: response.video, payload.video, video`);
+      console.error(`[fal-webhook] Full payload structure:`, JSON.stringify(payload, null, 2));
+      
       // Update chunk as failed
       await supabase
         .from("video_chunks")
@@ -201,18 +241,22 @@ serve(async (req) => {
         }
       );
     }
+    
+    console.log(`[fal-webhook] ✓ Extracted video URL: ${video_url}`);
 
     // Update chunk with completed status and video URL
-    const { error: updateError } = await supabase
+    console.log(`[fal-webhook] Updating chunk ${chunk.id} with status=COMPLETED and video_url=${video_url}`);
+    const { error: updateError, data: updateData } = await supabase
       .from("video_chunks")
       .update({
         status: "COMPLETED",
         kling_video_url: video_url,
         kling_completed_at: now,
         // Note: video_url (final muxed URL) will be set by worker_loop after muxing
-        // This kling_video_url is the raw Kling output
+        // This kling_video_url is the raw fal.ai output
       })
       .eq("id", chunk.id)
+      .select()
       .execute();
 
     if (updateError) {
@@ -230,8 +274,9 @@ serve(async (req) => {
     }
 
     console.log(
-      `[fal-webhook] Successfully updated chunk ${chunk.id} (chunk_index: ${chunk.chunk_index}) with video URL`
+      `[fal-webhook] ✓ Successfully updated chunk ${chunk.id} (chunk_index: ${chunk.chunk_index}) with video URL: ${video_url}`
     );
+    console.log(`[fal-webhook] Updated chunk data:`, JSON.stringify(updateData, null, 2));
 
     // Trigger worker_loop to continue processing (muxing, etc.)
     // The worker_loop will poll for COMPLETED chunks and process them
