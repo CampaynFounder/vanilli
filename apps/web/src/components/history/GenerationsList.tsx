@@ -379,65 +379,6 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   };
 
-  // Video scrubbing thumbnail - only for pending/processing status
-  const VideoScrubbingThumbnail = ({ videoUrl }: { videoUrl: string }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [signedUrl, setSignedUrl] = useState<string | null>(null);
-    
-    useEffect(() => {
-      const loadVideo = async () => {
-        try {
-          const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(videoUrl, 3600);
-          if (!error && data?.signedUrl) {
-            setSignedUrl(data.signedUrl);
-          }
-        } catch (e) {
-          console.error('[history] Error loading video for scrubbing:', e);
-        }
-      };
-      loadVideo();
-    }, [videoUrl]);
-    
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!videoRef.current || !containerRef.current || !signedUrl) return;
-      
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = x / rect.width;
-      
-      if (videoRef.current.duration) {
-        videoRef.current.currentTime = percentage * videoRef.current.duration;
-      }
-    };
-    
-    if (!signedUrl) {
-      return <div className="text-2xl">⏳</div>;
-    }
-    
-    return (
-      <div
-        ref={containerRef}
-        className="w-full h-full relative cursor-pointer"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => {
-          if (videoRef.current) {
-            videoRef.current.currentTime = 0;
-          }
-        }}
-      >
-        <video
-          ref={videoRef}
-          src={signedUrl}
-          className="w-full h-full object-cover"
-          muted
-          preload="metadata"
-          playsInline
-        />
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4">
       {generations.map((generation) => {
