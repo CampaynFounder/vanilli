@@ -82,3 +82,40 @@ The worker loop then polls for chunks with `status = 'COMPLETED'` and `kling_vid
 - Returns `200 OK` even if chunk not found (to prevent fal.ai retries)
 - Logs errors to console for debugging
 - Updates chunk status appropriately on failures
+
+## What Happens When We Receive a Webhook
+
+When fal.ai sends a webhook callback:
+
+1. **Webhook Received**: We log the FULL payload for debugging
+2. **Find Chunk**: We search for the chunk by `fal_request_id` (matches `request_id` from webhook)
+3. **Extract Video URL**: We try multiple paths:
+   - `payload.response.video.url` (queue result format)
+   - `payload.payload.video.url` (webhook format)
+   - `payload.video.url` (direct format)
+   - `payload.response.video` (string format)
+   - `payload.video` (direct string)
+4. **Update Database**: If video URL found:
+   - Set `status = 'COMPLETED'`
+   - Set `kling_video_url = <extracted_url>`
+   - Set `kling_completed_at = <timestamp>`
+5. **Worker Loop**: The worker loop polls for chunks with `status = 'COMPLETED'` and processes them (muxing audio, etc.)
+
+## What Happens When We Poll Queue API
+
+When the worker loop polls the fal.ai queue API:
+
+1. **Status Check**: Poll `/requests/{request_id}/status` every 5 seconds
+2. **Status = COMPLETED**: When status is COMPLETED:
+   - Fetch `/requests/{request_id}` to get full result
+   - Log the FULL result payload
+   - Extract video URL from `response.video.url` or `video.url`
+   - Return video URL to worker loop
+3. **Worker Loop Processing**: 
+   - Downloads the video from the URL
+   - Extracts audio slice
+   - Muxes video + audio together
+   - Uploads final chunk to Supabase storage
+   - Updates chunk with final `video_url`
+
+**Note**: Both webhook and polling can update the same chunk. The webhook is faster (async), but polling provides immediate feedback if webhook fails.
