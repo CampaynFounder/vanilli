@@ -37,7 +37,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
             Follow these tips to create a strong video that gets your AI Artist signed and gets you the bag.
           </p>
           <p className="text-purple-400 text-sm font-semibold">
-            Swipe through to learn the secrets of professional tracking videos.
+            Swipe Through and Learn the Secret to Hyper Real AI Videos that Get Your AI Artists Signed.
           </p>
         </div>
       ),
@@ -49,7 +49,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
       content: (
         <div className="space-y-4">
           <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-            <h4 className="text-white font-semibold mb-2 text-sm">The Pre-Roll & Trim Method</h4>
+            <h4 className="text-white font-semibold mb-2 text-sm">Press Record 2-3 Seconds Before You Perform the Track</h4>
             <p className="text-slate-300 text-xs mb-3">
               This ensures the AI has enough buffer to "lock onto" your face before the first phoneme hits.
             </p>
@@ -78,7 +78,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
     },
     {
       id: 'visual-mastery',
-      title: 'Visual & Phoneme Mastery',
+      title: 'Match The Angles',
       icon: '📸',
       content: (
         <div className="space-y-4">
@@ -153,16 +153,16 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
     },
     {
       id: 'pronunciation',
-      title: 'Pronunciation Checklist',
+      title: 'Overemphasize Your Words',
       icon: '🗣️',
       content: (
         <div className="space-y-4">
           <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
             <p className="text-amber-300 font-semibold text-sm mb-2">
-              The "M-O-P" Rule: Over-exaggerate your words
+              The &quot;M-O-P-S&quot; Rule: Over-exaggerate your words
             </p>
             <p className="text-slate-300 text-xs mb-3">
-              VANNILLI doesn't hear, it <strong className="text-white">sees</strong>. If you mumble, the AI artist will look like they're just chewing gum. Over-act the words!
+              VANNILLI doesn&apos;t hear, it <strong className="text-white">sees</strong>. If you mumble, the AI artist will look like they&apos;re just chewing gum. Over-Act the words and Vowels!
             </p>
             <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2">
@@ -175,7 +175,11 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 font-bold text-lg">P</span>
-                <span className="text-slate-300">Make a visible <strong className="text-white">"pop"</strong> with your lips</span>
+                <span className="text-slate-300">Make a visible <strong className="text-white">&quot;pop&quot;</strong> with your lips</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 font-bold text-lg">S</span>
+                <span className="text-slate-300">Show teeth on the S&apos;s; after lips on the P (P and B words, etc.)</span>
               </div>
             </div>
           </div>
@@ -339,7 +343,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-800">
-        <h2 className="text-white font-bold text-lg">Director Training</h2>
+        <h2 className="text-white font-bold text-lg">Tips For Best Videos</h2>
         <button
           onClick={onSkip}
           className="text-slate-400 hover:text-white text-sm transition-colors"

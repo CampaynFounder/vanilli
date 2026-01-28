@@ -58,6 +58,38 @@ function StudioPage() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [hasCompletedGeneration, setHasCompletedGeneration] = useState<boolean | null>(null);
+
+  // Check if user has any completed generation (for Tips button glow)
+  useEffect(() => {
+    if (!user?.id) {
+      setHasCompletedGeneration(null);
+      return;
+    }
+    const check = async () => {
+      try {
+        const uid = user.id;
+        const { data: viaProjects } = await supabase
+          .from('generations')
+          .select('id, projects!inner(user_id)')
+          .eq('projects.user_id', uid)
+          .eq('status', 'completed')
+          .limit(1);
+        const { data: viaVideoJobs } = await supabase
+          .from('generations')
+          .select('id, video_jobs!inner(user_id)')
+          .eq('video_jobs.user_id', uid)
+          .is('project_id', null)
+          .eq('status', 'completed')
+          .limit(1);
+        const hasAny = (viaProjects?.length ?? 0) > 0 || (viaVideoJobs?.length ?? 0) > 0;
+        setHasCompletedGeneration(hasAny);
+      } catch {
+        setHasCompletedGeneration(null);
+      }
+    };
+    check();
+  }, [user?.id]);
 
   // Real-time countdown timer for estimated time
   useEffect(() => {
@@ -456,6 +488,7 @@ function StudioPage() {
               setCurrentStep('complete');
               setGenerationProgress(100);
               setGenerationStatus('completed');
+              setHasCompletedGeneration(true);
               setIsGenerating(false);
               setEstimatedTimeRemaining(0);
               if (row.final_video_r2_path) {
@@ -632,6 +665,7 @@ function StudioPage() {
               setCurrentStep('complete');
               setGenerationProgress(100);
               setGenerationStatus('completed');
+              setHasCompletedGeneration(true);
               setIsGenerating(false);
               setEstimatedTimeRemaining(0);
               try {
@@ -729,10 +763,14 @@ function StudioPage() {
           <button
             type="button"
             onClick={() => setShowTutorial(true)}
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 hover:border-purple-500/50 text-sm font-medium transition-colors"
+            className={`mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600/20 border text-sm font-medium transition-colors ${
+              user?.tier === 'free' && hasCompletedGeneration === false
+                ? 'border-purple-500/50 text-purple-300 hover:bg-purple-600/30 hover:border-purple-500/70 shadow-lg shadow-purple-500/30 animate-glow-pulse'
+                : 'border-purple-500/30 text-purple-300 hover:bg-purple-600/30 hover:border-purple-500/50'
+            }`}
           >
             <span>🎬</span>
-            First time? Director Training
+            First Time Performing Tips
           </button>
         </div>
 
