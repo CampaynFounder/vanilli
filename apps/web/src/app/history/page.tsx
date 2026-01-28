@@ -22,7 +22,12 @@ interface Project {
 interface ActivityItem {
   action?: string;
   created_at?: string;
-  metadata?: { credits?: number };
+  metadata?: { 
+    credits?: number;
+    credits_before?: number;
+    credits_after?: number;
+    [key: string]: unknown; // Allow other metadata fields
+  };
 }
 
 function HistoryPage() {
