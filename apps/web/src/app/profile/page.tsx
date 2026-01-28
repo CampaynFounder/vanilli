@@ -164,6 +164,11 @@ function ProfilePage() {
             if (res.ok && j.credits_remaining !== undefined) {
               refreshUser();
               fetchProfileAndReferrals();
+              // If credits were granted (not already used), redirect to success page for tutorial
+              if (!j.payment_method_already_used && j.credits_remaining >= 3) {
+                window.location.href = '/checkout-success?product=free_credits';
+                return;
+              }
               window.history.replaceState(null, '', '/profile');
               return;
             }

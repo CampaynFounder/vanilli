@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { supabase } from '@/lib/supabase';
@@ -108,6 +109,7 @@ export function LinkPaymentMethod({
   onSuccess: (creditsRemaining?: number, alreadyUsed?: boolean) => void;
   updateOnly?: boolean;
 }) {
+  const router = useRouter();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +157,17 @@ export function LinkPaymentMethod({
   const handleSuccess = (creditsRemaining?: number, alreadyUsedFlag?: boolean) => {
     setSuccess(true);
     setAlreadyUsed(alreadyUsedFlag === true);
-    onSuccess(creditsRemaining, alreadyUsedFlag);
+    
+    // If credits were granted (not already used) and this is not updateOnly, redirect to success page
+    if (!updateOnly && creditsRemaining !== undefined && !alreadyUsedFlag) {
+      // Small delay to show success message, then redirect
+      setTimeout(() => {
+        router.push('/checkout-success?product=free_credits');
+      }, 500);
+    } else {
+      // For updateOnly or already used, just call onSuccess callback
+      onSuccess(creditsRemaining, alreadyUsedFlag);
+    }
   };
 
   if (success) {

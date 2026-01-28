@@ -57,6 +57,15 @@ function CheckoutSuccessContent() {
         const hasSeenTutorial = typeof window !== 'undefined' && localStorage.getItem('vannilli_tutorial_seen');
         const isFirstTimeFreeCredits = creditIncrease === 3 && previousCredits === 0 && credits === 3 && !hasSeenTutorial;
         
+        // For free_credits product (payment linking), check if credits are 3
+        if (product === 'free_credits' && credits === 3 && previousCredits === 0) {
+          setCreditsConfirmed(true);
+          if (isFirstTimeFreeCredits) {
+            setShowTutorial(true);
+          }
+          return true;
+        }
+        
         // For DEMO tier, check if credits are 20 or more
         if (product === 'demo' && tier === 'demo' && credits >= 20) {
           setCreditsConfirmed(true);
@@ -67,7 +76,7 @@ function CheckoutSuccessContent() {
         }
         
         // For other products, check if credits increased
-        if (product !== 'demo' && credits > previousCredits) {
+        if (product !== 'demo' && product !== 'free_credits' && credits > previousCredits) {
           setCreditsConfirmed(true);
           if (isFirstTimeFreeCredits) {
             setShowTutorial(true);
@@ -120,6 +129,7 @@ function CheckoutSuccessContent() {
     label: 'Label',
     artist: 'Artist',
     open_mic: 'Open Mic',
+    free_credits: 'Free Credits',
   };
 
   const productName = productNames[product] || 'Tier';
