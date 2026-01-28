@@ -153,7 +153,7 @@ export default function SocialSignupPage() {
           {/* Logo carousel: transparent containers, auto-scrolling marquee */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center">
-              Companies Are Searching For the Next AI Star
+              AI Artists Music Videos. That Get You Signed
             </h3>
             <div className="overflow-hidden -mx-4 sm:-mx-6" aria-hidden>
               <div className="flex gap-4 animate-marquee py-1">
@@ -181,7 +181,7 @@ export default function SocialSignupPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold text-white mb-1 text-center">Get Started Today for FREE</h2>
+                  <h2 className="text-xl font-bold text-white mb-1 text-center">Start Today For Free</h2>
                   <p className="text-slate-400 text-sm mb-5 text-center">Sign up to get started.</p>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
