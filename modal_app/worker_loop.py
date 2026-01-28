@@ -153,7 +153,7 @@ def worker_loop():
             final_video_path = process_job_with_chunks(
                 orchestrator, supabase, job_id, generation_id,
                 user_video_url, master_audio_url, target_images, prompt,
-                sync_offset, chunk_duration, user_tier, kling_client
+                sync_offset, chunk_duration, user_tier, kling_client, supabase_url
             )
         else:
             # Legacy single-chunk processing
@@ -232,7 +232,7 @@ def worker_loop():
 def process_job_with_chunks(
     orchestrator, supabase, job_id, generation_id,
     user_video_url, master_audio_url, target_images, prompt,
-    sync_offset, chunk_duration, user_tier, kling_client
+    sync_offset, chunk_duration, user_tier, kling_client, supabase_url
 ):
     """Process job with chunk-level tracking for DEMO/Industry tiers."""
     import requests
