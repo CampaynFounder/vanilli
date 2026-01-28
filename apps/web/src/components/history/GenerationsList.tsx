@@ -308,6 +308,65 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   };
 
+  // Video player for completed videos - allows playback
+  const CompletedVideoPlayer = ({ videoPath, generationId }: { videoPath: string; generationId: string }) => {
+    const [signedUrl, setSignedUrl] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    
+    useEffect(() => {
+      const loadVideo = async () => {
+        try {
+          // Ensure path doesn't have leading slash
+          const cleanPath = videoPath.startsWith('/') ? videoPath.slice(1) : videoPath;
+          const { data, error } = await supabase.storage.from('vannilli').createSignedUrl(cleanPath, 3600);
+          if (!error && data?.signedUrl) {
+            setSignedUrl(data.signedUrl);
+          } else {
+            console.error('[history] Error loading completed video:', error);
+          }
+        } catch (e) {
+          console.error('[history] Error loading video for playback:', e);
+        }
+      };
+      loadVideo();
+    }, [videoPath]);
+    
+    if (!signedUrl) {
+      return <div className="text-2xl">⏳</div>;
+    }
+    
+    return (
+      <div className="w-full h-full relative group">
+        <video
+          ref={videoRef}
+          src={signedUrl}
+          className="w-full h-full object-cover"
+          controls={isPlaying}
+          playsInline
+          preload="metadata"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (videoRef.current) {
+              if (isPlaying) {
+                videoRef.current.pause();
+              } else {
+                videoRef.current.play();
+              }
+            }
+          }}
+        />
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/20 transition-colors cursor-pointer">
+            <div className="text-white text-3xl drop-shadow-lg">▶</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Video scrubbing thumbnail - only for pending/processing status
   const VideoScrubbingThumbnail = ({ videoUrl }: { videoUrl: string }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -379,15 +438,21 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         return (
           <GlassCard key={generation.id} elevated className="card-3d">
             <div className="flex items-start gap-4">
-              {/* Thumbnail */}
+              {/* Thumbnail or Video Player */}
               <div className="flex-shrink-0 w-32 h-20 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center relative">
-                {isProcessing && generation.video_jobs?.user_video_url ? (
+                {generation.status === 'completed' && generation.final_video_r2_path ? (
+                  // Video player for completed videos
+                  <CompletedVideoPlayer 
+                    videoPath={generation.final_video_r2_path}
+                    generationId={generation.id}
+                  />
+                ) : isProcessing && generation.video_jobs?.user_video_url ? (
                   // Live video scrubbing for pending/processing status
                   <VideoScrubbingThumbnail 
                     videoUrl={generation.video_jobs.user_video_url}
                   />
                 ) : generation.thumbnail_r2_path && (generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') ? (
-                  // Static thumbnail for completed/failed/cancelled
+                  // Static thumbnail for failed/cancelled (completed uses video player above)
                   <ThumbnailImage 
                     path={generation.thumbnail_r2_path} 
                     alt={displayName}

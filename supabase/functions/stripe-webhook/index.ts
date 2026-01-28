@@ -144,14 +144,42 @@ serve(async (req) => {
             .single();
           
           if (user && user.tier === "demo") {
-            // Reset DEMO tier credits to 20 (discard unused)
+            // Reset DEMO tier credits to 20 (discard unused, no rollover)
+            // Get current credits before reset for logging
+            const { data: userBefore } = await supabase
+              .from("users")
+              .select("credits_remaining")
+              .eq("id", user.id)
+              .single();
+            
+            const creditsBefore = (userBefore as { credits_remaining?: number } | null)?.credits_remaining ?? 0;
+            
             await supabase
               .from("users")
               .update({ credits_remaining: 20 })
               .eq("id", user.id)
               .eq("tier", "demo")
               .execute();
-            console.log(`[stripe-webhook] Reset DEMO tier credits for user ${user.id} to 20`);
+            
+            console.log(`[stripe-webhook] Reset DEMO tier credits for user ${user.id} from ${creditsBefore} to 20`);
+            
+            // Log to audit_log for transaction history
+            await supabase.from("audit_log").insert({
+              user_id: user.id,
+              action: "subscription_renewed",
+              resource_type: "subscription",
+              resource_id: null,
+              metadata: {
+                source: "subscription_renewal",
+                tier: "demo",
+                credits: 20,
+                credits_before: creditsBefore,
+                credits_after: 20,
+                stripe_subscription_id: subId,
+                event_id: event.id,
+                note: "DEMO tier daily reset (no rollover)"
+              },
+            });
           }
         }
         

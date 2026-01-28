@@ -66,7 +66,7 @@ function HistoryPage() {
           const { data: p } = await supabase.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50);
           setProjects((p || []) as Project[]);
         } else {
-          const { data: a } = await supabase.from('audit_log').select('*').eq('user_id', uid).in('action', ['credit_purchase', 'subscription_created', 'subscription_renewed', 'referral_credit_earned']).order('created_at', { ascending: false }).limit(50);
+          const { data: a } = await supabase.from('audit_log').select('*').eq('user_id', uid).in('action', ['credit_purchase', 'subscription_created', 'subscription_renewed', 'referral_credit_earned', 'credits_deducted']).order('created_at', { ascending: false }).limit(50);
           setActivity((a || []) as ActivityItem[]);
         }
       } catch (e) { console.error(e); }
