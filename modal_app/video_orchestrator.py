@@ -32,66 +32,99 @@ class ValidationError(Exception):
 
 
 class KlingClient:
-    """Simplified Kling API client wrapper."""
+    """Simplified fal.ai Kling video API client wrapper."""
     
-    def __init__(self, base_url: str, bearer_token: str):
-        self.base_url = base_url.rstrip("/")
-        self.bearer = bearer_token
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://queue.fal.run"
+        self.endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"
     
     def generate(self, driver_video_url: str, target_image_url: str, prompt: Optional[str] = None) -> str:
-        """Generate video via Kling API. Returns task_id for polling."""
+        """Generate video via fal.ai Kling API. Returns request_id for polling."""
         payload = {
-            "model_name": "kling-v2",
-            "driver_video_url": driver_video_url,
-            "video_url": driver_video_url,
             "image_url": target_image_url,
-            "imageUrl": target_image_url,
-            "mode": "std",
-            "character_orientation": "image",
+            "video_url": driver_video_url,
+            "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
         }
         if prompt:
             payload["prompt"] = prompt[:100]
         
         r = requests.post(
-            f"{self.base_url}/videos/motion-control",
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.bearer}"},
+            f"{self.base_url}/{self.endpoint}",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Key {self.api_key}",
+            },
             json=payload,
             timeout=60,
         )
         r.raise_for_status()
         j = r.json()
-        if j.get("code") != 0:
-            raise Exception(f"Kling API error: {j.get('message', 'Unknown error')}")
-        return j["data"]["task_id"]
+        
+        # fal.ai returns request_id for queue-based endpoints
+        request_id = j.get("request_id")
+        if not request_id:
+            error_msg = j.get("detail", {}).get("message") if isinstance(j.get("detail"), dict) else j.get("detail", "Unknown error")
+            raise Exception(f"fal.ai API error: {error_msg}")
+        return request_id
     
-    def poll_status(self, task_id: str, max_attempts: int = 60) -> Tuple[str, Optional[str]]:
-        """Poll Kling task status. Returns (status, video_url). Status: 'succeed', 'failed', 'processing'."""
+    def poll_status(self, request_id: str, max_attempts: int = 60) -> Tuple[str, Optional[str]]:
+        """Poll fal.ai task status. Returns (status, video_url). Status: 'succeed', 'failed', 'processing'."""
         for _ in range(max_attempts):
             time.sleep(5)
-            r = requests.get(
-                f"{self.base_url}/videos/motion-control/{task_id}",
-                headers={"Authorization": f"Bearer {self.bearer}"},
-                timeout=30,
-            )
-            r.raise_for_status()
-            j = r.json()
-            if j.get("code") != 0:
+            try:
+                # fal.ai queue API: get status
+                r = requests.get(
+                    f"{self.base_url}/requests/{request_id}/status",
+                    headers={"Authorization": f"Key {self.api_key}"},
+                    timeout=30,
+                )
+                r.raise_for_status()
+                j = r.json()
+                
+                # fal.ai status format: "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
+                status = j.get("status")
+                if status == "COMPLETED":
+                    # Get the result
+                    result_r = requests.get(
+                        f"{self.base_url}/requests/{request_id}",
+                        headers={"Authorization": f"Key {self.api_key}"},
+                        timeout=30,
+                    )
+                    result_r.raise_for_status()
+                    result_j = result_r.json()
+                    
+                    # Extract video URL from fal.ai response
+                    # fal.ai returns: {"video": {"url": "...", "file_name": "...", ...}}
+                    video_data = result_j.get("video")
+                    if video_data:
+                        if isinstance(video_data, dict):
+                            video_url = video_data.get("url")
+                        elif isinstance(video_data, str):
+                            video_url = video_data
+                        else:
+                            video_url = None
+                        
+                        if video_url:
+                            return ("succeed", video_url)
+                    
+                    raise Exception(f"fal.ai task completed but no video URL found: {result_j}")
+                elif status == "FAILED":
+                    error_data = j.get("error", {})
+                    if isinstance(error_data, dict):
+                        error_msg = error_data.get("message", str(error_data))
+                    else:
+                        error_msg = str(error_data) if error_data else "Unknown error"
+                    raise Exception(f"fal.ai task failed: {error_msg}")
+                elif status in ("IN_PROGRESS", "IN_QUEUE"):
+                    # Continue polling
+                    continue
+                elif status in ("COMPLETED", "FAILED"):
+                    break
+            except requests.exceptions.RequestException as e:
+                print(f"[fal.ai] Poll error: {e}, continuing...")
                 continue
-            data = j.get("data") or {}
-            st = data.get("task_status")
-            if st == "failed":
-                raise Exception(f"Kling task failed: {j.get('message', 'Unknown error')}")
-            if st == "succeed":
-                task_result = data.get("task_result") or {}
-                urls = task_result.get("videos") or []
-                if urls:
-                    v0 = urls[0] or {}
-                    video_url = v0.get("url")
-                    if video_url:
-                        return ("succeed", video_url)
-            if st in ("succeed", "failed"):
-                break
-        raise Exception("Kling task timed out")
+        raise Exception("fal.ai task timed out")
 
 
 class VideoProductionOrchestrator:

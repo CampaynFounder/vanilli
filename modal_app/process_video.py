@@ -57,26 +57,12 @@ def process_video_impl(data: Optional[dict] = None):
     _base = (os.environ.get("SUPABASE_URL") or "").strip()
     supabase_url = (_base.rstrip("/") + "/") if _base else _base
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-    kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
-    # Kling: Access Key + Secret (JWT) or single Bearer. Secret can be KLING_SECRET_KEY or KLING_API_KEY.
-    # Strip to avoid "access key is empty" from hidden newlines/spaces; treat empty-after-strip as unset.
+    # fal.ai API: Use FAL_API_KEY (or KLING_API_KEY for backward compatibility)
     def _k(v): return (v or "").strip() or None
-    kling_access = _k(os.environ.get("KLING_ACCESS_KEY"))
-    kling_secret = _k(os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY"))
-    kling_api_key = _k(os.environ.get("KLING_API_KEY"))
-    if kling_access and kling_secret:
-        now = int(time.time())
-        payload = {"iss": kling_access, "exp": now + 1800, "nbf": now - 5}
-        headers = {"alg": "HS256", "typ": "JWT"}
-        tok = jwt.encode(payload, kling_secret, algorithm="HS256", headers=headers)
-        kling_bearer = tok.decode("utf-8") if isinstance(tok, bytes) else tok
-        print(f"[vannilli] Kling auth: JWT from KLING_ACCESS_KEY + (KLING_SECRET_KEY or KLING_API_KEY)")
-        print(f"[vannilli] Kling JWT: payload={{iss:<redacted>,nbf:{now-5},exp:{now+1800}}} prefix={kling_bearer[:50]}...")
-    elif kling_api_key:
-        kling_bearer = kling_api_key
-        print(f"[vannilli] Kling auth: KLING_API_KEY (single Bearer)")
-    else:
+    fal_api_key = _k(os.environ.get("FAL_API_KEY")) or _k(os.environ.get("KLING_API_KEY"))
+    if not fal_api_key:
         return {"ok": False, "error": "Video service is not configured. Please contact VANNILLI support."}
+    print(f"[vannilli] Using fal.ai API with FAL_API_KEY")
     # Log that we're using service_role (do not log the key). 403 often means anon key or missing RLS.
     print(f"[vannilli] SUPABASE_SERVICE_ROLE_KEY present: True, len={len(supabase_key)}")
 
@@ -203,23 +189,23 @@ def process_video_impl(data: Optional[dict] = None):
             else:
                 tracking_url_for_kling = tracking_url
 
-        # Kling motion-control: driver/reference video + image. mode=std. character_orientation=image.
-        # api.klingai.com may expect imageUrl (camelCase); fal/some docs use image_url and video_url. Send both.
+        # fal.ai Kling motion-control: driver/reference video + image. character_orientation=image.
+        fal_base_url = "https://queue.fal.run"
+        fal_endpoint = "fal-ai/kling-video/v2.6/standard/motion-control"
         payload = {
-            "model_name": "kling-v2",
-            "driver_video_url": tracking_url_for_kling,
-            "video_url": tracking_url_for_kling,
             "image_url": target_url,
-            "imageUrl": target_url,
-            "mode": "std",
-            "character_orientation": "image",
+            "video_url": tracking_url_for_kling,
+            "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
         }
         if prompt:
-            payload["prompt"] = prompt
+            payload["prompt"] = prompt[:100]
         try:
             r = requests.post(
-                f"{kling_base}/videos/motion-control",
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {kling_bearer}"},
+                f"{fal_base_url}/{fal_endpoint}",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Key {fal_api_key}",
+                },
                 json=payload,
                 timeout=60,
             )
@@ -228,8 +214,8 @@ def process_video_impl(data: Optional[dict] = None):
                     body = r.json()
                 except Exception:
                     body = (r.text[:1500] if r.text else None) or r.reason
-                err_log = f"Kling motion-control HTTP {r.status_code}: {body!r}"
-                print(f"[vannilli] Kling start FAIL: {err_log}")
+                err_log = f"fal.ai motion-control HTTP {r.status_code}: {body!r}"
+                print(f"[vannilli] fal.ai start FAIL: {err_log}")
                 _fail(supabase, generation_id, "Video generation failed. Please try again. If it persists, contact VANNILLI support.")
                 return {
                     "ok": False,
@@ -237,13 +223,15 @@ def process_video_impl(data: Optional[dict] = None):
                     "video_api_status": r.status_code,
                 }
             j = r.json()
-            if j.get("code") != 0:
-                print(f"[vannilli] Kling start code!=0: {j.get('message', '')!r}")
+            # fal.ai returns request_id for queue-based endpoints
+            task_id = j.get("request_id")
+            if not task_id:
+                error_msg = j.get("detail", {}).get("message") if isinstance(j.get("detail"), dict) else j.get("detail", "Unknown error")
+                print(f"[vannilli] fal.ai start error: {error_msg!r}")
                 _fail(supabase, generation_id, "Video generation failed. Please try again.")
                 return {"ok": False, "error": "Video generation failed. Please try again."}
-            task_id = j["data"]["task_id"]
         except Exception as e:
-            print(f"[vannilli] Kling start exception: {type(e).__name__} {e!r}")
+            print(f"[vannilli] fal.ai start exception: {type(e).__name__} {e!r}")
             _fail(supabase, generation_id, "Video generation failed. Please try again.")
             return {"ok": False, "error": "Video generation failed. Please try again."}
 
@@ -251,39 +239,55 @@ def process_video_impl(data: Optional[dict] = None):
 
         kling_units_used = None
 
-        # Poll Kling
+        # Poll fal.ai
+        kling_units_used = None  # fal.ai doesn't provide unit deduction info in the same format
         for _ in range(60):
             time.sleep(5)
             try:
+                # Get status
                 r = requests.get(
-                    f"{kling_base}/videos/motion-control/{task_id}",
-                    headers={"Authorization": f"Bearer {kling_bearer}"},
+                    f"{fal_base_url}/requests/{task_id}/status",
+                    headers={"Authorization": f"Key {fal_api_key}"},
                     timeout=30,
                 )
                 r.raise_for_status()
                 j = r.json()
-                if j.get("code") != 0:
-                    continue
-                data = j.get("data") or {}
-                st = data.get("task_status")
-                if st == "failed":
-                    print(f"[vannilli] Kling poll task failed: {j.get('message', '')!r}")
+                status = j.get("status")
+                
+                if status == "FAILED":
+                    error_data = j.get("error", {})
+                    error_msg = error_data.get("message", str(error_data)) if isinstance(error_data, dict) else str(error_data) if error_data else "Unknown error"
+                    print(f"[vannilli] fal.ai poll task failed: {error_msg!r}")
                     _fail(supabase, generation_id, "Video generation failed. Please try again.")
                     return {"ok": False, "error": "Video generation failed. Please try again."}
-                if st == "succeed":
-                    task_result = data.get("task_result") or {}
-                    urls = task_result.get("videos") or []
-                    if not urls:
-                        _fail(supabase, generation_id, "Video generation produced no output. Please try again.")
-                        return {"ok": False, "error": "Video generation produced no output. Please try again."}
-                    v0 = urls[0] or {}
-                    kling_video_url = v0.get("url")
-                    if not kling_video_url:
-                        _fail(supabase, generation_id, "Video generation produced no output. Please try again.")
-                        return {"ok": False, "error": "Video generation produced no output. Please try again."}
-
-                    # Final unit deduction (Kling may use unit_deduction, credit_used, units_used)
-                    kling_units_used = data.get("unit_deduction") or data.get("credit_used") or data.get("units_used") or task_result.get("unit_deduction") or task_result.get("credit_used")
+                if status == "COMPLETED":
+                    # Get the result
+                    result_r = requests.get(
+                        f"{fal_base_url}/requests/{task_id}",
+                        headers={"Authorization": f"Key {fal_api_key}"},
+                        timeout=30,
+                    )
+                    result_r.raise_for_status()
+                    result_j = result_r.json()
+                    
+                    # Extract video URL
+                    video_data = result_j.get("video")
+                    if video_data:
+                        if isinstance(video_data, dict):
+                            kling_video_url = video_data.get("url")
+                        elif isinstance(video_data, str):
+                            kling_video_url = video_data
+                        else:
+                            kling_video_url = None
+                        
+                        if kling_video_url:
+                            break
+                    
+                    _fail(supabase, generation_id, "Video generation produced no output. Please try again.")
+                    return {"ok": False, "error": "Video generation produced no output. Please try again."}
+                elif status in ("IN_PROGRESS", "IN_QUEUE"):
+                    continue
+                elif status in ("COMPLETED", "FAILED"):
                     break
             except Exception as e:
                 continue

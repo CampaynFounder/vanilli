@@ -25,27 +25,17 @@ BUCKET = "vannilli"
 OUTPUTS_PREFIX = "outputs"
 
 
-def get_kling_bearer() -> str:
-    """Get Kling bearer token (JWT or API key)."""
-    import jwt
-    
-    kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
+def get_fal_api_key() -> str:
+    """Get fal.ai API key."""
     def _k(v): return (v or "").strip() or None
     
-    kling_access = _k(os.environ.get("KLING_ACCESS_KEY"))
-    kling_secret = _k(os.environ.get("KLING_SECRET_KEY") or os.environ.get("KLING_API_KEY"))
-    kling_api_key = _k(os.environ.get("KLING_API_KEY"))
+    # Support both FAL_API_KEY and KLING_API_KEY for backward compatibility
+    fal_api_key = _k(os.environ.get("FAL_API_KEY")) or _k(os.environ.get("KLING_API_KEY"))
     
-    if kling_access and kling_secret:
-        now = int(time.time())
-        payload = {"iss": kling_access, "exp": now + 1800, "nbf": now - 5}
-        headers = {"alg": "HS256", "typ": "JWT"}
-        tok = jwt.encode(payload, kling_secret, algorithm="HS256", headers=headers)
-        return tok.decode("utf-8") if isinstance(tok, bytes) else tok
-    elif kling_api_key:
-        return kling_api_key
+    if fal_api_key:
+        return fal_api_key
     else:
-        raise Exception("Kling credentials not configured")
+        raise Exception("fal.ai API key not configured. Set FAL_API_KEY (or KLING_API_KEY for backward compatibility)")
 
 
 @app.function(
@@ -77,7 +67,6 @@ def worker_loop():
     
     supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-    kling_base = os.environ.get("KLING_API_URL", "https://api.klingai.com/v1")
     
     if not supabase_url or not supabase_key:
         print("[worker] Missing Supabase configuration")
@@ -130,9 +119,9 @@ def worker_loop():
         return
     
     try:
-        # Initialize Kling client
-        kling_bearer = get_kling_bearer()
-        kling_client = KlingClient(kling_base, kling_bearer)
+        # Initialize fal.ai Kling client
+        fal_api_key = get_fal_api_key()
+        kling_client = KlingClient(fal_api_key)
         
         # Initialize orchestrator
         orchestrator = VideoProductionOrchestrator(kling_client, user_tier, supabase)
