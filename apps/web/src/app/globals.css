@@ -291,3 +291,17 @@ video:-ms-fullscreen::backdrop {
   transform: perspective(1000px) rotateX(2deg) rotateY(2deg);
 }
 
+/* Processing scan animation */
+@keyframes scan {
+  0%, 100% { 
+    transform: translateX(-100%); 
+  }
+  50% { 
+    transform: translateX(200%); 
+  }
+}
+
+.animate-scan {
+  animation: scan 2s ease-in-out infinite;
+}
+

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GlassCard } from '../ui/GlassCard';
 import { sanitizeForUser } from '@/lib/utils';
+import { ProcessingThumbnail } from './ProcessingThumbnail';
 
 export interface Generation {
   id: string;
@@ -64,6 +65,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   const [processingGenerations, setProcessingGenerations] = useState<Set<string>>(new Set());
   const [generationProgress, setGenerationProgress] = useState<Record<string, number>>({});
   const [generationTimeRemaining, setGenerationTimeRemaining] = useState<Record<string, number>>({});
+  const [generationStages, setGenerationStages] = useState<Record<string, string | null>>({});
   const [deletingGenerations, setDeletingGenerations] = useState<Set<string>>(new Set());
   
   // Fetch scenes for generations
@@ -105,13 +107,17 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         try {
           const { data } = await supabase
             .from('generations')
-            .select('progress_percentage, estimated_completion_at, status')
+            .select('progress_percentage, estimated_completion_at, status, current_stage')
             .eq('id', id)
             .single();
           
           if (data) {
             if (data.progress_percentage != null) {
               setGenerationProgress(prev => ({ ...prev, [id]: data.progress_percentage }));
+            }
+            
+            if (data.current_stage !== undefined) {
+              setGenerationStages(prev => ({ ...prev, [id]: data.current_stage }));
             }
             
             if (data.estimated_completion_at) {
@@ -439,6 +445,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         const displayName = getGenerationName(generation);
         const progress = generationProgress[generation.id] ?? generation.progress_percentage ?? 0;
         const timeRemaining = generationTimeRemaining[generation.id];
+        const currentStage = generationStages[generation.id] ?? generation.current_stage;
         const isProcessing = generation.status === 'processing' || generation.status === 'pending';
         
         return (
@@ -451,10 +458,13 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   <CompletedVideoPlayer 
                     videoPath={generation.final_video_r2_path}
                   />
-                ) : isProcessing && generation.video_jobs?.user_video_url ? (
-                  // Live video scrubbing for pending/processing status
-                  <VideoScrubbingThumbnail 
-                    videoUrl={generation.video_jobs.user_video_url}
+                ) : isProcessing ? (
+                  // Modern processing animation with user's target images
+                  <ProcessingThumbnail
+                    targetImages={generation.video_jobs?.target_images}
+                    thumbnailPath={generation.thumbnail_r2_path}
+                    progress={progress}
+                    currentStage={currentStage}
                   />
                 ) : generation.thumbnail_r2_path && (generation.status === 'completed' || generation.status === 'failed' || generation.status === 'cancelled') ? (
                   // Static thumbnail for failed/cancelled (completed uses video player above)
@@ -462,8 +472,6 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     path={generation.thumbnail_r2_path} 
                     alt={displayName}
                   />
-                ) : isProcessing ? (
-                  <div className="text-4xl">⏳</div>
                 ) : generation.status === 'completed' ? (
                   <div className="text-4xl">✅</div>
                 ) : generation.status === 'failed' ? (
@@ -518,7 +526,13 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     {isProcessing && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                          <span>Progress: {progress}%</span>
+                          <span>
+                            {currentStage === 'analyzing' && 'Analyzing media...'}
+                            {currentStage === 'processing_chunks' && 'Creating scenes...'}
+                            {currentStage === 'stitching' && 'Finalizing scenes...'}
+                            {currentStage === 'finalizing' && 'Finalizing video...'}
+                            {!currentStage && 'Processing...'} {progress}%
+                          </span>
                           {timeRemaining != null && timeRemaining > 0 && (
                             <span>
                               {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')} remaining
@@ -527,7 +541,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                         </div>
                         <div className="w-full bg-slate-800 rounded-full h-2">
                           <div
-                            className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                            className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${Math.max(5, progress)}%` }}
                           />
                         </div>
