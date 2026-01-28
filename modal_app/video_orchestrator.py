@@ -73,9 +73,9 @@ class KlingClient:
         for _ in range(max_attempts):
             time.sleep(5)
             try:
-                # fal.ai queue API: get status
+                # fal.ai queue API: get status (must include model_id in path)
                 r = requests.get(
-                    f"{self.base_url}/requests/{request_id}/status",
+                    f"{self.base_url}/{self.endpoint}/requests/{request_id}/status",
                     headers={"Authorization": f"Key {self.api_key}"},
                     timeout=30,
                 )
@@ -85,9 +85,9 @@ class KlingClient:
                 # fal.ai status format: "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
                 status = j.get("status")
                 if status == "COMPLETED":
-                    # Get the result
+                    # Get the result (must include model_id in path)
                     result_r = requests.get(
-                        f"{self.base_url}/requests/{request_id}",
+                        f"{self.base_url}/{self.endpoint}/requests/{request_id}",
                         headers={"Authorization": f"Key {self.api_key}"},
                         timeout=30,
                     )
@@ -95,8 +95,11 @@ class KlingClient:
                     result_j = result_r.json()
                     
                     # Extract video URL from fal.ai response
-                    # fal.ai returns: {"video": {"url": "...", "file_name": "...", ...}}
-                    video_data = result_j.get("video")
+                    # fal.ai returns: {"response": {"video": {"url": "...", "file_name": "...", ...}}}
+                    # Or directly: {"video": {"url": "..."}}
+                    response_data = result_j.get("response", {})
+                    video_data = response_data.get("video") if response_data else result_j.get("video")
+                    
                     if video_data:
                         if isinstance(video_data, dict):
                             video_url = video_data.get("url")

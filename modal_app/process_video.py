@@ -244,9 +244,9 @@ def process_video_impl(data: Optional[dict] = None):
         for _ in range(60):
             time.sleep(5)
             try:
-                # Get status
+                # Get status (must include model_id in path)
                 r = requests.get(
-                    f"{fal_base_url}/requests/{task_id}/status",
+                    f"{fal_base_url}/{fal_endpoint}/requests/{task_id}/status",
                     headers={"Authorization": f"Key {fal_api_key}"},
                     timeout=30,
                 )
@@ -261,17 +261,20 @@ def process_video_impl(data: Optional[dict] = None):
                     _fail(supabase, generation_id, "Video generation failed. Please try again.")
                     return {"ok": False, "error": "Video generation failed. Please try again."}
                 if status == "COMPLETED":
-                    # Get the result
+                    # Get the result (must include model_id in path)
                     result_r = requests.get(
-                        f"{fal_base_url}/requests/{task_id}",
+                        f"{fal_base_url}/{fal_endpoint}/requests/{task_id}",
                         headers={"Authorization": f"Key {fal_api_key}"},
                         timeout=30,
                     )
                     result_r.raise_for_status()
                     result_j = result_r.json()
                     
-                    # Extract video URL
-                    video_data = result_j.get("video")
+                    # Extract video URL from fal.ai response
+                    # fal.ai returns: {"response": {"video": {"url": "...", ...}}}
+                    response_data = result_j.get("response", {})
+                    video_data = response_data.get("video") if response_data else result_j.get("video")
+                    
                     if video_data:
                         if isinstance(video_data, dict):
                             kling_video_url = video_data.get("url")
