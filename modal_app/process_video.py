@@ -48,7 +48,7 @@ def process_video_impl(data: Optional[dict] = None):
     audio_url = _str(data.get("audio_track_url"))  # Optional
     generation_id = (data.get("generation_id") or "").strip() or None
     is_trial = data.get("is_trial", False)
-    prompt = (data.get("prompt") or "").strip()[:100]
+    prompt = (data.get("prompt") or "").strip()[:500]
     gen_secs = float(data.get("generation_seconds") or 0)
 
     if not all([tracking_url, target_url, generation_id]):
@@ -216,7 +216,7 @@ def process_video_impl(data: Optional[dict] = None):
             "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
         }
         if prompt:
-            payload["prompt"] = prompt[:100]
+            payload["prompt"] = prompt[:500]
         try:
             r = requests.post(
                 f"{fal_base_url}/{fal_endpoint}",

@@ -41,7 +41,7 @@ function StudioPage() {
   const maxImages = user?.tier === 'demo' || user?.tier === 'industry' ? 9 : 1;
   const hasImage = targetImages.length > 0;
 
-  // Optional scene prompt: context/environment (motion comes from video). Max 100 chars.
+  // Optional scene prompt: context/environment (motion comes from video). Max 500 chars.
   const [prompt, setPrompt] = useState('');
   
   // Optional user-provided BPM (tempo)
@@ -363,7 +363,7 @@ function StudioPage() {
           user_video_url: t.signedUrl,
           master_audio_url: audioSignedUrl || t.signedUrl, // Use video audio if no separate audio
           target_images: imageUrls,
-          prompt: (prompt || '').slice(0, 100) || null,
+          prompt: (prompt || '').slice(0, 500) || null,
         };
         
         // Include user-provided BPM if entered
@@ -516,7 +516,7 @@ function StudioPage() {
             duration_seconds: genSecs,
             target_image_r2_path: `${base}/target_0.jpg`,
             driver_video_r2_path: `${base}/tracking.mp4`,
-            prompt: (prompt || '').slice(0, 100) || null,
+            prompt: (prompt || '').slice(0, 500) || null,
             status: 'processing',
           })
           .select('id')
@@ -553,7 +553,7 @@ function StudioPage() {
             driver_video_r2_path: `${base}/tracking.mp4`,
             target_image_r2_path: `${base}/target_0.jpg`,
             audio_r2_path: audioTrack ? `${base}/audio.${audioTrack.name.split('.').pop() || 'mp3'}` : null,
-            prompt: (prompt || '').slice(0, 100) || null,
+            prompt: (prompt || '').slice(0, 500) || null,
           })
           .eq('id', proj.id);
 
@@ -576,7 +576,7 @@ function StudioPage() {
             generation_id: gid,
             generation_seconds: genSecs,
             is_trial: user?.tier === 'free',
-            prompt: (prompt || '').slice(0, 100),
+            prompt: (prompt || '').slice(0, 500),
           }),
         });
         const j = await res.json().catch(() => ({}));
@@ -801,7 +801,7 @@ function StudioPage() {
               <input
                 id="studio-prompt"
                 type="text"
-                maxLength={100}
+                maxLength={500}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. On a stage with soft lighting, urban background"
@@ -809,7 +809,7 @@ function StudioPage() {
                 aria-describedby="studio-prompt-hint"
               />
               <p id="studio-prompt-hint" className="mt-1.5 text-xs text-slate-500">
-                Context and environment for the scene. Motion comes from your video. {prompt.length}/100
+                Context and environment for the scene. Motion comes from your video. {prompt.length}/500
               </p>
             </GlassCard>
 

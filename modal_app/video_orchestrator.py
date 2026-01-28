@@ -58,7 +58,7 @@ class KlingClient:
             "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
         }
         if prompt:
-            payload["prompt"] = prompt[:100]
+            payload["prompt"] = prompt[:500]
         
         # Build URL with webhook as query parameter (not in JSON body)
         url = f"{self.base_url}/{self.endpoint}"
