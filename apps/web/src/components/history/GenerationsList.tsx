@@ -177,7 +177,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
           return;
         }
         path = chunk.video_url;
-        filename = `vannilli-chunk-${chunkIndex + 1}-${generation.id}.mp4`;
+        filename = `vannilli-scene-${chunkIndex + 1}-${generation.id}.mp4`;
       } else {
         // Download final video
         path = generation.final_video_r2_path || `outputs/${generation.id}/final.mp4`;
@@ -573,7 +573,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  {chunksByGeneration[generation.id].length} Chunk{chunksByGeneration[generation.id].length !== 1 ? 's' : ''} Available
+                  {chunksByGeneration[generation.id].length} Scene{chunksByGeneration[generation.id].length !== 1 ? 's' : ''} Available
                 </button>
                 
                 {expandedGenerations.has(generation.id) && (
@@ -581,7 +581,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     {chunksByGeneration[generation.id].map((chunk) => (
                       <div key={chunk.id} className="flex items-center justify-between p-2 bg-slate-800/30 rounded-lg">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-slate-400">Chunk {chunk.chunk_index + 1}</span>
+                          <span className="text-xs text-slate-400">Scene {chunk.chunk_index + 1}</span>
                           <span className={`text-xs px-2 py-1 rounded ${
                             chunk.status === 'COMPLETED' ? 'bg-green-500/20 text-green-300' :
                             chunk.status === 'PROCESSING' ? 'bg-blue-500/20 text-blue-300' :

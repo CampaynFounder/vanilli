@@ -429,7 +429,7 @@ function StudioPage() {
             if (row.current_stage) {
               const stageMap: Record<string, typeof currentStep> = {
                 'analyzing': 'preparing',
-                'processing_chunks': 'lipsync',
+                'processing_chunks': 'processing scenes',
                 'stitching': 'syncing',
                 'finalizing': 'finalizing',
                 'completed': 'complete',
@@ -594,7 +594,7 @@ function StudioPage() {
             if (row.current_stage) {
               const stageMap: Record<string, typeof currentStep> = {
                 'analyzing': 'preparing',
-                'processing_chunks': 'lipsync',
+                'processing_chunks': 'processing scenes',
                 'stitching': 'syncing',
                 'finalizing': 'finalizing',
                 'completed': 'complete',
@@ -737,7 +737,7 @@ function StudioPage() {
             {maxImages > 1 ? (
               <MultiImageUpload
                 label="2. Vannilli Images"
-                description={`Character faces to animate (${maxImages} max, will cycle through chunks)`}
+                description={`Character faces to animate (${maxImages} max, will cycle through scenes)`}
                 maxImages={maxImages}
                 onImagesSelect={handleImagesSelect}
                 previews={imagePreviews}
@@ -817,7 +817,7 @@ function StudioPage() {
                 aria-describedby="studio-bpm-hint"
               />
               <p id="studio-bpm-hint" className="mt-1.5 text-xs text-slate-500">
-                Beats per minute of your track. If provided, will be used for chunk calculation. Otherwise, we'll detect it automatically.
+                Beats per minute of your track. If provided, will be used for scene calculation. Otherwise, we'll detect it automatically.
               </p>
             </GlassCard>
           </div>
