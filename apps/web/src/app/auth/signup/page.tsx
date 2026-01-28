@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { getAuthBackgroundUrl } from '@/lib/auth-background';
+import { isSignupsDisabledError, INSTAGRAM_LAUNCH_URL } from '@/lib/auth-errors';
 
 function ReferralHandler() {
   const searchParams = useSearchParams();
@@ -29,12 +30,14 @@ function SignUpForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [signupsDisabled, setSignupsDisabled] = useState(false);
   const [message, setMessage] = useState('');
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSignupsDisabled(false);
     setMessage('');
 
     // Validate passwords match
@@ -69,10 +72,13 @@ function SignUpForm() {
         setConfirmPassword('');
       }
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
+      const msg = err instanceof Error ? err.message : 'An error occurred during sign up';
+      if (isSignupsDisabledError(msg)) {
+        setSignupsDisabled(true);
+        setError('');
       } else {
-        setError('An error occurred during sign up');
+        setSignupsDisabled(false);
+        setError(msg);
       }
     } finally {
       setLoading(false);
@@ -157,7 +163,22 @@ function SignUpForm() {
               />
             </div>
 
-            {/* Error Message */}
+            {/* Signups disabled: show launch CTA instead of generic error */}
+            {signupsDisabled && (
+              <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg text-slate-200 text-sm">
+                Follow{' '}
+                <a
+                  href={INSTAGRAM_LAUNCH_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:text-purple-300 font-semibold underline underline-offset-2"
+                >
+                  @VANNILLI
+                </a>{' '}
+                for Official Feb 2026 Launch Date!
+              </div>
+            )}
+            {/* Other auth errors */}
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
                 {error}

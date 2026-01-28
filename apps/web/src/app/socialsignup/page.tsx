@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { isSignupsDisabledError, INSTAGRAM_LAUNCH_URL } from '@/lib/auth-errors';
 
 const SIGNUP_CHANNEL = 'socialsignup';
 
@@ -52,6 +53,7 @@ export default function SocialSignupPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [signupsDisabled, setSignupsDisabled] = useState(false);
   const [message, setMessage] = useState('');
   const [done, setDone] = useState(false);
   const [heroImgError, setHeroImgError] = useState(false);
@@ -60,6 +62,7 @@ export default function SocialSignupPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSignupsDisabled(false);
     setMessage('');
 
     if (password.length < 6) {
@@ -94,7 +97,14 @@ export default function SocialSignupPage() {
         setPassword('');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      if (isSignupsDisabledError(msg)) {
+        setSignupsDisabled(true);
+        setError('');
+      } else {
+        setSignupsDisabled(false);
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -216,6 +226,20 @@ export default function SocialSignupPage() {
                       />
                       <p className="mt-1 text-xs text-slate-500">At least 6 characters</p>
                     </div>
+                    {signupsDisabled && (
+                      <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-slate-200 text-sm">
+                        Follow{' '}
+                        <a
+                          href={INSTAGRAM_LAUNCH_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-purple-400 hover:text-purple-300 font-semibold underline underline-offset-2"
+                        >
+                          @VANNILLI
+                        </a>{' '}
+                        for Official Feb 2026 Launch Date!
+                      </div>
+                    )}
                     {error && (
                       <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                         {error}

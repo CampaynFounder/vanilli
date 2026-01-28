@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
+import { getAuthBackgroundUrl } from '@/lib/auth-background';
 
 interface TutorialCard {
   id: string;
@@ -19,6 +20,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const authBg = useMemo(() => getAuthBackgroundUrl(), []);
   const [promptData, setPromptData] = useState({
     songGenre: '',
     movementStyle: '',
@@ -340,9 +342,22 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
   const isLastCard = currentIndex === cards.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col">
+      {/* Auth-style background + overlay for contrast */}
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-slate-950"
+          style={{
+            backgroundImage: `url(${authBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-slate-950/60" aria-hidden="true" />
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-800">
+      <div className="relative z-10 flex items-center justify-between p-4 border-b border-slate-800/80 bg-slate-950/40 backdrop-blur-sm">
         <h2 className="text-white font-bold text-lg">Tips For Best Videos</h2>
         <button
           onClick={onSkip}
@@ -356,30 +371,47 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+        className="relative z-10 flex-1 overflow-x-auto snap-x snap-mandatory scrollbar-hide"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         <div className="flex h-full">
-          {cards.map((card) => (
-            <div
-              key={card.id}
-              className="w-full flex-shrink-0 snap-start px-4 py-6 flex items-center justify-center"
-              style={{ minWidth: '100%' }}
-            >
-              <GlassCard className="w-full max-w-md p-6 max-h-[calc(80vh-120px)] overflow-y-auto">
-                <div className="text-center mb-4">
-                  <div className="text-5xl mb-3">{card.icon}</div>
-                  <h3 className="text-xl font-bold text-white mb-2">{card.title}</h3>
-                </div>
-                <div className="text-sm">{card.content}</div>
-              </GlassCard>
-            </div>
-          ))}
+          {cards.map((card, i) => {
+            const isActive = currentIndex === i;
+            return (
+              <div
+                key={card.id}
+                className="w-full flex-shrink-0 snap-start px-4 py-6 flex items-center justify-center"
+                style={{ minWidth: '100%' }}
+              >
+                <GlassCard className="w-full max-w-md p-6 max-h-[calc(80vh-120px)] overflow-y-auto glass-card-elevated border border-white/10">
+                  {isActive ? (
+                    <>
+                      <div className="text-center mb-4 opacity-0 animate-glide-in">
+                        <div className="text-5xl mb-3">{card.icon}</div>
+                        <h3 className="text-xl font-bold text-white mb-2">{card.title}</h3>
+                      </div>
+                      <div className="text-sm opacity-0 animate-glide-in animate-glide-in-delay-1">
+                        {card.content}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center mb-4">
+                        <div className="text-5xl mb-3">{card.icon}</div>
+                        <h3 className="text-xl font-bold text-white mb-2">{card.title}</h3>
+                      </div>
+                      <div className="text-sm">{card.content}</div>
+                    </>
+                  )}
+                </GlassCard>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Footer with dots and button */}
-      <div className="p-4 border-t border-slate-800">
+      <div className="relative z-10 p-4 border-t border-slate-800/80 bg-slate-950/40 backdrop-blur-sm">
         {/* Dots indicator */}
         <div className="flex justify-center gap-2 mb-4">
           {cards.map((_, index) => (
