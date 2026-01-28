@@ -389,14 +389,14 @@ function StudioPage() {
         setGenerationProgress(5); // Initial progress
         
         // Calculate estimated time based on video duration
-        // Rough estimate: 60-90 seconds per chunk, plus analysis time
+        // Rough estimate: 60-90 seconds per scene, plus analysis time
         if (videoDuration && videoDuration > 0) {
-          const estimatedSecondsPerChunk = 75;
-          // For DEMO/Industry tiers, chunks are typically ~9 seconds (tempo-based)
-          // For lower tiers, it's a single 9-second chunk
-          const defaultChunkDuration = 9;
-          const numChunks = Math.ceil(videoDuration / defaultChunkDuration);
-          const estimatedTotalSeconds = 30 + (numChunks * estimatedSecondsPerChunk); // 30s for analysis
+          const estimatedSecondsPerScene = 75;
+          // For DEMO/Industry tiers, scenes are typically ~9 seconds (tempo-based)
+          // For lower tiers, it's a single 9-second scene
+          const defaultSceneDuration = 9;
+          const numScenes = Math.ceil(videoDuration / defaultSceneDuration);
+          const estimatedTotalSeconds = 30 + (numScenes * estimatedSecondsPerScene); // 30s for analysis
           setEstimatedTimeRemaining(estimatedTotalSeconds);
         } else {
           // Fallback estimate if video duration is not available

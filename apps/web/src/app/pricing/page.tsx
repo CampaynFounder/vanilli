@@ -75,7 +75,7 @@ const PLANS: Array<{
     description: 'Investor demo tier - 20 credits per day (no rollover).',
     cta: 'Enroll',
     featured: false,
-    features: ['Up to 20 second videos', '1 credit = 1 second', '20 credits per day', 'Tempo-based chunking', 'Multi-image support', 'No watermarks'],
+    features: ['Up to 20 second videos', '1 credit = 1 second', '20 credits per day', 'Tempo-based scene calculation', 'Multi-image support', 'No watermarks'],
   },
 ];
 

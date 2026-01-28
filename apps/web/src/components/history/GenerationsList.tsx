@@ -66,7 +66,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   const [generationTimeRemaining, setGenerationTimeRemaining] = useState<Record<string, number>>({});
   const [deletingGenerations, setDeletingGenerations] = useState<Set<string>>(new Set());
   
-  // Fetch chunks for generations
+  // Fetch scenes for generations
   useEffect(() => {
     const fetchChunks = async () => {
       const chunksMap: Record<string, VideoChunk[]> = {};
@@ -172,7 +172,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         const chunks = chunksByGeneration[generation.id];
         const chunk = chunks?.[chunkIndex];
         if (!chunk?.video_url) {
-          setDownloadError('Chunk not available');
+          setDownloadError('Scene not available');
           setDownloadErrorId(downloadKey);
           return;
         }
@@ -637,7 +637,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
               </div>
             </div>
             
-            {/* Show chunks if available */}
+            {/* Show scenes if available */}
             {chunksByGeneration[generation.id] && chunksByGeneration[generation.id].length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-700">
                 <button
