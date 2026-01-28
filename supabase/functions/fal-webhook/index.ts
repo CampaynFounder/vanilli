@@ -78,8 +78,15 @@ serve(async (req) => {
 
   // Find the chunk by kling_task_id (which stores the fal.ai request_id from initial response)
   // Try request_id first, then gateway_request_id as fallback
-  let chunk = null;
-  let findError = null;
+  let chunk: {
+    id: string;
+    job_id: string;
+    generation_id: string | null;
+    chunk_index: number;
+    status: string;
+    kling_task_id: string | null;
+  } | null = null;
+  let findError: any = null;
   
   if (payload.request_id) {
     const result = await supabase
