@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 
 interface TutorialCard {
@@ -17,7 +16,6 @@ interface DirectorTrainingTutorialProps {
 }
 
 export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainingTutorialProps) {
-  const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
@@ -358,7 +356,7 @@ export function DirectorTrainingTutorial({ onComplete, onSkip }: DirectorTrainin
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         <div className="flex h-full">
-          {cards.map((card, index) => (
+          {cards.map((card) => (
             <div
               key={card.id}
               className="w-full flex-shrink-0 snap-start px-4 py-6 flex items-center justify-center"
