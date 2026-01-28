@@ -30,6 +30,7 @@ serve(async (req) => {
     status?: string;
     video?: { url?: string } | string;
     response?: { video?: { url?: string } | string };
+    payload?: { video?: { url?: string } | string };  // Webhook format uses payload field
     error?: { message?: string } | string;
   };
 
@@ -75,12 +76,16 @@ serve(async (req) => {
   const status = payload.status;
   const now = new Date().toISOString();
 
-  if (status === "COMPLETED") {
+  // fal.ai webhook can send "OK" for successful requests or "COMPLETED" for queue-based requests
+  if (status === "COMPLETED" || status === "OK") {
     // Extract video URL from fal.ai response
-    // Format can be: {"video": {"url": "..."}} or {"response": {"video": {"url": "..."}}}
+    // Format can be: {"payload": {"video": {"url": "..."}}} (webhook format)
+    // or {"response": {"video": {"url": "..."}}} (queue result format)
+    // or {"video": {"url": "..."}} (direct format)
     let video_url: string | undefined;
+    const payload_data = payload.payload || {};
     const response_data = payload.response || {};
-    const video_data = response_data.video || payload.video;
+    const video_data = payload_data.video || response_data.video || payload.video;
 
     if (video_data) {
       if (typeof video_data === "string") {
