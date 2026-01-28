@@ -34,13 +34,13 @@ function CheckoutSuccessContent() {
     const previousCredits = user.creditsRemaining ?? 0;
 
     const checkCredits = async (): Promise<boolean> => {
-      const { data, err } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('credits_remaining, tier')
         .eq('id', uid)
         .single();
 
-      if (err || !data) return false;
+      if (error || !data) return false;
 
       const credits = (data as { credits_remaining?: number }).credits_remaining ?? 0;
       const tier = (data as { tier?: string }).tier;
