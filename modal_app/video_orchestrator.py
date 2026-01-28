@@ -46,24 +46,26 @@ class KlingClient:
             driver_video_url: URL of the driver video
             target_image_url: URL of the target image
             prompt: Optional prompt text
-            webhook_url: Optional webhook URL for async callbacks (recommended)
+            webhook_url: Optional webhook URL for async callbacks (passed as query parameter)
         """
-        # Use queue.submit format for webhook support
+        # Direct POST format (not client library format)
+        # Payload is sent directly, not wrapped in "input"
         payload = {
-            "input": {
-                "image_url": target_image_url,
-                "video_url": driver_video_url,
-                "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
-            }
+            "image_url": target_image_url,
+            "video_url": driver_video_url,
+            "character_orientation": "image",  # "image" for portrait (max 10s) or "video" for full-body (max 30s)
         }
         if prompt:
-            payload["input"]["prompt"] = prompt[:100]
+            payload["prompt"] = prompt[:100]
         
+        # Build URL with webhook as query parameter (not in JSON body)
+        url = f"{self.base_url}/{self.endpoint}"
         if webhook_url:
-            payload["webhookUrl"] = webhook_url
+            from urllib.parse import urlencode
+            url += f"?{urlencode({'fal_webhook': webhook_url})}"
         
         r = requests.post(
-            f"{self.base_url}/{self.endpoint}",
+            url,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Key {self.api_key}",
