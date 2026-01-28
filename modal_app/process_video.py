@@ -253,7 +253,7 @@ def process_video_impl(data: Optional[dict] = None):
             _fail(supabase, generation_id, "Video generation failed. Please try again.")
             return {"ok": False, "error": "Video generation failed. Please try again."}
 
-        supabase.table("generations").update({"kling_task_id": task_id, "status": "processing"}).eq("id", generation_id).execute()
+        supabase.table("generations").update({"fal_request_id": task_id, "status": "processing"}).eq("id", generation_id).execute()
 
         kling_units_used = None
 
