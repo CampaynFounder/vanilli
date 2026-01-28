@@ -432,7 +432,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                         </>
                       )}
                       <span className="font-semibold text-purple-400">
-                        {generation.cost_credits} {generation.status === 'processing' || generation.status === 'pending' ? 'credits (will be deducted on completion)' : 'credits'}
+                        {generation.cost_credits} credits {generation.status === 'processing' || generation.status === 'pending' ? '(deducted)' : ''}
                       </span>
                       {generation.video_jobs?.prompt && (
                         <>
