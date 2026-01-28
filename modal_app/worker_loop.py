@@ -766,7 +766,7 @@ def process_job_with_chunks(
                         if 'chunk_url' in locals():
                             update_data["video_chunk_url"] = chunk_url
                         if 'task_id' in locals():
-                            update_data["kling_task_id"] = task_id
+                            update_data["fal_request_id"] = task_id  # fal.ai request_id
                         if 'kling_requested_at' in locals():
                             update_data["kling_requested_at"] = kling_requested_at
                         if 'kling_completed_at' in locals():
