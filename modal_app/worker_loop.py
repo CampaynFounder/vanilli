@@ -549,14 +549,47 @@ def process_job_with_chunks(
                     print(f"[worker] WARNING: chunk_id is None for chunk {i+1}, cannot store fal_request_id")
                     print(f"[worker]   This means the chunk record doesn't exist - webhook will not be able to find it!")
                 
-                # Poll for status (webhook will also update database, but we poll for immediate results)
-                # With webhooks, if polling fails, the webhook will still update the chunk
-                print(f"[worker] Polling fal.ai for chunk {i+1} (request_id: {task_id})...")
-                status, kling_video_url = kling_client.poll_status(task_id)
-                kling_completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                # Check if webhook already updated the chunk with video URL
+                # This avoids unnecessary polling if webhook arrived first
+                kling_video_url = None
+                kling_completed_at = None
                 
-                if status != "succeed" or not kling_video_url:
-                    raise Exception(f"Kling generation failed for chunk {i+1}")
+                if chunk_id:
+                    print(f"[worker] Checking if webhook already updated chunk {i+1} with video URL...")
+                    chunk_check = supabase.table("video_chunks").select("kling_video_url, kling_completed_at, status").eq("id", chunk_id).single().execute()
+                    if chunk_check.data:
+                        existing_url = chunk_check.data.get("kling_video_url")
+                        existing_status = chunk_check.data.get("status")
+                        if existing_url and existing_status == "COMPLETED":
+                            kling_video_url = existing_url
+                            kling_completed_at = chunk_check.data.get("kling_completed_at")
+                            print(f"[worker] ✓ Webhook already provided video URL for chunk {i+1}, using it")
+                            print(f"[worker]   Video URL: {kling_video_url[:80]}...")
+                            print(f"[worker]   Completed at: {kling_completed_at}")
+                
+                # If webhook didn't provide URL yet, poll fal.ai
+                if not kling_video_url:
+                    print(f"[worker] Webhook hasn't updated chunk {i+1} yet, polling fal.ai (request_id: {task_id})...")
+                    status, kling_video_url = kling_client.poll_status(task_id)
+                    kling_completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    
+                    if status != "succeed" or not kling_video_url:
+                        raise Exception(f"Kling generation failed for chunk {i+1}")
+                    
+                    # Update database with video URL from polling (in case webhook missed it)
+                    if chunk_id:
+                        try:
+                            supabase.table("video_chunks").update({
+                                "kling_video_url": kling_video_url,
+                                "kling_completed_at": kling_completed_at,
+                                "status": "COMPLETED",
+                            }).eq("id", chunk_id).execute()
+                            print(f"[worker] ✓ Updated chunk {i+1} with video URL from polling")
+                        except Exception as update_err:
+                            print(f"[worker] WARNING: Failed to update chunk {i+1} with video URL: {update_err}")
+                
+                if not kling_video_url:
+                    raise Exception(f"No video URL available for chunk {i+1}")
                 
                 print(f"[worker] Chunk {i+1}/{num_chunks} Kling completed:")
                 print(f"  - Task ID: {task_id}")
