@@ -70,7 +70,11 @@ function SocialBetaContent() {
         SOCIALBETA_EVENTS.stripeStarted(focusedPlan);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not start. Please try again.';
+      const e = err as { message?: string; status?: number; error?: string };
+      const msg = e?.message ?? e?.error ?? (err instanceof Error ? err.message : 'Could not start. Please try again.');
+      if (typeof window !== 'undefined') {
+        console.error('signInAnonymously error:', err);
+      }
       setStripeError(msg);
       setStep('button');
     }
