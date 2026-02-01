@@ -46,7 +46,7 @@ export function PricingCards({
   focusedPlan = null,
   purchasingProduct = null,
   user = null,
-  scrollOnMobile = false,
+  scrollOnMobile = true,
   showDemoTier = false,
 }: PricingCardsProps) {
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -105,7 +105,9 @@ export function PricingCards({
         </Link>
       );
     }
-    const disabled = !!purchasingProduct || (!!user && user.hasValidCard !== true);
+    // No button when logged out on pricing page
+    if (!user) return null;
+    const disabled = !!purchasingProduct || user.hasValidCard !== true;
     const isPurchasing = purchasingProduct === p.id;
     return (
       <button
@@ -121,7 +123,7 @@ export function PricingCards({
             : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
         )}
       >
-        {isPurchasing ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
+        {isPurchasing ? 'Processing…' : p.cta}
       </button>
     );
   };
@@ -184,7 +186,10 @@ export function PricingCards({
               <p className="text-slate-500 text-xs mt-1">{p.credits} credits</p>
             </CardHeader>
             <CardContent className="pt-2">
-              <div className="mb-4">{renderButton(p)}</div>
+              {(() => {
+                const btn = renderButton(p);
+                return btn && <div className="mb-4">{btn}</div>;
+              })()}
               <div className="space-y-2 pt-3 border-t border-slate-700/80">
                 {p.features.slice(0, 4).map((f, i) => (
                   <div key={i} className="flex items-center gap-2">
