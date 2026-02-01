@@ -51,9 +51,23 @@ export function PricingCards({
 }: PricingCardsProps) {
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const viewedRef = useRef<Set<string>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const basePlans = plans ?? PLANS;
   const items = showDemoTier ? basePlans : basePlans.filter((p) => p.id !== 'demo');
+  const labelIndex = items.findIndex((p) => p.id === 'label');
+
+  // On mount: scroll carousel to Label tier (default focused) on mobile/tablet only
+  useEffect(() => {
+    if (!scrollOnMobile || labelIndex < 0) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) return;
+    const labelEl = cardRefs.current.get(items[labelIndex].id);
+    if (!labelEl) return;
+    const timer = setTimeout(() => {
+      labelEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [scrollOnMobile, labelIndex, items]);
 
   useEffect(() => {
     const timers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -130,11 +144,12 @@ export function PricingCards({
 
   return (
     <div
+      ref={scrollRef}
       className={cn(
-        'grid gap-4 sm:gap-6',
+        'grid gap-4 lg:gap-6',
         scrollOnMobile
-          ? 'flex sm:grid overflow-x-auto overflow-y-visible snap-x snap-mandatory sm:overflow-visible sm:grid-cols-2 lg:grid-cols-5 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 video-gallery-scroll'
-          : 'sm:grid-cols-2 lg:grid-cols-5'
+          ? 'flex lg:grid overflow-x-auto overflow-y-visible snap-x snap-mandatory overscroll-x-contain lg:overflow-visible lg:grid-cols-2 xl:grid-cols-5 pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 video-gallery-scroll'
+          : 'lg:grid-cols-2 xl:grid-cols-5'
       )}
     >
       {items.map((p: Plan, index: number) => (
@@ -158,12 +173,12 @@ export function PricingCards({
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
           className={cn(
             'cursor-pointer',
-            scrollOnMobile && 'flex-shrink-0 w-[280px] sm:w-auto snap-center'
+            scrollOnMobile && 'flex-shrink-0 w-[min(260px,78vw)] lg:w-auto snap-center aspect-[9/16]'
           )}
         >
           <Card
             className={cn(
-              'relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1',
+              'relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 h-full flex flex-col',
               variant === 'app' && focusedPlan === p.id
                 ? 'border-purple-500 bg-gradient-to-br from-purple-600/80 to-violet-700/80 shadow-[0_0_40px_-8px_rgba(147,51,234,0.4)]'
                 : p.featured
@@ -171,21 +186,21 @@ export function PricingCards({
                   : 'border-slate-700/80 hover:border-slate-600 bg-slate-900/80'
             )}
           >
-            <CardHeader className="pb-2">
+            <CardHeader className={cn('pb-2 flex-shrink-0', scrollOnMobile && 'p-4')}>
               {p.featured && (
                 <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider mb-2">
                   Most popular
                 </span>
               )}
-              <h3 className="text-xl font-bold text-white">{p.name}</h3>
+              <h3 className={cn('font-bold text-white', scrollOnMobile ? 'text-lg' : 'text-xl')}>{p.name}</h3>
               <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-bold text-white">${p.price}</span>
+                <span className={cn('font-bold text-white', scrollOnMobile ? 'text-2xl' : 'text-3xl')}>${p.price}</span>
                 <span className="text-slate-400 text-sm">{p.period}</span>
               </div>
-              <p className="text-slate-400 text-sm mt-2">{p.description}</p>
+              <p className={cn('text-slate-400 mt-2', scrollOnMobile ? 'text-xs line-clamp-2' : 'text-sm')}>{p.description}</p>
               <p className="text-slate-500 text-xs mt-1">{p.credits} credits</p>
             </CardHeader>
-            <CardContent className="pt-2">
+            <CardContent className={cn('pt-2 flex-1 min-h-0 overflow-y-auto', scrollOnMobile && 'p-4 pt-0')}>
               {(() => {
                 const btn = renderButton(p);
                 return btn && <div className="mb-4">{btn}</div>;
