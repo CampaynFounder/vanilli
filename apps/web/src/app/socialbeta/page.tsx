@@ -58,16 +58,20 @@ function SocialBetaContent() {
   const [heroImgError, setHeroImgError] = useState(false);
   const [finalEmail, setFinalEmail] = useState('');
   const [finalPassword, setFinalPassword] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const handleGetFreeCredits = async () => {
     SOCIALBETA_EVENTS.getFreeCreditsClick(focusedPlan);
     setStripeError('');
-    setStep('stripe');
     try {
       const { data, error } = await supabase.auth.signInAnonymously();
       if (error) throw error;
-      if (data.session) {
+      if (data.session?.access_token) {
+        setAccessToken(data.session.access_token);
         SOCIALBETA_EVENTS.stripeStarted(focusedPlan);
+        setStep('stripe');
+      } else {
+        setStripeError('Could not start session. Please try again.');
       }
     } catch (err) {
       const e = err as { message?: string; status?: number; error?: string };
@@ -219,7 +223,7 @@ function SocialBetaContent() {
                       <p className="text-slate-400 text-xs">You can change or remove your payment method anytime in Profile after you log in. Secured by Stripe — not stored by VANNILLI.</p>
                     </div>
                     {stripeError && <p className="text-red-400 text-sm">{stripeError}</p>}
-                    <SocialBetaStripeStep planId={focusedPlan} onSuccess={handleStripeSuccess} onError={setStripeError} />
+                    <SocialBetaStripeStep planId={focusedPlan} accessToken={accessToken} onSuccess={handleStripeSuccess} onError={setStripeError} />
                   </motion.div>
                 )}
 

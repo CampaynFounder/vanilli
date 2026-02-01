@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { supabase } from '@/lib/supabase';
 import { SOCIALBETA_EVENTS } from '@/lib/gtag-socialbeta';
 import type { Product } from '@/config/pricing';
 
@@ -12,6 +11,7 @@ const stripePk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 function StripeForm({
   clientSecret,
   planId,
+  accessToken,
   onSuccess,
   onError,
   submitting,
@@ -19,6 +19,7 @@ function StripeForm({
 }: {
   clientSecret: string;
   planId: Product;
+  accessToken: string;
   onSuccess: () => void;
   onError: (s: string) => void;
   submitting: boolean;
@@ -57,15 +58,14 @@ function StripeForm({
 
       if (setupIntent?.status === 'succeeded' && setupIntent.id) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!url || !session?.access_token) {
+        if (!url || !accessToken) {
           onError('Session expired. Please try again.');
           setSubmitting(false);
           return;
         }
         const res = await fetch(`${url}/functions/v1/register-user`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({ setup_intent_id: setupIntent.id }),
         });
         const j = (await res.json().catch(() => ({}))) as { error?: string; payment_method_already_used?: boolean };
@@ -106,10 +106,12 @@ function StripeForm({
 
 export function SocialBetaStripeStep({
   planId,
+  accessToken,
   onSuccess,
   onError,
 }: {
   planId: Product;
+  accessToken: string | null;
   onSuccess: () => void;
   onError: (s: string) => void;
 }) {
@@ -118,11 +120,11 @@ export function SocialBetaStripeStep({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!accessToken) return;
     let mounted = true;
     (async () => {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!url || !session?.access_token || !stripePk) {
+      if (!url || !accessToken || !stripePk) {
         onError('Session expired. Please refresh and try again.');
         return;
       }
@@ -130,7 +132,7 @@ export function SocialBetaStripeStep({
       try {
         const res = await fetch(`${url}/functions/v1/create-setup-intent`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
         const j = (await res.json().catch(() => ({}))) as { error?: string; clientSecret?: string };
         if (!mounted) return;
@@ -146,7 +148,7 @@ export function SocialBetaStripeStep({
       if (mounted) setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [onError]);
+  }, [accessToken, onError]);
 
   if (loading) {
     return (
@@ -156,7 +158,7 @@ export function SocialBetaStripeStep({
     );
   }
 
-  if (!clientSecret || !stripePk) return null;
+  if (!clientSecret || !stripePk || !accessToken) return null;
 
   const stripePromise = useMemo(() => loadStripe(stripePk), []);
 
@@ -171,6 +173,7 @@ export function SocialBetaStripeStep({
       <StripeForm
         clientSecret={clientSecret}
         planId={planId}
+        accessToken={accessToken}
         onSuccess={onSuccess}
         onError={onError}
         submitting={submitting}
