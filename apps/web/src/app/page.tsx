@@ -1,15 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Calculator } from '@/components/Calculator';
 import { VideoGallery } from '@/components/VideoGallery';
 import { PricingCards } from '@/components/PricingCards';
 import { useSignupModal } from '@/hooks/useSignupModal';
+import { resolvePricingPlan, type Product } from '@/config/pricing';
 
-export default function HomePage() {
+function HomePageContent() {
   const { showModal } = useSignupModal();
+  const searchParams = useSearchParams();
+  const planFromUrl = searchParams?.get('plan');
+  const initialPlan = planFromUrl ? (resolvePricingPlan(planFromUrl) as Product) : null;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -288,7 +293,7 @@ export default function HomePage() {
               Create more videos. Secure your AI label deal.
             </p>
           </div>
-          <PricingCards variant="landing" />
+          <PricingCards variant="landing" initialScrollPlan={initialPlan} />
         </div>
       </section>
 
@@ -368,5 +373,18 @@ export default function HomePage() {
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-slate-950">
+        <div className="h-16" />
+        <div className="py-32 text-center text-slate-400">Loading…</div>
+      </main>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }

@@ -36,6 +36,8 @@ interface PricingCardsProps {
   scrollOnMobile?: boolean;
   /** Show investor demo tier (logged-in only; hidden from public/landing) */
   showDemoTier?: boolean;
+  /** Initial card to scroll to (e.g. from URL ?plan=); open_mic maps to artist */
+  initialScrollPlan?: Product | null;
 }
 
 export function PricingCards({
@@ -48,6 +50,7 @@ export function PricingCards({
   user = null,
   scrollOnMobile = true,
   showDemoTier = false,
+  initialScrollPlan = null,
 }: PricingCardsProps) {
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const viewedRef = useRef<Set<string>>(new Set());
@@ -55,7 +58,11 @@ export function PricingCards({
 
   const basePlans = plans ?? PLANS;
   const items = showDemoTier ? basePlans : basePlans.filter((p) => p.id !== 'demo');
-  const targetPlan = focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : 'label';
+  const resolvedInitial = initialScrollPlan ? (initialScrollPlan === 'open_mic' ? 'artist' : initialScrollPlan) : null;
+  const targetPlan =
+    (variant === 'app' && focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : null) ??
+    (variant === 'landing' && resolvedInitial && items.some((p) => p.id === resolvedInitial) ? resolvedInitial : null) ??
+    'label';
 
   // Smoothly scroll focused card to center (mount + user selection) on mobile/tablet
   useEffect(() => {
@@ -111,7 +118,7 @@ export function PricingCards({
     if (variant === 'landing') {
       return (
         <Link
-          href="/pricing"
+          href={`/pricing?plan=${p.id}`}
           className="w-full py-3 rounded-xl font-semibold text-sm transition-all text-center block bg-gradient-to-t from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white border border-purple-500/50"
           onClick={(e) => e.stopPropagation()}
         >
@@ -148,7 +155,7 @@ export function PricingCards({
       className={cn(
         'grid gap-4 lg:gap-6',
         scrollOnMobile
-          ? 'flex lg:grid overflow-x-auto overflow-y-visible snap-x snap-proximity overscroll-x-contain lg:overflow-visible lg:grid-cols-2 xl:grid-cols-5 pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 video-gallery-scroll'
+          ? 'flex items-center lg:grid overflow-x-auto overflow-y-visible snap-x snap-proximity overscroll-x-contain lg:overflow-visible lg:grid-cols-2 xl:grid-cols-5 py-8 lg:py-2 -mx-4 px-4 lg:mx-0 lg:px-0 video-gallery-scroll'
           : 'lg:grid-cols-2 xl:grid-cols-5'
       )}
     >

@@ -12,6 +12,38 @@ export interface Plan {
   features: string[];
 }
 
+const VALID_PRODUCTS: Product[] = ['open_mic', 'artist', 'label', 'industry', 'demo'];
+
+/** Open Mic maps to Artist when navigating to pricing */
+export function resolvePricingPlan(plan: string | null | undefined): Product {
+  if (!plan || typeof plan !== 'string') return 'label';
+  const lower = plan.toLowerCase();
+  if (lower === 'open_mic') return 'artist';
+  if (VALID_PRODUCTS.includes(lower as Product)) return lower as Product;
+  return 'label';
+}
+
+const STORAGE_KEY = 'vannilli_pricing_plan';
+
+export function getStoredPricingPlan(): Product | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? resolvePricingPlan(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredPricingPlan(plan: Product): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, plan);
+  } catch {
+    /* ignore */
+  }
+}
+
 export const PLANS: Plan[] = [
   {
     id: 'open_mic',

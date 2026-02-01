@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
 import { AppBackground } from '@/components/AppBackground';
 import { PricingCards } from '@/components/PricingCards';
-import { PLANS, type Product } from '@/config/pricing';
+import { PLANS, type Product, resolvePricingPlan, getStoredPricingPlan, setStoredPricingPlan } from '@/config/pricing';
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -21,11 +21,38 @@ function CheckIcon({ className }: { className?: string }) {
 
 const getSuccessUrl = (product: Product) => `/checkout-success?product=${product}`;
 
-export default function PricingPage() {
+function getInitialPlan(searchParams: ReturnType<typeof useSearchParams>): Product {
+  const fromUrl = searchParams?.get('plan');
+  if (fromUrl) return resolvePricingPlan(fromUrl);
+  const stored = getStoredPricingPlan();
+  if (stored) return stored;
+  return 'label';
+}
+
+function PricingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, session, signOut } = useAuth();
   const [focusedPlan, setFocusedPlan] = useState<Product>('label');
   const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
+
+  // Set initial plan from URL or storage (client-only)
+  useEffect(() => {
+    setFocusedPlan(getInitialPlan(searchParams));
+  }, [searchParams]);
+
+  const handleCardFocus = useCallback(
+    (plan: Product) => {
+      setFocusedPlan(plan);
+      setStoredPricingPlan(plan);
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('plan', plan);
+        window.history.replaceState(null, '', url.toString());
+      }
+    },
+    []
+  );
 
   // Reset focused plan when demo is hidden (logged out)
   useEffect(() => {
@@ -190,7 +217,7 @@ export default function PricingPage() {
             variant="app"
             plans={PLANS}
             focusedPlan={focusedPlan}
-            onCardFocus={setFocusedPlan}
+            onCardFocus={handleCardFocus}
             onSelect={handleSelect}
             purchasingProduct={purchasingProduct}
             user={user}
@@ -259,5 +286,20 @@ export default function PricingPage() {
       )}
       </div>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen relative">
+        <AppBackground />
+        <div className="relative z-10 flex min-h-screen items-center justify-center">
+          <div className="spinner w-12 h-12" />
+        </div>
+      </div>
+    }>
+      <PricingPageContent />
+    </Suspense>
   );
 }
