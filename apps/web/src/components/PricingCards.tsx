@@ -34,6 +34,8 @@ interface PricingCardsProps {
   user?: { hasValidCard?: boolean } | null;
   /** Use horizontal scroll on mobile (for pricing page) */
   scrollOnMobile?: boolean;
+  /** Show investor demo tier (logged-in only; hidden from public/landing) */
+  showDemoTier?: boolean;
 }
 
 export function PricingCards({
@@ -45,11 +47,13 @@ export function PricingCards({
   purchasingProduct = null,
   user = null,
   scrollOnMobile = false,
+  showDemoTier = false,
 }: PricingCardsProps) {
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const viewedRef = useRef<Set<string>>(new Set());
 
-  const items = plans ?? PLANS;
+  const basePlans = plans ?? PLANS;
+  const items = showDemoTier ? basePlans : basePlans.filter((p) => p.id !== 'demo');
 
   useEffect(() => {
     const timers: Record<string, ReturnType<typeof setTimeout>> = {};

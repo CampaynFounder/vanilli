@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -26,6 +26,11 @@ export default function PricingPage() {
   const { user, session, signOut } = useAuth();
   const [focusedPlan, setFocusedPlan] = useState<Product>('label');
   const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
+
+  // Reset focused plan when demo is hidden (logged out)
+  useEffect(() => {
+    if (!user && focusedPlan === 'demo') setFocusedPlan('label');
+  }, [user, focusedPlan]);
 
   const fallbackToCheckout = async (product: Product) => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -190,6 +195,7 @@ export default function PricingPage() {
             purchasingProduct={purchasingProduct}
             user={user}
             scrollOnMobile
+            showDemoTier={!!user}
           />
         </div>
         <p className="max-w-6xl mx-auto mt-4 text-center text-xs text-slate-500">
