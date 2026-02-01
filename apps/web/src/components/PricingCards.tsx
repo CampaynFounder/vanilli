@@ -179,13 +179,13 @@ export function PricingCards({
           }
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
           className={cn(
-            'cursor-pointer',
+            'cursor-pointer rounded-xl overflow-hidden outline-none focus:outline-none focus:ring-0',
             scrollOnMobile && 'flex-shrink-0 w-[min(260px,78vw)] lg:w-auto snap-center aspect-[9/16]'
           )}
         >
           <Card
             className={cn(
-              'relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 h-full flex flex-col',
+              'relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 h-full flex flex-col outline-none ring-0',
               variant === 'app' && focusedPlan === p.id
                 ? 'border-purple-500 bg-gradient-to-br from-purple-600/80 to-violet-700/80 shadow-[0_0_40px_-8px_rgba(147,51,234,0.4)]'
                 : p.featured
