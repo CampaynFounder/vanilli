@@ -21,6 +21,7 @@
     "supabase:deploy:create-checkout": "supabase functions deploy create-checkout-session",
     "supabase:deploy:functions": "supabase functions deploy",
     "modal:deploy": "./modal_app/deploy.sh",
+    "deploy:pages": "npm run build:web && npx wrangler pages deploy --project-name=vannilli-web",
     "prepare": "husky install"
   },
   "devDependencies": {

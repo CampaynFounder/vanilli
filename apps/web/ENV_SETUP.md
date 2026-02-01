@@ -19,7 +19,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 # Stripe (for Link card / 3 free credits and pricing checkout)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx   # or pk_live_xxxx in production
 
-# Optional: API Configuration
+# Admin Dashboard (/admin/email-collections) - optional
+ADMIN_PASSWORD=your-secure-admin-password
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # From Supabase Dashboard → Settings → API
+
+# Optional: API Configuration (for other features)
 NEXT_PUBLIC_API_URL=http://localhost:8787
 ```
 
@@ -39,7 +43,10 @@ Set environment variables in Cloudflare Pages dashboard:
 ```
 NEXT_PUBLIC_SUPABASE_URL = https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY = your-anon-key-here
-NEXT_PUBLIC_API_URL = https://api.vannilli.xaino.io
+
+# Admin dashboard (optional)
+ADMIN_PASSWORD = your-secure-admin-password
+SUPABASE_SERVICE_ROLE_KEY = your-service-role-key
 ```
 
 **Note**: After adding variables, you may need to trigger a new deployment for changes to take effect.

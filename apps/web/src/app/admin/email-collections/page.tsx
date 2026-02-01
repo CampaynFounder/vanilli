@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface EmailCollection {
   id: string;
@@ -20,10 +20,14 @@ interface DashboardData {
   investors: EmailCollection[];
 }
 
-// API URL - try custom domain first, fallback to workers.dev if DNS not configured
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 
-  process.env.NEXT_PUBLIC_WORKER_URL || 
-  'https://api.vannilli.xaino.io';
+// Same-origin: Cloudflare Pages Functions handle /api/admin/* (no separate Worker)
+const API_BASE = '';
+
+const DATE_RANGES = [
+  { value: 'all', label: 'All time' },
+  { value: '7', label: 'Last 7 days' },
+  { value: '30', label: 'Last 30 days' },
+] as const;
 
 export default function AdminEmailCollections() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,6 +36,9 @@ export default function AdminEmailCollections() {
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [investorFilter, setInvestorFilter] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
 
   useEffect(() => {
     const auth = sessionStorage.getItem('admin_authenticated');
@@ -41,13 +48,49 @@ export default function AdminEmailCollections() {
     }
   }, []);
 
+  const filteredData = useMemo(() => {
+    if (!dashboardData?.data) return [];
+    const now = Date.now();
+    const cutoff7 = now - 7 * 24 * 60 * 60 * 1000;
+    const cutoff30 = now - 30 * 24 * 60 * 60 * 1000;
+    return dashboardData.data.filter((item) => {
+      if (sourceFilter !== 'all' && item.source !== sourceFilter) return false;
+      if (investorFilter === 'investors' && !item.is_investor) return false;
+      if (investorFilter === 'non-investors' && item.is_investor) return false;
+      const ts = new Date(item.created_at).getTime();
+      if (dateRangeFilter === '7' && ts < cutoff7) return false;
+      if (dateRangeFilter === '30' && ts < cutoff30) return false;
+      return true;
+    });
+  }, [dashboardData?.data, sourceFilter, investorFilter, dateRangeFilter]);
+
+  const sourceBreakdown = useMemo(() => {
+    if (!dashboardData?.data) return [];
+    const counts: Record<string, number> = {};
+    dashboardData.data.forEach((item) => {
+      const src = item.source || 'unknown';
+      counts[src] = (counts[src] ?? 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [dashboardData?.data]);
+
+  const uniqueSources = useMemo(() => {
+    if (!dashboardData?.data) return [];
+    const set = new Set(dashboardData.data.map((d) => d.source || 'unknown').filter(Boolean));
+    return Array.from(set).sort();
+  }, [dashboardData?.data]);
+
+  const hasActiveFilters = sourceFilter !== 'all' || investorFilter !== 'all' || dateRangeFilter !== 'all';
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/verify-password`, {
+      const response = await fetch(`${API_BASE}/api/admin/verify-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -83,7 +126,7 @@ export default function AdminEmailCollections() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/admin/email-collections`, {
+      const response = await fetch(`${API_BASE}/api/admin/email-collections`, {
         headers: {
           'Authorization': `Bearer ${pwd}`,
         },
@@ -108,10 +151,11 @@ export default function AdminEmailCollections() {
   };
 
   const exportCSV = () => {
-    if (!dashboardData) return;
-    
+    const dataToExport = hasActiveFilters ? filteredData : (dashboardData?.data ?? []);
+    if (dataToExport.length === 0) return;
+
     const headers = ['Email', 'Phone', 'Investor', 'Source', 'Date'];
-    const rows = dashboardData.data.map(item => [
+    const rows = dataToExport.map((item) => [
       item.email,
       item.phone,
       item.is_investor ? 'Yes' : 'No',
@@ -120,14 +164,18 @@ export default function AdminEmailCollections() {
     ]);
 
     const csv = [headers, ...rows]
-      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `email-collections-${new Date().toISOString().split('T')[0]}.csv`;
+    const base = 'email-collections';
+    const suffix = hasActiveFilters
+      ? `${sourceFilter !== 'all' ? `-${sourceFilter}` : ''}${investorFilter !== 'all' ? `-${investorFilter}` : ''}${dateRangeFilter !== 'all' ? `-${dateRangeFilter}d` : ''}`
+      : '';
+    a.download = `${base}${suffix}-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -177,7 +225,7 @@ export default function AdminEmailCollections() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Email Collections Dashboard</h1>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => fetchData()}
               disabled={refreshing}
@@ -187,11 +235,75 @@ export default function AdminEmailCollections() {
             </button>
             <button
               onClick={exportCSV}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+              disabled={filteredData.length === 0}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
             >
-              Export CSV
+              {hasActiveFilters
+                ? `Export CSV (${filteredData.length})`
+                : 'Export CSV'}
             </button>
           </div>
+        </div>
+
+        {/* Drill-down filters */}
+        <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+          <h2 className="text-sm font-semibold text-slate-300 mb-3">Filters (for retargeting)</h2>
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Source</label>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="all">All sources</option>
+                {uniqueSources.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Investor</label>
+              <select
+                value={investorFilter}
+                onChange={(e) => setInvestorFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="all">All</option>
+                <option value="investors">Investors only</option>
+                <option value="non-investors">Non-investors only</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date range</label>
+              <select
+                value={dateRangeFilter}
+                onChange={(e) => setDateRangeFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {DATE_RANGES.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setSourceFilter('all');
+                  setInvestorFilter('all');
+                  setDateRangeFilter('all');
+                }}
+                className="self-end px-3 py-2 text-slate-400 hover:text-white text-sm"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+          {hasActiveFilters && (
+            <p className="mt-2 text-xs text-slate-400">
+              Showing {filteredData.length.toLocaleString()} of {dashboardData.data.length.toLocaleString()} records
+            </p>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -245,6 +357,29 @@ export default function AdminEmailCollections() {
           </div>
         )}
 
+        {/* Source Breakdown */}
+        {sourceBreakdown.length > 0 && (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-white mb-4">Signups by Source</h2>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={sourceBreakdown} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis type="number" stroke="#94a3b8" style={{ fontSize: '12px' }} />
+                <YAxis type="category" dataKey="name" stroke="#94a3b8" width={120} style={{ fontSize: '12px' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    color: '#e2e8f0',
+                  }}
+                />
+                <Bar dataKey="count" fill="#9333ea" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
         {/* Weekly Trend Chart */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 sm:p-6">
           <h2 className="text-xl font-bold text-white mb-4">Weekly Signup Trend</h2>
@@ -281,10 +416,17 @@ export default function AdminEmailCollections() {
           </ResponsiveContainer>
         </div>
 
-        {/* All Email Collections Table */}
+        {/* Email Collections Table (filtered) */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
           <div className="p-4 border-b border-slate-800">
-            <h2 className="text-xl font-bold text-white">All Email Collections ({dashboardData.data.length})</h2>
+            <h2 className="text-xl font-bold text-white">
+              Email Collections
+              {hasActiveFilters ? (
+                <> ({filteredData.length} of {dashboardData.data.length})</>
+              ) : (
+                <> ({dashboardData.data.length})</>
+              )}
+            </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -298,14 +440,14 @@ export default function AdminEmailCollections() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {dashboardData.data.length === 0 ? (
+                {filteredData.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                      No email collections yet
+                      {hasActiveFilters ? 'No records match your filters' : 'No email collections yet'}
                     </td>
                   </tr>
                 ) : (
-                  dashboardData.data.map((item) => (
+                  filteredData.map((item) => (
                     <tr 
                       key={item.id} 
                       className={`hover:bg-slate-800/50 ${item.is_investor ? 'bg-purple-500/10' : ''}`}

@@ -8,24 +8,23 @@ The admin dashboard allows you to monitor email collections, view analytics, and
 
 ## Environment Variables Required
 
-### Cloudflare Pages (Frontend)
-- `NEXT_PUBLIC_API_URL` - Should be set to `https://api.vannilli.xaino.io`
+Set these in **Cloudflare Pages** → **Settings** → **Environment Variables** (Production and Preview):
 
-### Cloudflare Workers (Backend)
-- `ADMIN_PASSWORD` - Your admin password (set as a secret)
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_SERVICE_KEY` - Supabase service role key (bypasses RLS)
+- `ADMIN_PASSWORD` - Your admin password (protects the dashboard)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (bypasses RLS; from Supabase Dashboard → Settings → API)
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase URL (likely already set for the frontend)
 
-## Setting Up ADMIN_PASSWORD
+**Architecture**: The admin page calls `/api/admin/*` which are handled by **Cloudflare Pages Functions** (in `/functions` at repo root). No separate Worker—just the same Pages deployment.
 
-1. Go to **Cloudflare Dashboard** → **Workers & Pages** → Your Worker
-2. Click **Settings** → **Variables and Secrets**
-3. Click **Add variable** → **Secret**
-4. Name: `ADMIN_PASSWORD`
-5. Value: Your secure password
-6. Click **Save**
+**Deploy from CLI:**
+```bash
+# 1. Set env vars in Cloudflare Dashboard (Pages → vannilli-web → Settings → Environment Variables):
+#    ADMIN_PASSWORD, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL
 
-**Important**: Use a strong password. This is the only protection for your admin dashboard.
+# 2. From repo root:
+npm run deploy:pages
+```
+This builds the web app and deploys to Cloudflare Pages (static + Functions). Wrangler uses `wrangler.toml` and auto-detects the `functions/` folder.
 
 ## Features
 
@@ -38,6 +37,9 @@ The admin dashboard allows you to monitor email collections, view analytics, and
 - Shows email, phone, date, and source
 - Purple gradient background for visibility
 
+### Signups by Source
+- Bar chart showing count per source (pre_launch_modal, socialsignup, etc.)
+
 ### Weekly Trend Chart
 - Line chart showing daily signup counts for the last 7 days
 - Helps identify growth trends
@@ -48,10 +50,16 @@ The admin dashboard allows you to monitor email collections, view analytics, and
 - Sortable by date (newest first)
 - Mobile responsive
 
+### Drill-down Filters
+- **Source** - Filter by signup source (pre_launch_modal, socialsignup, etc.)
+- **Investor** - All, Investors only, or Non-investors only
+- **Date range** - All time, Last 7 days, Last 30 days
+- Export CSV downloads only the filtered data for retargeting
+
 ### CSV Export
-- Click "Export CSV" to download all email collections
+- Click "Export CSV" to download email collections (filtered or full)
 - Format: Email, Phone, Investor, Source, Date
-- Ready to import into Google Marketing/Ads
+- Ready to import into Google Ads (Customer Match), Google Marketing Platform, etc.
 
 ## Security
 
@@ -72,16 +80,17 @@ The admin dashboard allows you to monitor email collections, view analytics, and
 ## Troubleshooting
 
 ### "Admin password not configured"
-- Ensure `ADMIN_PASSWORD` is set in Cloudflare Workers secrets
-- Redeploy the worker after setting the secret
+- Add `ADMIN_PASSWORD` to Cloudflare Pages env vars
+- Redeploy after adding
 
 ### "Unauthorized" error
 - Check that `ADMIN_PASSWORD` matches between login and API calls
 - Try refreshing the page and logging in again
 
-### Data not loading
-- Verify `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` are set in Workers
-- Check that RLS policies allow service_role to SELECT from email_collections
+### Data not loading / "Database not configured"
+- Add `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in Cloudflare Pages env vars
+- Ensure Functions can access them (Settings → Environment Variables)
+- RLS policies allow service_role to SELECT from email_collections
 
 ### Chart not displaying
 - Ensure Recharts is installed: `npm install recharts`
