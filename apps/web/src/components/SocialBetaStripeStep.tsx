@@ -121,6 +121,7 @@ export function SocialBetaStripeStep({
   const [resolvedToken, setResolvedToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const stripePromise = useMemo(() => loadStripe(stripePk), []);
 
   useEffect(() => {
     let mounted = true;
@@ -170,9 +171,7 @@ export function SocialBetaStripeStep({
     );
   }
 
-  if (!clientSecret || !stripePk || !resolvedToken) return null;
-
-  const stripePromise = useMemo(() => loadStripe(stripePk), []);
+  if (!clientSecret || !stripePk || !resolvedToken || !stripePromise) return null;
 
   return (
     <Elements
