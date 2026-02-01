@@ -95,13 +95,15 @@ function StripeForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <PaymentElement options={{ layout: 'tabs', paymentMethodOrder: ['card', 'link'] }} />
-      <button
-        type="submit"
-        disabled={!stripe || submitting}
-        className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold transition-all"
-      >
-        {submitting ? 'Verifying…' : 'Verify Payment Method (No Charge)'}
-      </button>
+      <div className="pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <button
+          type="submit"
+          disabled={!stripe || submitting}
+          className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none text-white font-semibold transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse"
+        >
+          {submitting ? 'Verifying…' : 'Get Verified'}
+        </button>
+      </div>
     </form>
   );
 }

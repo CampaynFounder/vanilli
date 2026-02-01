@@ -113,15 +113,33 @@ function SocialBetaContent() {
   };
 
   useEffect(() => {
-    const setup = searchParams?.get('setup');
-    if (setup !== 'success' || step !== 'button') return;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setStep('credentials');
-        SOCIALBETA_EVENTS.credentialsFormShown(focusedPlan);
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    const h = new URLSearchParams(window.location.hash?.slice(1) || '');
+    const setup = q.get('setup') || h.get('setup');
+    const setupIntentId = q.get('setup_intent') || h.get('setup_intent');
+    if (setup !== 'success' && !setupIntentId?.startsWith('seti_')) return;
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) return;
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (setupIntentId?.startsWith('seti_') && url && session.access_token) {
+        try {
+          const res = await fetch(`${url}/functions/v1/register-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ setup_intent_id: setupIntentId }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { error?: string; payment_method_already_used?: boolean };
+          if (!res.ok && j.error) setCredError(j.error);
+        } catch (e) {
+          setCredError('Could not register. Please try again.');
+        }
+        window.history.replaceState(null, '', '/socialbeta');
       }
+      SOCIALBETA_EVENTS.credentialsFormShown(focusedPlan);
+      setStep('credentials');
     });
-  }, [searchParams, step, focusedPlan]);
+  }, [searchParams]);
 
   const handlePlanFocus = (plan: Product) => {
     setFocusedPlan(plan);
