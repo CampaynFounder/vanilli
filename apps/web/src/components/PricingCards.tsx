@@ -8,8 +8,9 @@ import { cn } from '@/lib/utils';
 import { PLANS, type Plan, type Product } from '@/config/pricing';
 
 function trackPricingCardView(planId: string) {
-  const gtag = typeof window !== 'undefined' ? (window as unknown as { gtag?: (a: string, b: string, c?: object) => void }).gtag : undefined;
-  if (gtag) gtag('event', 'view_pricing_card', { plan_id: planId, plan_name: planId });
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', 'view_pricing_card', { plan_id: planId, plan_name: planId });
+  }
 }
 
 const cardVariants: Variants = {

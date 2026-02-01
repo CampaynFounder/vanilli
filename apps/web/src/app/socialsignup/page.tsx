@@ -61,8 +61,9 @@ export default function SocialSignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Fire gtag on button click (conversion tracking)
-    const gtag = typeof window !== 'undefined' ? (window as unknown as { gtag?: (a: string, b: string, c?: object) => void }).gtag : undefined;
-    if (gtag) gtag('event', 'socialsignup_click', { method: 'socialsignup' });
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'socialsignup_click', { method: 'socialsignup' });
+    }
     setLoading(true);
     setError('');
     setSignupsDisabled(false);
