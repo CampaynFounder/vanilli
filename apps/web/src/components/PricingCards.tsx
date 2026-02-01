@@ -55,19 +55,19 @@ export function PricingCards({
 
   const basePlans = plans ?? PLANS;
   const items = showDemoTier ? basePlans : basePlans.filter((p) => p.id !== 'demo');
-  const labelIndex = items.findIndex((p) => p.id === 'label');
+  const targetPlan = focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : 'label';
 
-  // On mount: scroll carousel to Label tier (default focused) on mobile/tablet only
+  // Smoothly scroll focused card to center (mount + user selection) on mobile/tablet
   useEffect(() => {
-    if (!scrollOnMobile || labelIndex < 0) return;
+    if (!scrollOnMobile) return;
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) return;
-    const labelEl = cardRefs.current.get(items[labelIndex].id);
-    if (!labelEl) return;
+    const el = cardRefs.current.get(targetPlan);
+    if (!el) return;
     const timer = setTimeout(() => {
-      labelEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' });
-    }, 150);
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 50);
     return () => clearTimeout(timer);
-  }, [scrollOnMobile, labelIndex, items]);
+  }, [scrollOnMobile, variant, targetPlan]);
 
   useEffect(() => {
     const timers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -148,7 +148,7 @@ export function PricingCards({
       className={cn(
         'grid gap-4 lg:gap-6',
         scrollOnMobile
-          ? 'flex lg:grid overflow-x-auto overflow-y-visible snap-x snap-mandatory overscroll-x-contain lg:overflow-visible lg:grid-cols-2 xl:grid-cols-5 pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 video-gallery-scroll'
+          ? 'flex lg:grid overflow-x-auto overflow-y-visible snap-x snap-proximity overscroll-x-contain lg:overflow-visible lg:grid-cols-2 xl:grid-cols-5 pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 video-gallery-scroll'
           : 'lg:grid-cols-2 xl:grid-cols-5'
       )}
     >
