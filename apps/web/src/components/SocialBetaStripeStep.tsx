@@ -3,10 +3,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { supabase } from '@/lib/supabase';
 import { SOCIALBETA_EVENTS } from '@/lib/gtag-socialbeta';
 import type { Product } from '@/config/pricing';
 
 const stripePk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
 function StripeForm({
   clientSecret,
@@ -116,23 +118,29 @@ export function SocialBetaStripeStep({
   onError: (s: string) => void;
 }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [resolvedToken, setResolvedToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!accessToken) return;
     let mounted = true;
     (async () => {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!url || !accessToken || !stripePk) {
-        onError('Session expired. Please refresh and try again.');
+      let token = accessToken;
+      if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token ?? null;
+      }
+      if (!supabaseUrl || !token || !stripePk) {
+        if (!stripePk) onError('Stripe is not configured. Please add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.');
+        else if (!supabaseUrl) onError('Supabase URL is missing.');
+        else onError('Session expired. Please refresh and try again.');
         return;
       }
       setLoading(true);
       try {
-        const res = await fetch(`${url}/functions/v1/create-setup-intent`, {
+        const res = await fetch(`${supabaseUrl}/functions/v1/create-setup-intent`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
         const j = (await res.json().catch(() => ({}))) as { error?: string; clientSecret?: string };
         if (!mounted) return;
@@ -140,8 +148,12 @@ export function SocialBetaStripeStep({
           onError(j.error || 'Could not start');
           return;
         }
-        if (j.clientSecret) setClientSecret(j.clientSecret);
-        else onError('Could not load form');
+        if (j.clientSecret) {
+          setClientSecret(j.clientSecret);
+          setResolvedToken(token);
+        } else {
+          onError('Could not load form');
+        }
       } catch (e) {
         if (mounted) onError(e instanceof Error ? e.message : 'Something went wrong');
       }
@@ -158,7 +170,7 @@ export function SocialBetaStripeStep({
     );
   }
 
-  if (!clientSecret || !stripePk || !accessToken) return null;
+  if (!clientSecret || !stripePk || !resolvedToken) return null;
 
   const stripePromise = useMemo(() => loadStripe(stripePk), []);
 
@@ -173,7 +185,7 @@ export function SocialBetaStripeStep({
       <StripeForm
         clientSecret={clientSecret}
         planId={planId}
-        accessToken={accessToken}
+        accessToken={resolvedToken}
         onSuccess={onSuccess}
         onError={onError}
         submitting={submitting}
