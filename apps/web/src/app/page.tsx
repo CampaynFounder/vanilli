@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -15,6 +15,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const planFromUrl = searchParams?.get('plan');
   const initialPlan = planFromUrl ? (resolvePricingPlan(planFromUrl) as Product) : null;
+  const [focusedPlan, setFocusedPlan] = useState<Product | null>(initialPlan ?? 'label');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -23,6 +24,10 @@ function HomePageContent() {
       localStorage.setItem('vannilli_referral_code', ref.trim());
     }
   }, []);
+
+  useEffect(() => {
+    if (initialPlan) setFocusedPlan(initialPlan);
+  }, [initialPlan]);
 
   const handlePreLaunchLink = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -293,7 +298,12 @@ function HomePageContent() {
               Create more videos. Secure your AI label deal.
             </p>
           </div>
-          <PricingCards variant="landing" initialScrollPlan={initialPlan} />
+          <PricingCards
+            variant="landing"
+            initialScrollPlan={initialPlan}
+            focusedPlan={focusedPlan ?? 'label'}
+            onCardFocus={(plan) => setFocusedPlan(plan)}
+          />
         </div>
       </section>
 

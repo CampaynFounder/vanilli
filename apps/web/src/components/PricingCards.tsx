@@ -60,7 +60,7 @@ export function PricingCards({
   const items = showDemoTier ? basePlans : basePlans.filter((p) => p.id !== 'demo');
   const resolvedInitial = initialScrollPlan ? (initialScrollPlan === 'open_mic' ? 'artist' : initialScrollPlan) : null;
   const targetPlan =
-    (variant === 'app' && focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : null) ??
+    (focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : null) ??
     (variant === 'landing' && resolvedInitial && items.some((p) => p.id === resolvedInitial) ? resolvedInitial : null) ??
     'label';
 
@@ -110,7 +110,6 @@ export function PricingCards({
   }, [items]);
 
   const handleCardClick = (p: Plan) => {
-    if (variant === 'landing') return;
     onCardFocus?.(p.id);
   };
 
@@ -139,7 +138,7 @@ export function PricingCards({
         disabled={disabled}
         className={cn(
           'w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed',
-          (p.featured || (variant === 'app' && focusedPlan === p.id))
+            (p.featured || focusedPlan === p.id)
             ? 'bg-white text-purple-600 hover:bg-white/95'
             : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
         )}
@@ -173,7 +172,7 @@ export function PricingCards({
           variants={cardVariants}
           onClick={() => handleCardClick(p)}
           animate={
-            variant === 'app' && focusedPlan === p.id
+            focusedPlan === p.id
               ? { scale: 1.02, y: -4, boxShadow: '0 20px 40px -12px rgba(168, 85, 247, 0.35), 0 0 0 2px rgba(192, 132, 252, 0.5)' }
               : { scale: 1, y: 0, boxShadow: '0 0 0 0 rgba(0,0,0,0)' }
           }
@@ -186,7 +185,7 @@ export function PricingCards({
           <Card
             className={cn(
               'relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 h-full flex flex-col outline-none ring-0',
-              variant === 'app' && focusedPlan === p.id
+              focusedPlan === p.id
                 ? 'border-purple-500 bg-gradient-to-br from-purple-600/80 to-violet-700/80 shadow-[0_0_40px_-8px_rgba(147,51,234,0.4)]'
                 : p.featured
                   ? 'border-purple-500/50 shadow-[0_0_40px_-8px_rgba(147,51,234,0.4)] bg-gradient-to-br from-purple-900/60 via-slate-900 to-slate-900'
