@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Calculator } from '@/components/Calculator';
 import { VideoGallery } from '@/components/VideoGallery';
+import { PricingCards } from '@/components/PricingCards';
 import { useSignupModal } from '@/hooks/useSignupModal';
 
 export default function HomePage() {
@@ -55,6 +56,9 @@ export default function HomePage() {
               </Link>
               <Link href="#calculator" className="text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center">
                 Calculator
+              </Link>
+              <Link href="#pricing" className="text-sm text-slate-400 hover:text-white transition-colors px-2 py-2 min-h-[44px] flex items-center">
+                Pricing
               </Link>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-4">
@@ -270,6 +274,21 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-16 px-6 lg:px-8 bg-slate-950 border-t border-slate-800/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
+              Plans That Work for Your AI Artist
+            </h2>
+            <p className="text-lg text-slate-400">
+              Create more videos. Secure your AI label deal.
+            </p>
+          </div>
+          <PricingCards variant="landing" />
         </div>
       </section>
 

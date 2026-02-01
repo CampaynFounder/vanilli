@@ -1,3 +1,10 @@
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 /**
  * Sanitize error messages for user display. Never show provider names (e.g. Kling);
  * use VANNILLI-branded fallbacks instead.

@@ -1,86 +1,15 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, type Transition } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/lib/auth';
 import { Logo } from '@/components/Logo';
 import { AppBackground } from '@/components/AppBackground';
-
-type Product = 'open_mic' | 'artist' | 'label' | 'industry' | 'demo';
-
-const PLANS: Array<{
-  id: Product;
-  name: string;
-  price: number;
-  period: string;
-  credits: number;
-  description: string;
-  cta: string;
-  featured: boolean;
-  features: string[];
-}> = [
-  {
-    id: 'open_mic',
-    name: 'Open Mic',
-    price: 15,
-    period: 'one-time',
-    credits: 40,
-    description: 'One-time credits to try pro lip-sync.',
-    cta: 'Re-Up On Credits',
-    featured: false,
-    features: ['3–9 second videos', '1 credit = 1 second', '40 one-time credits', 'Watermarked downloads', 'Lip-sync + audio'],
-  },
-  {
-    id: 'artist',
-    name: 'Artist',
-    price: 20,
-    period: '/mo',
-    credits: 80,
-    description: 'Steady output for growing artists.',
-    cta: 'Re-Up On Credits',
-    featured: false,
-    features: ['3–9 second videos', '1 credit = 1 second', '80 credits per month', 'Watermarked downloads', 'Lip-sync + audio'],
-  },
-  {
-    id: 'label',
-    name: 'Label',
-    price: 50,
-    period: '/mo',
-    credits: 330,
-    description: 'High volume for labels and serious creators.',
-    cta: 'Re-Up On Credits',
-    featured: true,
-    features: ['3–9 second videos', '1 credit = 1 second', '330 credits per month', 'Watermarked downloads', 'Lip-sync + audio', 'High volume for serious creators'],
-  },
-  {
-    id: 'industry',
-    name: 'Industry',
-    price: 199,
-    period: '/mo',
-    credits: 1000,
-    description: 'Professional tier for AI artist label deals.',
-    cta: 'Re-Up On Credits',
-    featured: false,
-    features: ['Up to 90 second videos', '1 credit = 1 second', '1000 credits per month', 'Auto-segmentation', 'No watermarks', 'Priority processing'],
-  },
-  {
-    id: 'demo',
-    name: 'DEMO',
-    price: 0,
-    period: '/day',
-    credits: 20,
-    description: 'Investor demo tier - 20 credits per day (no rollover).',
-    cta: 'Enroll',
-    featured: false,
-    features: ['Up to 20 second videos', '1 credit = 1 second', '20 credits per day', 'Tempo-based scene calculation', 'Multi-image support', 'No watermarks'],
-  },
-];
-
-const cardSpring: Transition = { type: 'spring', stiffness: 380, damping: 28 };
-const tapSpring: Transition = { type: 'spring', stiffness: 500, damping: 35 };
+import { PricingCards } from '@/components/PricingCards';
+import { PLANS, type Product } from '@/config/pricing';
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -94,19 +23,9 @@ const getSuccessUrl = (product: Product) => `/checkout-success?product=${product
 
 export default function PricingPage() {
   const router = useRouter();
-  const { user, loading: authLoading, session, signOut } = useAuth();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const planRefs = useRef<Record<Product, HTMLDivElement | null>>({ open_mic: null, artist: null, label: null, industry: null, demo: null });
+  const { user, session, signOut } = useAuth();
   const [focusedPlan, setFocusedPlan] = useState<Product>('label');
   const [purchasingProduct, setPurchasingProduct] = useState<Product | null>(null);
-
-  useEffect(() => {
-    if (authLoading) return;
-    const t = setTimeout(() => {
-      planRefs.current[focusedPlan]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
-    }, 100);
-    return () => clearTimeout(t);
-  }, [authLoading, focusedPlan]);
 
   const fallbackToCheckout = async (product: Product) => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -252,7 +171,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Pricing cards – horizontal scroll on mobile, grid on desktop */}
+      {/* Pricing cards */}
       <section className="px-4 sm:px-6 lg:px-8 pt-8 pb-10">
         {user && user.hasValidCard !== true && (
           <div className="max-w-6xl mx-auto mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
@@ -261,67 +180,17 @@ export default function PricingPage() {
             </p>
           </div>
         )}
-        <div
-          ref={scrollRef}
-          className="max-w-6xl mx-auto flex sm:grid sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 overflow-x-auto overflow-y-visible pt-6 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:overflow-visible video-gallery-scroll"
-        >
-          {PLANS.map((p) => {
-            const isFocused = focusedPlan === p.id;
-            return (
-              <motion.div
-                key={p.id}
-                ref={(el) => { planRefs.current[p.id] = el; }}
-                role="button"
-                tabIndex={0}
-                onClick={() => setFocusedPlan(p.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFocusedPlan(p.id); } }}
-                animate={{
-                  scale: isFocused ? 1.02 : 1,
-                  y: isFocused ? -4 : 0,
-                  boxShadow: isFocused
-                    ? '0 20px 40px -12px rgba(168, 85, 247, 0.35), 0 0 0 2px rgba(192, 132, 252, 0.5)'
-                    : '0 0 0 0 rgba(0,0,0,0)',
-                }}
-                transition={cardSpring}
-                whileHover={!isFocused ? { scale: 1.02, y: -2 } : undefined}
-                whileTap={{ scale: 0.98, transition: tapSpring }}
-                className={`
-                  flex-shrink-0 w-[300px] sm:w-auto snap-center rounded-2xl p-6 sm:p-7 flex flex-col cursor-pointer
-                  ${isFocused
-                    ? 'bg-gradient-to-br from-purple-600 to-violet-700 border-0'
-                    : 'bg-slate-900/80 border border-slate-700/80 hover:border-slate-600'
-                  }
-                `}
-              >
-                {p.featured && (
-                  <span className="inline-block text-[10px] font-semibold text-purple-200 uppercase tracking-wider mb-3">
-                    Most popular
-                  </span>
-                )}
-                <h3 className="text-xl font-bold text-white">{p.name}</h3>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-white">${p.price}</span>
-                  <span className={isFocused ? 'text-purple-200 text-sm' : 'text-slate-400 text-sm'}>{p.period}</span>
-                </div>
-                <p className={isFocused ? 'text-purple-100 text-sm mt-2' : 'text-slate-400 text-sm mt-2'}>{p.description}</p>
-                <p className={isFocused ? 'text-purple-200/90 text-xs mt-1' : 'text-slate-500 text-xs mt-1'}>{p.credits} credits</p>
-                <div className="mt-6 flex-1" />
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleSelect(p.id); }}
-                  disabled={!!purchasingProduct || (!!user && user.hasValidCard !== true)}
-                  className={`
-                    w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed
-                    ${isFocused
-                      ? 'bg-white text-purple-600 hover:bg-white/95'
-                      : 'bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500'
-                    }
-                  `}
-                >
-                  {purchasingProduct === p.id ? 'Processing…' : user ? p.cta : 'Sign in to buy'}
-                </button>
-              </motion.div>
-            );
-          })}
+        <div className="max-w-6xl mx-auto pt-6">
+          <PricingCards
+            variant="app"
+            plans={PLANS}
+            focusedPlan={focusedPlan}
+            onCardFocus={setFocusedPlan}
+            onSelect={handleSelect}
+            purchasingProduct={purchasingProduct}
+            user={user}
+            scrollOnMobile
+          />
         </div>
         <p className="max-w-6xl mx-auto mt-4 text-center text-xs text-slate-500">
           Subscriptions renew monthly. One-time does not auto-renew.
