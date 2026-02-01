@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { isSignupsDisabledError, INSTAGRAM_LAUNCH_URL } from '@/lib/auth-errors';
+import { PricingCards } from '@/components/PricingCards';
+import { type Product } from '@/config/pricing';
 
 const SIGNUP_CHANNEL = 'socialsignup';
 
@@ -57,6 +59,7 @@ export default function SocialSignupPage() {
   const [message, setMessage] = useState('');
   const [done, setDone] = useState(false);
   const [heroImgError, setHeroImgError] = useState(false);
+  const [focusedPlan, setFocusedPlan] = useState<Product>('label');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +180,18 @@ export default function SocialSignupPage() {
               </div>
             </div>
           </div>
+
+          {/* Pricing cards */}
+          <section className="mb-6 sm:mb-8 -mx-4 sm:-mx-6">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center px-4">
+              Plans That Work for Your AI Artist
+            </h3>
+            <PricingCards
+              variant="landing"
+              focusedPlan={focusedPlan}
+              onCardFocus={(plan) => setFocusedPlan(plan)}
+            />
+          </section>
 
           {/* Form */}
           <div className="flex-1 flex flex-col">
