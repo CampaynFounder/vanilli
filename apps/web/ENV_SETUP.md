@@ -23,6 +23,10 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx   # or pk_live_xxxx in productio
 ADMIN_PASSWORD=your-secure-admin-password
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # From Supabase Dashboard → Settings → API
 
+# Optional: Restrict signup to /socialbeta only (launch mode)
+# When 'true', /auth/signup shows email capture and links to /socialbeta
+NEXT_PUBLIC_SIGNUP_VIA_SOCIALBETA_ONLY=false
+
 # Optional: API Configuration (for other features)
 NEXT_PUBLIC_API_URL=http://localhost:8787
 ```

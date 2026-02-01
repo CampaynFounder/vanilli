@@ -6,8 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { EmailCaptureForm } from '@/components/EmailCaptureForm';
 import { getAuthBackgroundUrl } from '@/lib/auth-background';
 import { isSignupsDisabledError, INSTAGRAM_LAUNCH_URL } from '@/lib/auth-errors';
+
+const SIGNUP_VIA_SOCIALBETA_ONLY = process.env.NEXT_PUBLIC_SIGNUP_VIA_SOCIALBETA_ONLY === 'true';
 
 function ReferralHandler() {
   const searchParams = useSearchParams();
@@ -110,11 +113,17 @@ function SignUpForm() {
           <p className="text-slate-400 mt-2">Create your account</p>
         </div>
 
-        {/* Sign Up Form */}
+        {/* Sign Up Form or Email Capture (when launch mode) */}
         <GlassCard elevated>
-          <h1 className="text-2xl font-bold text-white mb-6">Sign Up</h1>
-
-          <form onSubmit={handleSignUp} className="space-y-4">
+          {SIGNUP_VIA_SOCIALBETA_ONLY ? (
+            <>
+              <h1 className="text-2xl font-bold text-white mb-6">Get Notified</h1>
+              <EmailCaptureForm />
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-white mb-6">Sign Up</h1>
+              <form onSubmit={handleSignUp} className="space-y-4">
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -201,6 +210,8 @@ function SignUpForm() {
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
+            </>
+          )}
 
           {/* Links */}
           <div className="mt-6 text-center">
