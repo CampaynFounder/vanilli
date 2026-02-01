@@ -79,6 +79,16 @@ function getSupabaseClient(): SupabaseClient | null {
   }
 }
 
+// Auth stub for when client is null - prevents "getSession is not a function" crashes
+const authStub = {
+  getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+  getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+  signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+  signUp: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+  signOut: () => Promise.resolve(),
+  onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+};
+
 // Export a getter function instead of direct client
 // Always try to use the real client if possible
 export const supabase = new Proxy({} as SupabaseClient, {
@@ -89,21 +99,26 @@ export const supabase = new Proxy({} as SupabaseClient, {
     if (client) {
       return client[prop as keyof SupabaseClient];
     }
-    
+
+    // Return auth stub so supabase.auth.getSession() etc. don't throw
+    if (prop === 'auth') {
+      return authStub;
+    }
+
     // Only return mock if we truly have no client
     if (prop === 'from') {
       return () => ({
         insert: () => ({
           select: () => ({
-            single: () => Promise.resolve({ 
-              data: null, 
-              error: { 
+            single: () => Promise.resolve({
+              data: null,
+              error: {
                 message: 'Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.',
-                code: 'CONFIG_ERROR'
-              } 
-            })
-          })
-        })
+                code: 'CONFIG_ERROR',
+              },
+            }),
+          }),
+        }),
       });
     }
     // Return a no-op function for other methods
