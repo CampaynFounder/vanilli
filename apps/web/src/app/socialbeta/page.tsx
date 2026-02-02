@@ -21,7 +21,7 @@ function RefHandler() {
   return null;
 }
 
-const HERO_HEADLINE_SRC = '/images/socialsignup/hero-headline.png';
+const HERO_HEADLINE_SRC = '/images/socialbeta/hero-headline.png';
 
 const CAROUSEL_LOGO_SRCS = Array.from({ length: 7 }, (_, i) => ({
   id: `logo-${i + 1}`,
