@@ -162,17 +162,17 @@ function SocialBetaContent() {
             </Link>
           </div>
 
-          <div className="text-center mb-6 sm:mb-8">
-            <div className="min-h-[6rem] sm:min-h-[7rem] flex flex-col items-center justify-center mb-2 sm:mb-3">
+          <div className="text-center mb-6 sm:mb-8 -mx-2 sm:-mx-4">
+            <div className="min-h-[8.4rem] sm:min-h-[9.8rem] flex flex-col items-center justify-center mb-2 sm:mb-3 overflow-visible">
               {heroImgError ? (
                 <h1 className="text-2xl sm:text-3xl font-bold gradient-text-premium">Get Your AI Artist Signed</h1>
               ) : (
-                <div className="opacity-0 animate-reveal-hero w-full max-w-2xl mx-auto px-1">
+                <div className="opacity-0 animate-reveal-hero w-full max-w-[940px] mx-auto px-1 overflow-visible">
                   <Image
                     src={HERO_HEADLINE_SRC}
                     alt="Get Your AI Artist Signed"
-                    width={800}
-                    height={200}
+                    width={1120}
+                    height={280}
                     className="w-full h-auto object-contain"
                     priority
                     onError={() => setHeroImgError(true)}
