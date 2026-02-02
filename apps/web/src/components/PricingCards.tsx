@@ -25,8 +25,8 @@ const cardVariants: Variants = {
 
 interface PricingCardsProps {
   plans?: Plan[];
-  /** Landing: link to signin/pricing. App: full checkout flow */
-  variant: 'landing' | 'app';
+  /** Landing: link to pricing. App: checkout flow. Socialbeta: selectable only, no buttons */
+  variant: 'landing' | 'app' | 'socialbeta';
   onSelect?: (product: Product) => void;
   onCardFocus?: (product: Product) => void;
   focusedPlan?: Product | null;
@@ -61,7 +61,7 @@ export function PricingCards({
   const resolvedInitial = initialScrollPlan ? (initialScrollPlan === 'open_mic' ? 'artist' : initialScrollPlan) : null;
   const targetPlan =
     (focusedPlan && items.some((p) => p.id === focusedPlan) ? focusedPlan : null) ??
-    (variant === 'landing' && resolvedInitial && items.some((p) => p.id === resolvedInitial) ? resolvedInitial : null) ??
+    ((variant === 'landing' || variant === 'socialbeta') && resolvedInitial && items.some((p) => p.id === resolvedInitial) ? resolvedInitial : null) ??
     'label';
 
   // Smoothly scroll focused card to center (mount + user selection) on mobile/tablet
@@ -114,6 +114,7 @@ export function PricingCards({
   };
 
   const renderButton = (p: Plan) => {
+    if (variant === 'socialbeta') return null;
     if (variant === 'landing') {
       return (
         <Link

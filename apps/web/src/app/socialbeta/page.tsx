@@ -200,7 +200,7 @@ function SocialBetaContent() {
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 sm:mb-4 text-center px-4">
               Plans That Work for Your AI Artist
             </h3>
-            <PricingCards variant="landing" focusedPlan={focusedPlan} onCardFocus={handlePlanFocus} />
+            <PricingCards variant="socialbeta" focusedPlan={focusedPlan} onCardFocus={handlePlanFocus} />
           </section>
 
           <div className="flex-1 flex flex-col">
