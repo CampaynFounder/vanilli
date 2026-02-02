@@ -216,7 +216,7 @@ function SocialBetaContent() {
                     className="space-y-4"
                   >
                     <h2 className="text-xl font-bold text-white text-center">Get Free Credits</h2>
-                    <p className="text-slate-400 text-sm text-center">Verify your payment method to claim 3 free credits. No charge.</p>
+                    <p className="text-slate-400 text-sm text-center">Verify with Stripe Encryption To Receive Free Credits. You will NOT be charged.</p>
                     <button
                       type="button"
                       onClick={handleGetFreeCredits}
@@ -237,8 +237,9 @@ function SocialBetaContent() {
                     className="space-y-4"
                   >
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2">
-                      <p className="text-slate-200 text-sm font-medium">This is a verification step, not a payment.</p>
-                      <p className="text-slate-400 text-xs">You can change or remove your payment method anytime in Profile after you log in. Secured by Stripe — not stored by VANNILLI.</p>
+                      <p className="text-slate-200 text-sm font-medium">Stripe Encrypted Verification</p>
+                      <p className="text-slate-400 text-xs">You can easily delete your account at any time in the Profile after logging in. No commitment. Secured by Stripe. We do not store financial information.</p>
+                      <p className="text-slate-400 text-xs pt-1 border-t border-slate-700/60 mt-2 pt-2">By continuing you authorize VANNILLI to verify your payment method in accordance with VANNILLI&apos;s terms until this authorization is revoked. You can change this at any time with your payment provider.</p>
                     </div>
                     {stripeError && <p className="text-red-400 text-sm">{stripeError}</p>}
                     <SocialBetaStripeStep planId={focusedPlan} accessToken={accessToken} onSuccess={handleStripeSuccess} onError={setStripeError} />
