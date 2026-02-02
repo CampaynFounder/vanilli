@@ -10,8 +10,8 @@ export function GlobalSignupModal() {
   const { session } = useAuth();
 
   useEffect(() => {
-    // Suppress in all logged-in views
-    if (session) return;
+    // Suppress in all logged-in views or on socialbeta (has its own signup flow)
+    if (session || pathname?.startsWith('/socialbeta')) return;
 
     // Show modal on any route/page load (once per session)
     const hasSeenModal = sessionStorage.getItem('vannilli_signup_seen');
@@ -39,13 +39,14 @@ export function GlobalSignupModal() {
       const target = e.target as HTMLElement;
       const link = target.closest('a');
       
-      // Show modal when clicking internal links (except anchors and external links)
+      // Show modal when clicking internal links (except anchors, external, and socialbeta)
       if (link && link.href) {
         const isInternal = link.href.includes(window.location.origin) || link.href.startsWith('/');
         const isAnchor = link.href.includes('#');
         const isExternal = link.href.startsWith('http') && !link.href.includes(window.location.origin);
+        const isSocialBeta = link.href.includes('/socialbeta');
         
-        if (isInternal && !isAnchor && !isExternal) {
+        if (isInternal && !isAnchor && !isExternal && !isSocialBeta) {
           const hasSeenModal = sessionStorage.getItem('vannilli_signup_seen');
           if (!hasSeenModal) {
             sessionStorage.setItem('vannilli_signup_auto_show', 'true');
@@ -60,7 +61,7 @@ export function GlobalSignupModal() {
     return () => document.removeEventListener('click', handleLinkClick, true);
   }, [session]);
 
-  // Do not render the email/signup form for authenticated users on any view
-  if (session) return null;
+  // Do not render the email/signup form for authenticated users or on socialbeta
+  if (session || pathname?.startsWith('/socialbeta')) return null;
   return <SignupForm />;
 }

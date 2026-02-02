@@ -99,9 +99,9 @@ function StripeForm({
         <button
           type="submit"
           disabled={!stripe || submitting}
-          className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none text-white font-semibold transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse"
+          className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none text-white font-semibold text-sm leading-tight transition-all shadow-lg shadow-purple-500/30 animate-glow-pulse"
         >
-          {submitting ? 'Verifying…' : 'Get Verified'}
+          {submitting ? 'Verifying…' : 'Verify with Stripe Encryption To Receive Free Credits. You will NOT be charged.'}
         </button>
       </div>
     </form>
