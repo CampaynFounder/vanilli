@@ -19,6 +19,7 @@ export interface Generation {
   current_stage?: string | null;
   estimated_completion_at?: string | null;
   thumbnail_r2_path?: string | null;
+  refresh_requests_count?: number;
   projects?: {
     track_name: string;
     bpm: number;
@@ -38,6 +39,7 @@ interface VideoChunk {
   chunk_index: number;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   video_url: string | null;
+  kling_video_url?: string | null;
   error_message: string | null;
   credits_charged: number;
 }
@@ -67,6 +69,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
   const [generationTimeRemaining, setGenerationTimeRemaining] = useState<Record<string, number>>({});
   const [generationStages, setGenerationStages] = useState<Record<string, string | null>>({});
   const [deletingGenerations, setDeletingGenerations] = useState<Set<string>>(new Set());
+  const [refreshingGenerationId, setRefreshingGenerationId] = useState<string | null>(null);
   
   // Fetch scenes for generations
   useEffect(() => {
@@ -254,6 +257,39 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     }
   };
   
+  const REFRESH_ELIGIBLE_AFTER_MS = 10 * 60 * 1000; // 10 minutes
+  const MAX_REFRESH_CLICKS = 3;
+
+  const canShowRefresh = (g: Generation): boolean => {
+    if (g.status !== 'processing' && g.status !== 'pending') return false;
+    if ((g.cost_credits ?? 0) <= 0) return false;
+    const count = g.refresh_requests_count ?? 0;
+    if (count >= MAX_REFRESH_CLICKS) return false;
+    const ageMs = new Date(g.created_at).getTime();
+    if (Date.now() - ageMs < REFRESH_ELIGIBLE_AFTER_MS) return false;
+    return true;
+  };
+
+  const handleRecheckCompletion = async (generation: Generation) => {
+    if (!generation.id) return;
+    setRefreshingGenerationId(generation.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('recheck-generation', {
+        body: { generation_id: generation.id },
+      });
+      if (error) {
+        const msg = (data as { error?: string })?.error ?? error.message ?? 'Request failed';
+        alert(msg);
+        return;
+      }
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setRefreshingGenerationId(null);
+    }
+  };
+
   const toggleChunks = (generationId: string) => {
     const newExpanded = new Set(expandedGenerations);
     if (newExpanded.has(generationId)) {
@@ -320,7 +356,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
     );
   };
 
-  // Video player for completed videos - allows playback; thumbnail is playable once loaded
+  // Video player for completed videos - allows playback; supports storage path or full URL (e.g. recheck Fal URL)
   const CompletedVideoPlayer = ({ videoPath }: { videoPath: string }) => {
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
     const [loadError, setLoadError] = useState(false);
@@ -339,6 +375,10 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
 
     useEffect(() => {
       setLoadError(false);
+      if (videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
+        setSignedUrl(videoPath);
+        return;
+      }
       const loadVideo = async () => {
         try {
           const cleanPath = videoPath.startsWith('/') ? videoPath.slice(1) : videoPath;
@@ -405,10 +445,16 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
               {/* Thumbnail or Video Player */}
               <div className="flex-shrink-0 w-32 h-20 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center relative">
                 {generation.status === 'completed' ? (
-                  // Playable video for every completed generation (fallback path if DB missing)
-                  <CompletedVideoPlayer
-                    videoPath={generation.final_video_r2_path || `outputs/${generation.id}/final.mp4`}
-                  />
+                  (() => {
+                    const chunks = chunksByGeneration[generation.id];
+                    const firstChunk = chunks?.[0];
+                    const fallbackUrl = firstChunk?.video_url ?? firstChunk?.kling_video_url;
+                    return (
+                      <CompletedVideoPlayer
+                        videoPath={generation.final_video_r2_path || fallbackUrl || `outputs/${generation.id}/final.mp4`}
+                      />
+                    );
+                  })()
                 ) : isProcessing ? (
                   <ProcessingThumbnail
                     targetImages={generation.video_jobs?.target_images}
@@ -513,32 +559,43 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   </button>
                 )}
                 {(generation.status === 'processing' || generation.status === 'pending') && userId && (
-                  <button
-                    onClick={async () => {
-                      if (!userId) return;
-                      if (!confirm('Are you sure you want to cancel this generation? Credits will not be deducted.')) {
-                        return;
-                      }
-                      try {
-                        const { error } = await supabase.rpc('cancel_generation', {
-                          generation_uuid: generation.id,
-                          user_uuid: userId,
-                        });
-                        if (error) {
-                          console.error('[history] Cancel error:', error);
-                          alert('Failed to cancel generation. Please try again.');
-                        } else {
-                          if (onRefresh) onRefresh();
+                  <>
+                    {canShowRefresh(generation) && (
+                      <button
+                        onClick={() => handleRecheckCompletion(generation)}
+                        disabled={refreshingGenerationId === generation.id}
+                        className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-60"
+                      >
+                        {refreshingGenerationId === generation.id ? 'Rechecking...' : 'Recheck completion'}
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!userId) return;
+                        if (!confirm('Are you sure you want to cancel this generation? Credits will not be deducted.')) {
+                          return;
                         }
-                      } catch (e) {
-                        console.error('[history] Cancel exception:', e);
-                        alert('Failed to cancel generation. Please try again.');
-                      }
-                    }}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all"
-                  >
-                    Cancel
-                  </button>
+                        try {
+                          const { error } = await supabase.rpc('cancel_generation', {
+                            generation_uuid: generation.id,
+                            user_uuid: userId,
+                          });
+                          if (error) {
+                            console.error('[history] Cancel error:', error);
+                            alert('Failed to cancel generation. Please try again.');
+                          } else {
+                            if (onRefresh) onRefresh();
+                          }
+                        } catch (e) {
+                          console.error('[history] Cancel exception:', e);
+                          alert('Failed to cancel generation. Please try again.');
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </>
                 )}
                 {generation.status === 'failed' && generation.error_message && (
                   <p className="text-xs text-red-400 max-w-xs text-right">

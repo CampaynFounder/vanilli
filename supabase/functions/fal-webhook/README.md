@@ -18,6 +18,14 @@ No additional secrets required beyond standard Supabase environment variables:
 supabase functions deploy fal-webhook
 ```
 
+**If you get "Bundle generation timed out":**
+- Use the Management API to bundle (no Docker):  
+  `supabase functions deploy fal-webhook --use-api`
+- Or use Docker explicitly:  
+  `supabase functions deploy fal-webhook --use-docker`
+- Debug:  
+  `supabase functions deploy fal-webhook --debug`
+
 ## Webhook URL
 
 After deployment, your webhook URL will be:

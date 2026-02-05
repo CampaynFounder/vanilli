@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Pin exact version to speed up bundle resolution (avoids "Bundle generation timed out")
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 /**
  * fal.ai Webhook Handler
@@ -81,8 +82,16 @@ serve(async (req) => {
   console.log(`[fal-webhook] Received webhook - request_id: ${payload.request_id}, gateway_request_id: ${payload.gateway_request_id}, status: ${payload.status}`);
   console.log(`[fal-webhook] Using request_id for lookup: ${request_id}`);
 
-  // Find the chunk by fal_request_id (which stores the fal.ai request_id from initial response)
-  // Try request_id first, then gateway_request_id as fallback
+  // Find the chunk by fal_request_id. Fal sends request_id (queue API id) and gateway_request_id
+  // (last retry id); we store the initial response's request_id. Try both in one query so we
+  // always find the chunk regardless of which ID Fal sends in the webhook.
+  const idsToTry: string[] = [];
+  if (payload.request_id) idsToTry.push(payload.request_id);
+  if (payload.gateway_request_id && !idsToTry.includes(payload.gateway_request_id)) {
+    idsToTry.push(payload.gateway_request_id);
+  }
+  console.log(`[fal-webhook] Looking up chunk by fal_request_id in [${idsToTry.join(", ")}]`);
+
   let chunk: {
     id: string;
     job_id: string;
@@ -92,42 +101,23 @@ serve(async (req) => {
     fal_request_id: string | null;
   } | null = null;
   let findError: any = null;
-  
-  if (payload.request_id) {
-    console.log(`[fal-webhook] Searching for chunk with fal_request_id = '${payload.request_id}'`);
+
+  if (idsToTry.length > 0) {
     const result = await supabase
       .from("video_chunks")
       .select("id, job_id, generation_id, chunk_index, status, fal_request_id")
-      .eq("fal_request_id", payload.request_id)
+      .in("fal_request_id", idsToTry)
       .maybeSingle();
     chunk = result.data;
     findError = result.error;
-    
+
     if (chunk) {
       console.log(`[fal-webhook] ✓ Found chunk: id=${chunk.id}, chunk_index=${chunk.chunk_index}, job_id=${chunk.job_id}`);
     } else {
-      console.log(`[fal-webhook] ✗ No chunk found with fal_request_id = '${payload.request_id}'`);
+      console.log(`[fal-webhook] ✗ No chunk found with fal_request_id in [${idsToTry.join(", ")}]`);
       if (findError) {
         console.error(`[fal-webhook] Database error:`, findError);
       }
-    }
-  }
-  
-  // If not found and we have gateway_request_id, try that too
-  if (!chunk && payload.gateway_request_id && payload.gateway_request_id !== payload.request_id) {
-    console.log(`[fal-webhook] request_id not found, trying gateway_request_id: ${payload.gateway_request_id}`);
-    const result = await supabase
-      .from("video_chunks")
-      .select("id, job_id, generation_id, chunk_index, status, fal_request_id")
-      .eq("fal_request_id", payload.gateway_request_id)
-      .maybeSingle();
-    chunk = result.data;
-    findError = result.error;
-    
-    if (chunk) {
-      console.log(`[fal-webhook] ✓ Found chunk with gateway_request_id: id=${chunk.id}, chunk_index=${chunk.chunk_index}`);
-    } else {
-      console.log(`[fal-webhook] ✗ No chunk found with gateway_request_id = '${payload.gateway_request_id}'`);
     }
   }
 
@@ -166,33 +156,21 @@ serve(async (req) => {
   const status = payload.status;
   const now = new Date().toISOString();
 
-  // fal.ai webhook can send "OK" for successful requests or "COMPLETED" for queue-based requests
+  // fal.ai webhook: "OK" for success (docs), "COMPLETED" for queue; "ERROR" / "FAILED" for failure
   if (status === "COMPLETED" || status === "OK") {
     console.log(`[fal-webhook] Processing ${status} status for chunk ${chunk.id}`);
     
-    // Extract video URL from fal.ai response
-    // fal.ai webhook formats can vary:
-    // 1. {"response": {"video": {"url": "..."}}} (queue result format)
-    // 2. {"payload": {"video": {"url": "..."}}} (webhook format)
-    // 3. {"video": {"url": "..."}} (direct format)
-    // 4. {"response": {"video": "..."}} (video as string)
-    // 5. {"video": "..."} (video as direct string)
+    // Extract video URL from fal.ai webhook. Fal docs: result is in "payload" (e.g. payload.video).
+    // Some endpoints may also send "response". Try all known shapes.
     let video_url: string | undefined;
-    
-    // Try all possible paths
     const response_data = payload.response || {};
     const payload_data = payload.payload || {};
-    
-    // Check response.video first (most common for queue API)
-    let video_data = response_data.video;
-    if (!video_data) {
-      // Check payload.video (webhook format)
-      video_data = payload_data.video;
-    }
-    if (!video_data) {
-      // Check direct payload.video
-      video_data = payload.video;
-    }
+
+    // Fal webhook format: payload.video (primary per docs)
+    let video_data =
+      payload_data.video ??
+      response_data.video ??
+      (payload as { video?: { url?: string } | string }).video;
     
     console.log(`[fal-webhook] Extracted video_data:`, JSON.stringify(video_data, null, 2));
     
@@ -286,8 +264,8 @@ serve(async (req) => {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
-  } else if (status === "FAILED") {
-    // Extract error message
+  } else if (status === "FAILED" || status === "ERROR") {
+    // Extract error message (Fal sends "ERROR" in webhook docs, queue may send "FAILED")
     let error_message = "fal.ai video generation failed";
     const error_data = payload.error;
     if (error_data) {

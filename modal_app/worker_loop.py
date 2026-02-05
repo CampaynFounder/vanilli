@@ -86,6 +86,40 @@ def worker_loop():
     # 2. FETCH NEXT PRIORITY JOB
     job = queue_manager.fetch_next_job()
     if not job:
+        # Failover: recover chunks stuck in PROCESSING (webhook missed or worker died after submitting to Fal)
+        try:
+            from datetime import datetime, timedelta
+            cutoff = (datetime.utcnow() - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            stale = supabase.table("video_chunks").select("id, job_id, fal_request_id, chunk_index").eq(
+                "status", "PROCESSING"
+            ).not_.is_("fal_request_id", "null").lt("created_at", cutoff).limit(3).execute()
+            if stale.data and len(stale.data) > 0:
+                fal_api_key = get_fal_api_key()
+                kling_client = KlingClient(fal_api_key)
+                now_iso = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                for row in stale.data:
+                    cid, rid, chunk_idx = row["id"], row["fal_request_id"], row.get("chunk_index", 0)
+                    print(f"[worker] Failover: polling Fal for chunk {cid} (fal_request_id={rid})")
+                    try:
+                        status, video_url = kling_client.poll_status(rid, max_attempts=1)
+                        if status == "succeed" and video_url:
+                            supabase.table("video_chunks").update({
+                                "status": "COMPLETED",
+                                "kling_video_url": video_url,
+                                "kling_completed_at": now_iso,
+                            }).eq("id", cid).execute()
+                            print(f"[worker] Failover: updated chunk {cid} to COMPLETED (chunk_index={chunk_idx})")
+                        elif status == "failed":
+                            supabase.table("video_chunks").update({
+                                "status": "FAILED",
+                                "error_message": "fal.ai task failed (recovered by failover poll)",
+                                "kling_completed_at": now_iso,
+                            }).eq("id", cid).execute()
+                            print(f"[worker] Failover: updated chunk {cid} to FAILED")
+                    except Exception as poll_err:
+                        print(f"[worker] Failover: poll failed for chunk {cid}: {poll_err}")
+        except Exception as failover_err:
+            print(f"[worker] Failover error (non-fatal): {failover_err}")
         print("[worker] Queue empty.")
         return
     
@@ -549,19 +583,25 @@ def process_job_with_chunks(
                 # Store fal_request_id IMMEDIATELY so webhook can find the chunk
                 # This must be done before polling starts, as webhook might arrive first
                 # Note: We store the request_id from the initial POST response
-                # The webhook may send request_id or gateway_request_id, but request_id should match
+                # The webhook may send request_id or gateway_request_id; webhook looks up by both
                 if chunk_id:
                     try:
                         update_result = supabase.table("video_chunks").update({
                             "fal_request_id": task_id,  # fal.ai request_id
                             "kling_requested_at": kling_requested_at,
                         }).eq("id", chunk_id).execute()
-                        if update_result.data:
-                            print(f"[worker] ✓ Stored fal_request_id '{task_id}' for chunk {i+1} (chunk_id: {chunk_id})")
-                            print(f"[worker]   Webhook should be able to find this chunk using request_id: {task_id}")
-                        else:
-                            print(f"[worker] WARNING: Failed to store fal_request_id for chunk {i+1} - update returned no data")
+                        # Supabase .update().execute() may return empty .data; check .error for failure
+                        if getattr(update_result, "error", None):
+                            print(f"[worker] ERROR: Failed to store fal_request_id for chunk {i+1}: {update_result.error}")
                             print(f"[worker]   chunk_id: {chunk_id}, task_id: {task_id}")
+                        else:
+                            print(f"[worker] ✓ Stored fal_request_id '{task_id}' for chunk {i+1} (chunk_id: {chunk_id})")
+                            # Verify webhook can find it (read back)
+                            verify = supabase.table("video_chunks").select("fal_request_id").eq("id", chunk_id).single().execute()
+                            if verify.data and verify.data.get("fal_request_id") == task_id:
+                                print(f"[worker]   Verified: webhook can find this chunk by request_id")
+                            else:
+                                print(f"[worker]   WARNING: Read-back fal_request_id mismatch or missing")
                     except Exception as store_error:
                         print(f"[worker] ERROR: Failed to store fal_request_id for chunk {i+1}: {store_error}")
                         print(f"[worker]   chunk_id: {chunk_id}, task_id: {task_id}")
