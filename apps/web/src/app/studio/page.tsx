@@ -14,6 +14,7 @@ import { GenerationFlow } from '@/components/studio/GenerationFlow';
 import { GenerationPreview } from '@/components/studio/GenerationPreview';
 import { DirectorTrainingTutorial } from '@/components/tutorial/DirectorTrainingTutorial';
 import { AppBackground } from '@/components/AppBackground';
+import { canUseDemoTier } from '@/config/demo-beta';
 
 const BUCKET = 'vannilli';
 const INPUTS = 'inputs';
@@ -38,8 +39,10 @@ function StudioPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
   
-  // Get max images based on tier
-  const maxImages = user?.tier === 'demo' || user?.tier === 'industry' ? 9 : 1;
+  // Demo tier beta: only allowlisted emails can use demo features
+  const hasDemoAccess = user?.tier === 'demo' && canUseDemoTier(user?.email);
+  // Get max images based on tier (demo only if in beta allowlist)
+  const maxImages = hasDemoAccess || user?.tier === 'industry' ? 9 : 1;
   const hasImage = targetImages.length > 0;
 
   // Optional scene prompt: context/environment (motion comes from video). Max 500 chars.
@@ -143,8 +146,8 @@ function StudioPage() {
   // For DEMO and Industry: allow up to credit limit (capped at tier max)
   // For others: fixed 9 seconds
   const getMaxDuration = () => {
-    if (userTier === 'demo') {
-      // DEMO tier: up to credits available, capped at 20 seconds
+    if (hasDemoAccess) {
+      // DEMO tier (beta): up to credits available, capped at 20 seconds
       return Math.min(creditsRemaining, 20);
     }
     if (userTier === 'industry') {
@@ -195,7 +198,7 @@ function StudioPage() {
       }
       // For DEMO and Industry tiers: audio can be different length (uses global alignment + tempo-based scene calculation)
       // For lower tiers: audio must match video length
-      if (userTier !== 'demo' && userTier !== 'industry') {
+      if (!hasDemoAccess && userTier !== 'industry') {
         if (audioWhole > maxDuration) {
           setDurationValidation({ valid: false, error: `Audio must be at most ${maxDuration} seconds` });
           return;
@@ -248,8 +251,8 @@ function StudioPage() {
     const genSecs = durationValidation.generationSeconds;
     const userTier = user?.tier || 'free';
     
-    // For DEMO/Industry tiers, use video_jobs queue. For others, use legacy flow.
-    const useQueueSystem = userTier === 'demo' || userTier === 'industry';
+    // For DEMO (beta allowlist) / Industry tiers, use video_jobs queue. For others, use legacy flow.
+    const useQueueSystem = hasDemoAccess || userTier === 'industry';
 
     setGenerationError(null);
     setIsGenerating(true);

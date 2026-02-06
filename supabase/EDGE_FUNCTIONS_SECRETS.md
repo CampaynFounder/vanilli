@@ -38,6 +38,14 @@ Uses only `STRIPE_SECRET_KEY` (and Supabase auto-injected vars). No extra secret
 
 ---
 
+## recheck-generation only
+
+| Secret | Notes |
+|--------|-------|
+| `FAL_API_KEY` | **Fal.ai** API key. Used to call Fal’s queue API (status/result) when the user clicks “Recheck completion”. Same key as used by the Modal worker for Kling/fal. Get it from [fal.ai dashboard](https://fal.ai/dashboard) → API Keys. |
+
+---
+
 ## Quick checklist
 
 - [ ] `STRIPE_SECRET_KEY`
@@ -46,5 +54,6 @@ Uses only `STRIPE_SECRET_KEY` (and Supabase auto-injected vars). No extra secret
 - [ ] `STRIPE_PRICE_OPEN_MIC`
 - [ ] `STRIPE_PRICE_ARTIST`
 - [ ] `STRIPE_PRICE_LABEL`
+- [ ] `FAL_API_KEY` (for recheck-generation)
 
 **Removed (no longer used):** `STRIPE_PRICE_CREDITS_30`

@@ -116,21 +116,17 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
           
           if (data) {
             if (data.progress_percentage != null) {
-              setGenerationProgress(prev => ({ ...prev, [id]: data.progress_percentage }));
+              setGenerationProgress(prev => (prev[id] === data.progress_percentage ? prev : { ...prev, [id]: data.progress_percentage }));
             }
-            
             if (data.current_stage !== undefined) {
-              setGenerationStages(prev => ({ ...prev, [id]: data.current_stage }));
+              setGenerationStages(prev => (prev[id] === data.current_stage ? prev : { ...prev, [id]: data.current_stage }));
             }
-            
             if (data.estimated_completion_at) {
               const estimated = new Date(data.estimated_completion_at).getTime();
               const now = Date.now();
               const remaining = Math.max(0, Math.floor((estimated - now) / 1000));
               setGenerationTimeRemaining(prev => ({ ...prev, [id]: remaining }));
             }
-            
-            // If completed or failed, refresh the list
             if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
               if (onRefresh) onRefresh();
             }
@@ -177,20 +173,27 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
       let filename: string;
       
       if (chunkIndex !== undefined) {
-        // Download individual chunk
         const chunks = chunksByGeneration[generation.id];
         const chunk = chunks?.[chunkIndex];
-        if (!chunk?.video_url) {
+        path = chunk?.video_url ?? chunk?.kling_video_url ?? '';
+        filename = `vannilli-scene-${chunkIndex + 1}-${generation.id}.mp4`;
+        if (!path) {
           setDownloadError('Scene not available');
           setDownloadErrorId(downloadKey);
           return;
         }
-        path = chunk.video_url;
-        filename = `vannilli-scene-${chunkIndex + 1}-${generation.id}.mp4`;
       } else {
-        // Download final video
-        path = generation.final_video_r2_path || `outputs/${generation.id}/final.mp4`;
+        // Download final video: prefer storage path, else first chunk URL (recheck-completed)
+        const chunks = chunksByGeneration[generation.id];
+        const firstChunk = chunks?.[0];
+        const chunkUrl = firstChunk?.video_url ?? firstChunk?.kling_video_url;
+        path = generation.final_video_r2_path || chunkUrl || '';
         filename = `vannilli-video-${generation.id}.mp4`;
+        if (!path) {
+          setDownloadError('Video file not available. Try expanding Scenes to download individual scenes.');
+          setDownloadErrorId(downloadKey);
+          return;
+        }
       }
       
       // If path is already a full URL, use it directly
@@ -222,27 +225,16 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
         downloadUrl = data.signedUrl;
       }
       
-      // Fetch and download as blob to prevent new tab
       try {
-        const response = await fetch(downloadUrl);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = downloadUrl;
         link.download = filename;
-        link.target = '_self';
         link.rel = 'noopener noreferrer';
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         requestAnimationFrame(() => {
-          if (link.parentNode) {
-            document.body.removeChild(link);
-          }
-          window.URL.revokeObjectURL(url);
+          if (link.parentNode) document.body.removeChild(link);
         });
       } catch (err) {
         console.error('[history] Download failed:', err);
@@ -448,15 +440,21 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                   (() => {
                     const chunks = chunksByGeneration[generation.id];
                     const firstChunk = chunks?.[0];
-                    const fallbackUrl = firstChunk?.video_url ?? firstChunk?.kling_video_url;
+                    const chunkUrl = firstChunk?.video_url ?? firstChunk?.kling_video_url;
+                    const videoSource = generation.final_video_r2_path || chunkUrl;
+                    if (!videoSource) {
+                      return <div className="text-2xl" title="Video not yet available">🎬</div>;
+                    }
                     return (
                       <CompletedVideoPlayer
-                        videoPath={generation.final_video_r2_path || fallbackUrl || `outputs/${generation.id}/final.mp4`}
+                        videoPath={videoSource}
                       />
                     );
                   })()
                 ) : isProcessing ? (
                   <ProcessingThumbnail
+                    key={`processing-${generation.id}`}
+                    generationId={generation.id}
                     targetImages={generation.video_jobs?.target_images}
                     thumbnailPath={generation.thumbnail_r2_path}
                     progress={progress}
@@ -555,7 +553,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-all tap-effect disabled:opacity-60"
                     disabled={downloadId === generation.id}
                   >
-                    {downloadId === generation.id ? 'Preparing...' : 'Download Final'}
+                    {downloadId === generation.id ? 'Preparing...' : 'Download'}
                   </button>
                 )}
                 {(generation.status === 'processing' || generation.status === 'pending') && userId && (
@@ -689,7 +687,7 @@ export function GenerationsList({ generations, userId, onRefresh }: GenerationsL
                             <span className="text-xs text-slate-500">{chunk.credits_charged} credits</span>
                           )}
                         </div>
-                        {chunk.status === 'COMPLETED' && chunk.video_url && (
+                        {chunk.status === 'COMPLETED' && (chunk.video_url || chunk.kling_video_url) && (
                           <button
                             onClick={() => handleDownload(generation, chunk.chunk_index)}
                             className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded transition-all disabled:opacity-60"

@@ -10,6 +10,7 @@ import { Logo } from '@/components/Logo';
 import { AppBackground } from '@/components/AppBackground';
 import { PricingCards } from '@/components/PricingCards';
 import { PLANS, type Product, resolvePricingPlan, getStoredPricingPlan, setStoredPricingPlan } from '@/config/pricing';
+import { canUseDemoTier } from '@/config/demo-beta';
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -222,7 +223,7 @@ function PricingPageContent() {
             purchasingProduct={purchasingProduct}
             user={user}
             scrollOnMobile
-            showDemoTier={!!user}
+            showDemoTier={!!user && canUseDemoTier(user.email)}
           />
         </div>
         <p className="max-w-6xl mx-auto mt-4 text-center text-xs text-slate-500">

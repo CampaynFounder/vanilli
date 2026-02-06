@@ -4,17 +4,19 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface ProcessingThumbnailProps {
+  generationId: string;
   targetImages?: string[];
   thumbnailPath?: string | null;
   progress: number;
   currentStage?: string | null;
 }
 
-export function ProcessingThumbnail({ 
-  targetImages, 
-  thumbnailPath, 
-  progress, 
-  currentStage 
+export function ProcessingThumbnail({
+  generationId,
+  targetImages,
+  thumbnailPath,
+  progress,
+  currentStage,
 }: ProcessingThumbnailProps) {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -75,7 +77,7 @@ export function ProcessingThumbnail({
     };
     
     loadImages();
-  }, [targetImages, thumbnailPath]);
+  }, [generationId, thumbnailPath, targetImages == null ? '' : JSON.stringify(targetImages)]);
 
   // Rotate through images if multiple
   useEffect(() => {
